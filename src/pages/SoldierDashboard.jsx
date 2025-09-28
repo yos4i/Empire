@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Home, Calendar, ClipboardList, LogOut, User } from "lucide-react";
+import { Home, Calendar, ClipboardList, LogOut } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function SoldierDashboard() {

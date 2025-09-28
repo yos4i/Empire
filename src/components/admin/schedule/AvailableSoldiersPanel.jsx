@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Droppable, Draggable } from '@hello-pangea/dnd';
-import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Input } from "../../ui/input";
 import { Badge } from "../../ui/badge";
 import { Button } from "../../ui/button";

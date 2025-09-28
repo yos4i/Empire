@@ -1,5 +1,5 @@
 import { db } from '../config/firebase';
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 export class User {
   static async me() {
