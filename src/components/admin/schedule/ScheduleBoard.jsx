@@ -1,0 +1,343 @@
+import React from 'react';
+import { Droppable, Draggable } from '@hello-pangea/dnd';
+import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
+import { Button } from "../../ui/button";
+import { Badge } from "../../ui/badge";
+import { User, Clock, AlertTriangle, X, Plus, Users as UsersIcon } from 'lucide-react';
+import { DAYS, SHIFT_NAMES, SHIFT_TYPES_HE } from '../../../config/shifts';
+
+const DAYS_HE = {
+  sunday: 'ראשון',
+  monday: 'שני', 
+  tuesday: 'שלישי',
+  wednesday: 'רביעי',
+  thursday: 'חמישי',
+  friday: 'שישי'
+};
+
+export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, onCancelShift, onShiftClick, onDragEnd, isMobile }) {
+  
+  const getShiftStatusColor = (shift, shiftKey) => {
+    if (shift.cancelled) return 'bg-gray-100 border-gray-300';
+    
+    const assigned = shift.soldiers?.length || 0;
+    const required = shift.required || 0;
+    
+    if (assigned === 0) return 'bg-red-50 border-red-200';
+    if (assigned < required) return 'bg-yellow-50 border-yellow-200';
+    if (assigned === required) return 'bg-green-50 border-green-200';
+    return 'bg-blue-50 border-blue-200'; // over-assigned
+  };
+
+  const getRequirementBadgeColor = (assigned, required) => {
+    if (assigned === 0) return 'bg-red-100 text-red-800';
+    if (assigned < required) return 'bg-yellow-100 text-yellow-800';
+    if (assigned === required) return 'bg-green-100 text-green-800';
+    return 'bg-blue-100 text-blue-800';
+  };
+
+  const renderSoldierCard = (soldierId, shiftKey, day, index) => {
+    const soldier = users[soldierId];
+    if (!soldier) return null;
+
+    const soldierShiftCount = soldierShiftCounts[soldierId] || 0;
+    const isOverworked = soldierShiftCount > 6;
+
+    return (
+      <Draggable
+        key={`${soldierId}-${day}-${shiftKey}`}
+        draggableId={`${soldierId}|${day}|${shiftKey}`}
+        index={index}
+        isDragDisabled={isPublished}
+      >
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
+            {...provided.dragHandleProps}
+            className={`
+              p-2 mb-2 rounded border text-sm transition-all
+              ${snapshot.isDragging ? 'shadow-lg rotate-2' : 'shadow-sm'}
+              ${isOverworked ? 'bg-red-100 border-red-300' : 'bg-white border-gray-200'}
+              ${!isPublished ? 'hover:shadow-md cursor-move' : 'cursor-default'}
+            `}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <User className="w-3 h-3 text-gray-500" />
+                <span className="font-medium text-gray-900">{soldier.hebrew_name}</span>
+              </div>
+              {!isPublished && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-4 w-4 p-0 hover:bg-red-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancelShift && onCancelShift(day, shiftKey, soldierId);
+                  }}
+                >
+                  <X className="w-3 h-3 text-red-500" />
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-gray-500">{soldier.rank}</span>
+              <span className="text-xs text-gray-500">•</span>
+              <span className="text-xs text-gray-500">{soldier.unit?.replace('_', ' ')}</span>
+              {isOverworked && (
+                <AlertTriangle className="w-3 h-3 text-red-500" />
+              )}
+            </div>
+            <div className="flex items-center gap-1 mt-1">
+              <Clock className="w-3 h-3 text-gray-400" />
+              <span className="text-xs text-gray-500">
+                {soldierShiftCount} משמרות השבוע
+              </span>
+            </div>
+          </div>
+        )}
+      </Draggable>
+    );
+  };
+
+  const renderShiftCell = (day, shiftKey, shift) => {
+    const shiftInfo = SHIFT_TYPES_HE[shiftKey];
+    const assigned = shift.soldiers?.length || 0;
+    const required = shift.required || 0;
+
+    return (
+      <Droppable droppableId={`${day}|${shiftKey}`} key={`${day}-${shiftKey}`}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            className={`
+              min-h-[200px] p-3 rounded-lg border-2 transition-all
+              ${getShiftStatusColor(shift, shiftKey)}
+              ${snapshot.isDraggingOver ? 'border-blue-400 bg-blue-50' : ''}
+              ${shift.cancelled ? 'opacity-50' : ''}
+            `}
+            onClick={() => onShiftClick && onShiftClick(day, shiftKey, SHIFT_NAMES[shiftKey], DAYS_HE[day])}
+          >
+            {/* Shift Header */}
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="font-semibold text-sm text-gray-900">
+                  {shiftInfo?.name || shiftKey}
+                </h4>
+                <p className="text-xs text-gray-600">
+                  {SHIFT_NAMES[shiftKey]?.split('(')[1]?.replace(')', '') || ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge 
+                  className={`text-xs ${getRequirementBadgeColor(assigned, required)}`}
+                >
+                  {assigned}/{required}
+                </Badge>
+                {shiftInfo?.isLong && (
+                  <Badge variant="outline" className="text-xs">
+                    ארוכה
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Cancelled Shift Notice */}
+            {shift.cancelled && (
+              <div className="bg-gray-200 text-gray-600 text-center py-2 rounded mb-2 text-sm">
+                משמרת מבוטלת
+              </div>
+            )}
+
+            {/* Assigned Soldiers */}
+            <div className="space-y-1">
+              {shift.soldiers?.map((soldierId, index) => 
+                renderSoldierCard(soldierId, shiftKey, day, index)
+              )}
+            </div>
+
+            {/* Add Soldier Button */}
+            {!isPublished && !shift.cancelled && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full mt-2 border-dashed hover:bg-gray-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onShiftClick && onShiftClick(day, shiftKey, SHIFT_NAMES[shiftKey], DAYS_HE[day]);
+                }}
+              >
+                <Plus className="w-4 h-4 ml-1" />
+                הוסף חייל
+              </Button>
+            )}
+
+            {/* Shift Actions */}
+            {!isPublished && (
+              <div className="flex gap-2 mt-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancelShift && onCancelShift(day, shiftKey);
+                  }}
+                >
+                  {shift.cancelled ? 'בטל ביטול' : 'בטל משמרת'}
+                </Button>
+              </div>
+            )}
+
+            {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
+    );
+  };
+
+  if (!schedule || Object.keys(schedule).length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-gray-500">
+            <Clock className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+            <p>טוען נתוני סידור...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UsersIcon className="w-5 h-5" />
+            לוח סידור עבודה
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Desktop Grid Layout */}
+          <div className="hidden md:block overflow-x-auto">
+            <div className="min-w-[1000px]">
+              {/* Header Row - Days as columns */}
+              <div className="grid gap-2 p-4 bg-gray-50 border-b" style={{ gridTemplateColumns: '200px repeat(6, 1fr)' }}>
+                <div className="font-semibold text-center text-gray-700">סוג משמרת</div>
+                {DAYS.map(day => (
+                  <div key={day} className="font-semibold text-center text-gray-700">
+                    {DAYS_HE[day]}
+                  </div>
+                ))}
+              </div>
+
+              {/* Schedule Grid - Each row is a shift type */}
+              {Object.keys(SHIFT_NAMES).map(shiftKey => (
+                <div key={shiftKey} className="grid gap-2 p-4 border-b" style={{ gridTemplateColumns: '200px repeat(6, 1fr)' }}>
+                  {/* Shift Type Header */}
+                  <div className="flex items-center justify-center bg-purple-50 rounded-lg p-4">
+                    <div className="text-center">
+                      <span className="font-medium text-purple-900 block">
+                        {SHIFT_TYPES_HE[shiftKey]?.name || shiftKey}
+                      </span>
+                      <span className="text-xs text-purple-600">
+                        {SHIFT_NAMES[shiftKey]?.split('(')[1]?.replace(')', '') || ''}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Day Cells for this shift */}
+                  {DAYS.map(day => (
+                    <div key={`${day}-${shiftKey}`}>
+                      {schedule[day]?.[shiftKey] ? 
+                        renderShiftCell(day, shiftKey, schedule[day][shiftKey]) :
+                        <div className="min-h-[200px] bg-gray-100 rounded-lg flex items-center justify-center">
+                          <span className="text-gray-400 text-sm">לא זמין</span>
+                        </div>
+                      }
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Mobile Layout */}
+          <div className="md:hidden">
+            {Object.keys(SHIFT_NAMES).map(shiftKey => (
+              <div key={shiftKey} className="border-b last:border-b-0">
+                <div className="bg-purple-50 p-3 border-b">
+                  <h3 className="font-medium text-purple-900">
+                    {SHIFT_TYPES_HE[shiftKey]?.name || shiftKey}
+                  </h3>
+                  <p className="text-xs text-purple-600">
+                    {SHIFT_NAMES[shiftKey]?.split('(')[1]?.replace(')', '') || ''}
+                  </p>
+                </div>
+                <div className="p-3 space-y-3">
+                  {DAYS.map(day => 
+                    schedule[day]?.[shiftKey] && (
+                      <div key={`${day}-${shiftKey}`}>
+                        <div className="text-sm font-medium text-gray-700 mb-2">{DAYS_HE[day]}</div>
+                        {renderShiftCell(day, shiftKey, schedule[day][shiftKey])}
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Schedule Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">סיכום סידור</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {Object.keys(SHIFT_NAMES).map(shiftKey => {
+              const totalAssigned = DAYS.reduce((sum, day) => 
+                sum + (schedule[day]?.[shiftKey]?.soldiers?.length || 0), 0
+              );
+              const totalRequired = DAYS.reduce((sum, day) => 
+                sum + (schedule[day]?.[shiftKey]?.required || 0), 0
+              );
+              const totalCancelled = DAYS.reduce((sum, day) => 
+                sum + (schedule[day]?.[shiftKey]?.cancelled ? 1 : 0), 0
+              );
+
+              return (
+                <div key={shiftKey} className="bg-gray-50 p-3 rounded-lg">
+                  <h4 className="font-medium text-sm mb-2">
+                    {SHIFT_TYPES_HE[shiftKey]?.name || shiftKey}
+                  </h4>
+                  <div className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>משובצים:</span>
+                      <span className={totalAssigned >= totalRequired ? 'text-green-600' : 'text-red-600'}>
+                        {totalAssigned}/{totalRequired}
+                      </span>
+                    </div>
+                    {totalCancelled > 0 && (
+                      <div className="flex justify-between">
+                        <span>מבוטלות:</span>
+                        <span className="text-gray-500">{totalCancelled}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+
