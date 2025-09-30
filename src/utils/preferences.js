@@ -20,10 +20,10 @@ export function parseSlot(raw) {
     return { raw: raw || '', start: '', end: '', label: '' };
   }
 
-  const parts = raw.split('_');
+  const parts = String(raw).split('_');
   
   // Last part is usually the label (Hebrew)
-  const label = parts[parts.length - 1] || '';
+  const label = parts.at(-1) || '';
   
   // Preceding parts are time tokens
   const timeTokens = parts.slice(0, -1);
@@ -74,6 +74,7 @@ export function getSlotDisplayText(slot) {
 
 /**
  * Normalize a raw submission document to a consistent format
+ * Handles both legacy (days at root) and new (shifts object) shapes
  * @param {Object} rawSubmission - Raw Firestore document data
  * @returns {Object} Normalized submission object
  */
@@ -89,9 +90,12 @@ export function normalizeSubmission(rawSubmission) {
     days[day] = [];
   });
 
+  // Prefer new shape (shifts object), fallback to legacy (days at root)
+  const sourceData = rawSubmission.shifts ?? rawSubmission;
+
   // Process each weekday, handling missing or invalid data safely
   WEEKDAYS.forEach(day => {
-    const dayData = rawSubmission[day];
+    const dayData = sourceData[day];
     if (Array.isArray(dayData)) {
       days[day] = dayData.map(slot => parseSlot(slot)).filter(slot => slot.raw);
     } else if (typeof dayData === 'string') {
@@ -103,10 +107,11 @@ export function normalizeSubmission(rawSubmission) {
 
   return {
     id: rawSubmission.id || '',
-    userId: rawSubmission.user_id || '',
+    uid: String(rawSubmission.uid || ''), // Used for join with roster
+    userId: String(rawSubmission.user_id || ''), // Legacy/external ID
     userName: rawSubmission.user_name || '',
     weekStart: rawSubmission.week_start || '',
-    updatedAt: rawSubmission.updated_at ? new Date(rawSubmission.updated_at) : new Date(),
+    updatedAt: rawSubmission.updated_at?.toDate ? rawSubmission.updated_at.toDate() : new Date(rawSubmission.updated_at || Date.now()),
     days
   };
 }

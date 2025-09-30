@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { User } from "../entities/User";
 import { ShiftSubmission } from "../entities/ShiftSubmission";
 import { ClipboardList, AlertTriangle, Calendar, Home } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -10,7 +9,8 @@ import { Progress } from "../components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import ShiftSelectionGrid from "../components/soldier/ShiftSelectionGrid";
 import SubmissionRules from "../components/soldier/SubmissionRules";
-import { startOfWeek, addDays, format } from "date-fns";
+import { startOfWeek, addDays } from "date-fns";
+import { toWeekStartISO } from '../utils/weekKey';
 import { DAYS } from "../config/shifts";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -38,16 +38,27 @@ export default function ShiftSubmissionPage() {
   }, [user, soldierId, navigate]);
 
   const nextWeekStart = addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7);
-  const nextWeekStartStr = format(nextWeekStart, 'yyyy-MM-dd');
+  const nextWeekStartStr = toWeekStartISO(nextWeekStart);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const user = await User.me();
-      setCurrentUser(user);
+      // Use authenticated user instead of User.me()
+      if (!user) {
+        console.error("No authenticated user found");
+        return;
+      }
+      
+      const currentUserData = {
+        id: user.uid, // Use Firebase UID for consistency
+        hebrew_name: user.displayName,
+        full_name: user.displayName,
+        ...user
+      };
+      setCurrentUser(currentUserData);
 
       const submissions = await ShiftSubmission.filter({
-        user_id: user.id,
+        user_id: user.uid, // Use Firebase UID
         week_start: nextWeekStartStr,
       });
 
@@ -59,7 +70,7 @@ export default function ShiftSubmissionPage() {
       console.error("Error loading data", e);
     }
     setLoading(false);
-  }, [nextWeekStartStr]);
+  }, [nextWeekStartStr, user]);
 
   useEffect(() => {
     loadData();
@@ -94,10 +105,12 @@ export default function ShiftSubmissionPage() {
     setSaving(true);
     try {
       const submissionData = {
-        week_start: nextWeekStartStr,
-        shifts: shifts,
-        user_id: currentUser.id,
-        user_name: currentUser.hebrew_name || currentUser.full_name,
+        uid: user.uid, // Canonical for joins
+        user_id: user.uid, // Keep for backward compatibility 
+        user_name: user.displayName,
+        week_start: nextWeekStartStr, // Filter key, ISO string
+        updated_at: new Date(), // Will be converted to serverTimestamp in entity
+        shifts: shifts // New canonical shape
       };
       
       console.log('ShiftSubmissionPage: Submission data:', submissionData);
@@ -105,9 +118,12 @@ export default function ShiftSubmissionPage() {
       if (existingSubmission) {
         console.log('ShiftSubmissionPage: Updating existing submission:', existingSubmission.id);
         await ShiftSubmission.update(existingSubmission.id, {
-          shifts,
-          user_id: currentUser.id,
-          week_start: nextWeekStartStr
+          uid: user.uid,
+          user_id: user.uid,
+          user_name: user.displayName,
+          week_start: nextWeekStartStr,
+          updated_at: new Date(),
+          shifts
         });
       } else {
         console.log('ShiftSubmissionPage: Creating new submission...');

@@ -4,6 +4,7 @@ import { User } from '../entities/User';
 import { ShiftSubmission } from '../entities/ShiftSubmission';
 import { WeeklySchedule } from '../entities/WeeklySchedule';
 import { format, addDays, startOfWeek } from 'date-fns';
+import { toWeekStartISO } from '../utils/weekKey';
 import { Calendar, Save, Send, Sparkles, PanelRightOpen, PanelRightClose, Undo, Eye } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import ScheduleBoard from '../components/admin/schedule/ScheduleBoard';
@@ -34,7 +35,7 @@ export default function ScheduleManagementPage() {
   const [dialogShift, setDialogShift] = useState(null);
 
   const nextWeekStart = addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7);
-  const nextWeekStartStr = format(nextWeekStart, 'yyyy-MM-dd');
+  const nextWeekStartStr = toWeekStartISO(nextWeekStart);
 
   const initializeSchedule = useCallback(() => {
     const newSchedule = {};
@@ -343,8 +344,57 @@ export default function ScheduleManagementPage() {
   };
 
   const normalizedSubmissions = useMemo(() => {
-    return groupSubmissionsByUser(rawSubmissions);
-  }, [rawSubmissions]);
+    // Normalize submissions and group by latest per user
+    const submissionsMap = groupSubmissionsByUser(rawSubmissions);
+    
+    // Create map of submissions by UID for O(1) lookup
+    const submissionsByUid = new Map(submissionsMap.map(sub => [sub.uid, sub]));
+    
+    console.log('ScheduleManagement: Raw submissions:', rawSubmissions);
+    console.log('ScheduleManagement: Processed submissions map:', submissionsMap);
+    console.log('ScheduleManagement: Submissions by UID:', Array.from(submissionsByUid.keys()));
+    
+    // Get all roster soldiers 
+    const allSoldiers = Object.values(users).filter(user => user.role === 'soldier' || user.role === 'user');
+    console.log('ScheduleManagement: All soldier UIDs:', allSoldiers.map(u => u.id));
+    
+    // Join roster with submissions
+    const submitted = [];
+    const notSubmitted = [];
+    
+    allSoldiers.forEach(soldier => {
+      const submission = submissionsByUid.get(soldier.id);
+      if (submission) {
+        // Update submission with soldier info for consistency
+        submission.userName = soldier.hebrew_name || soldier.displayName || soldier.full_name || submission.userName || 'ללא שם';
+        submitted.push(submission);
+      } else {
+        // Create empty submission for soldiers who didn't submit
+        notSubmitted.push({
+          id: `missing_${soldier.id}`,
+          uid: soldier.id,
+          userId: soldier.id, 
+          userName: soldier.hebrew_name || soldier.displayName || soldier.full_name || 'ללא שם',
+          weekStart: nextWeekStartStr,
+          updatedAt: new Date(0), // Very old date to sort last
+          days: {
+            sunday: [],
+            monday: [],
+            tuesday: [],
+            wednesday: [],
+            thursday: [],
+            friday: [],
+            saturday: []
+          }
+        });
+      }
+    });
+    
+    console.log('ScheduleManagement: Submitted soldiers:', submitted.map(s => `${s.uid}: ${s.userName}`));
+    console.log('ScheduleManagement: Not submitted soldiers:', notSubmitted.map(s => `${s.uid}: ${s.userName}`));
+    
+    return [...submitted, ...notSubmitted];
+  }, [rawSubmissions, users, nextWeekStartStr]);
 
   if (loading) return <div className="p-6 text-center">טוען נתונים...</div>;
   

@@ -1,5 +1,5 @@
 import { db } from '../config/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, serverTimestamp } from 'firebase/firestore';
 
 export class ShiftSubmission {
   static async list() {
@@ -21,7 +21,7 @@ export class ShiftSubmission {
       let q = collection(db, 'shift_submissions');
       
       if (filters.user_id) {
-        q = query(q, where('user_id', '==', filters.user_id));
+        q = query(q, where('uid', '==', filters.user_id)); // Use uid for querying
       }
       if (filters.week_start) {
         q = query(q, where('week_start', '==', filters.week_start));
@@ -45,27 +45,30 @@ export class ShiftSubmission {
     try {
       console.log("ShiftSubmission.create: Creating submission:", data);
       
+      // Prepare data with server timestamp
+      const submissionData = {
+        ...data,
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp()
+      };
+      
       // Store submission in both places:
       // 1. In shift_submissions collection (for admin queries)
-      const docRef = await addDoc(collection(db, 'shift_submissions'), {
-        ...data,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      });
+      const docRef = await addDoc(collection(db, 'shift_submissions'), submissionData);
       console.log("ShiftSubmission.create: Successfully created in shift_submissions with ID:", docRef.id);
       
-      // 2. In user document (for easier access)
-      if (data.user_id) {
+      // 2. In user document (for easier access) - use uid for consistent identification
+      if (data.uid) {
         try {
-          const userDoc = doc(db, 'users', data.user_id);
+          const userDoc = doc(db, 'users', data.uid);
           const weeklyShifts = {};
           weeklyShifts[`weekly_shifts.${data.week_start}`] = {
             shifts: data.shifts,
-            submitted_at: new Date().toISOString()
+            submitted_at: serverTimestamp()
           };
           
           await updateDoc(userDoc, weeklyShifts);
-          console.log("ShiftSubmission.create: Also saved to user document:", data.user_id);
+          console.log("ShiftSubmission.create: Also saved to user document:", data.uid);
         } catch (userError) {
           console.error('ShiftSubmission.create: Error updating user document:', userError);
           // Continue even if user update fails
@@ -87,22 +90,22 @@ export class ShiftSubmission {
       const docRef = doc(db, 'shift_submissions', id);
       await updateDoc(docRef, {
         ...data,
-        updated_at: new Date().toISOString()
+        updated_at: serverTimestamp()
       });
       console.log("ShiftSubmission.update: Successfully updated in shift_submissions");
       
-      // Also update in user document if we have user_id
-      if (data.user_id && data.week_start) {
+      // Also update in user document if we have uid - use uid for consistent identification
+      if (data.uid && data.week_start) {
         try {
-          const userDoc = doc(db, 'users', data.user_id);
+          const userDoc = doc(db, 'users', data.uid);
           const weeklyShifts = {};
           weeklyShifts[`weekly_shifts.${data.week_start}`] = {
             shifts: data.shifts,
-            submitted_at: new Date().toISOString()
+            submitted_at: serverTimestamp()
           };
           
           await updateDoc(userDoc, weeklyShifts);
-          console.log("ShiftSubmission.update: Also updated user document:", data.user_id);
+          console.log("ShiftSubmission.update: Also updated user document:", data.uid);
         } catch (userError) {
           console.error('ShiftSubmission.update: Error updating user document:', userError);
         }
