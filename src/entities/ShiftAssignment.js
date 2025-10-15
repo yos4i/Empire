@@ -17,37 +17,88 @@ export class ShiftAssignment {
 
   static async filter(filters) {
     try {
-      console.log("ShiftAssignment.filter: Filtering with:", filters);
+      console.log("🔍 ShiftAssignment.filter: Filtering with:", filters);
       let q = collection(db, 'shift_assignments');
-      
+
       if (filters.soldier_id) {
         q = query(q, where('soldier_id', '==', filters.soldier_id));
+        console.log("📌 ShiftAssignment.filter: Added soldier_id filter:", filters.soldier_id);
       }
       if (filters.date) {
         q = query(q, where('date', '==', filters.date));
+        console.log("📌 ShiftAssignment.filter: Added date filter:", filters.date);
       }
       if (filters.shift_type) {
         q = query(q, where('shift_type', '==', filters.shift_type));
+        console.log("📌 ShiftAssignment.filter: Added shift_type filter:", filters.shift_type);
       }
       if (filters.status) {
         q = query(q, where('status', '==', filters.status));
+        console.log("📌 ShiftAssignment.filter: Added status filter:", filters.status);
       }
       if (filters.start_date && filters.end_date) {
         q = query(q, where('date', '>=', filters.start_date), where('date', '<=', filters.end_date));
+        console.log("📌 ShiftAssignment.filter: Added date range:", filters.start_date, "to", filters.end_date);
       }
-      
-      q = query(q, orderBy('date', 'desc'), orderBy('created_at', 'desc'));
-      
-      const assignmentsSnapshot = await getDocs(q);
-      const results = assignmentsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      console.log("ShiftAssignment.filter: Found assignments:", results);
-      return results;
+
+      // Try with orderBy first, fallback to no orderBy if it fails (missing index)
+      try {
+        q = query(q, orderBy('date', 'desc'), orderBy('created_at', 'desc'));
+        console.log("🔎 ShiftAssignment.filter: Executing Firestore query with orderBy...");
+        const assignmentsSnapshot = await getDocs(q);
+        console.log("📊 ShiftAssignment.filter: Query returned", assignmentsSnapshot.docs.length, "documents");
+
+        const results = assignmentsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        console.log("✅ ShiftAssignment.filter: Processed results:", results);
+        return results;
+      } catch (orderByError) {
+        console.warn("⚠️ ShiftAssignment.filter: orderBy failed (likely missing index), trying without orderBy:", orderByError.message);
+
+        // Retry without orderBy
+        q = collection(db, 'shift_assignments');
+
+        if (filters.soldier_id) {
+          q = query(q, where('soldier_id', '==', filters.soldier_id));
+        }
+        if (filters.date) {
+          q = query(q, where('date', '==', filters.date));
+        }
+        if (filters.shift_type) {
+          q = query(q, where('shift_type', '==', filters.shift_type));
+        }
+        if (filters.status) {
+          q = query(q, where('status', '==', filters.status));
+        }
+        if (filters.start_date && filters.end_date) {
+          q = query(q, where('date', '>=', filters.start_date), where('date', '<=', filters.end_date));
+        }
+
+        console.log("🔎 ShiftAssignment.filter: Executing Firestore query WITHOUT orderBy...");
+        const assignmentsSnapshot = await getDocs(q);
+        console.log("📊 ShiftAssignment.filter: Query returned", assignmentsSnapshot.docs.length, "documents");
+
+        const results = assignmentsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+
+        // Sort manually in JavaScript
+        results.sort((a, b) => {
+          if (a.date > b.date) return -1;
+          if (a.date < b.date) return 1;
+          return 0;
+        });
+
+        console.log("✅ ShiftAssignment.filter: Processed and sorted results:", results);
+        return results;
+      }
     } catch (error) {
-      console.error('ShiftAssignment.filter: Error filtering:', error);
+      console.error('❌ ShiftAssignment.filter: Error filtering:', error);
+      console.error('❌ Full error:', error);
       return [];
     }
   }

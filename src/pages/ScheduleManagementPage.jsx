@@ -409,6 +409,8 @@ export default function ScheduleManagementPage() {
     }
 
     let updatedSchedule = null;
+    let isAdding = false;
+    let isRemoving = false;
 
     setSchedule(prev => {
       const newSchedule = JSON.parse(JSON.stringify(prev));
@@ -420,6 +422,7 @@ export default function ScheduleManagementPage() {
           // Soldier is already in this shift - remove them
           newSchedule[day][shiftKey].soldiers.splice(soldierIndex, 1);
           console.log('🗑️ Soldier removed from shift:', soldier.hebrew_name);
+          isRemoving = true;
         } else {
           // Soldier not in shift - add them (with confirmation if already at 6+ shifts)
           const currentCount = soldierShiftCounts[selectedSoldierId] || 0;
@@ -430,6 +433,7 @@ export default function ScheduleManagementPage() {
           }
           newSchedule[day][shiftKey].soldiers.push(selectedSoldierId);
           console.log('✅ Soldier assigned to shift:', soldier.hebrew_name);
+          isAdding = true;
         }
         updatedSchedule = newSchedule;
       } else {
@@ -444,9 +448,11 @@ export default function ScheduleManagementPage() {
       setTimeout(async () => {
         try {
           console.log('💾 Auto-saving after assignment...');
+
+          // 1. Save to weekly_schedules collection
           if (weeklyScheduleEntity) {
             await WeeklySchedule.update(weeklyScheduleEntity.id, { schedule: updatedSchedule });
-            console.log('✅ Assignment auto-saved successfully!');
+            console.log('✅ Weekly schedule updated successfully!');
           } else {
             const newEntity = await WeeklySchedule.create({
               week_start: nextWeekStartStr,
@@ -456,8 +462,86 @@ export default function ScheduleManagementPage() {
             setWeeklyScheduleEntity(newEntity);
             console.log('✅ New schedule created and saved!');
           }
+
+          // 2. Calculate the date for this day
+          const dayIndex = DAYS.indexOf(day);
+          const shiftDate = format(addDays(nextWeekStart, dayIndex), 'yyyy-MM-dd');
+
+          // 3. Create or delete shift_assignment for the soldier
+          if (isAdding) {
+            console.log('🔍 Creating shift assignment for soldier:', {
+              selectedSoldierId,
+              soldier,
+              day,
+              shiftKey,
+              shiftDate
+            });
+
+            // Extract start and end times from shift key (e.g., "קריית_חינוך_בוקר_07_1430" -> "07:00", "14:30")
+            const timeMatch = shiftKey.match(/(\d{2})_(\d{2,4})$/);
+            let startTime = '00:00';
+            let endTime = '23:59';
+
+            if (timeMatch) {
+              const start = timeMatch[1];
+              const end = timeMatch[2];
+              startTime = `${start}:00`;
+              if (end.length === 4) {
+                endTime = `${end.substring(0, 2)}:${end.substring(2)}`;
+              } else {
+                endTime = `${end}:00`;
+              }
+            }
+
+            // Use soldier.uid if available (Firebase Auth ID), otherwise use the document ID
+            const soldierIdToUse = soldier.uid || selectedSoldierId;
+
+            // Create a new shift assignment so soldier can see it
+            const assignmentData = {
+              soldier_id: soldierIdToUse,
+              soldier_name: soldier.hebrew_name || soldier.displayName || soldier.full_name,
+              date: shiftDate,
+              day_name: day,
+              shift_type: shiftKey,
+              shift_name: SHIFT_NAMES[shiftKey],
+              start_time: startTime,
+              end_time: endTime,
+              week_start: nextWeekStartStr,
+              status: 'assigned'
+            };
+
+            console.log('📝 Assignment data to save:', assignmentData);
+
+            const result = await ShiftAssignment.create(assignmentData);
+            console.log('✅ Shift assignment created successfully!', result);
+          } else if (isRemoving) {
+            // Use soldier.uid if available (Firebase Auth ID), otherwise use the document ID
+            const soldierIdToUse = soldier.uid || selectedSoldierId;
+
+            // Delete the shift assignment for this soldier/date/shift
+            console.log('🗑️ Removing shift assignment:', {
+              soldier_id: soldierIdToUse,
+              date: shiftDate,
+              shift_type: shiftKey
+            });
+
+            const existingAssignments = await ShiftAssignment.filter({
+              soldier_id: soldierIdToUse,
+              date: shiftDate,
+              shift_type: shiftKey
+            });
+
+            console.log('Found assignments to delete:', existingAssignments);
+
+            for (const assignment of existingAssignments) {
+              await ShiftAssignment.delete(assignment.id);
+              console.log('✅ Shift assignment deleted:', assignment.id);
+            }
+          }
+
         } catch (e) {
           console.error('❌ Error auto-saving:', e);
+          alert('שגיאה בשמירת השיבוץ. אנא נסה שוב.');
         }
       }, 1000);
     }

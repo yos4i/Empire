@@ -95,22 +95,24 @@ export class SoldierApiService {
    */
   static async getMyAssignments(soldierId, date = null) {
     try {
-      console.log('SoldierApi.getMyAssignments:', { soldierId, date });
-      
+      console.log('🔍 SoldierApi.getMyAssignments called with:', { soldierId, date });
+
       const filters = { soldier_id: soldierId };
-      
+
       if (date) {
         // Get assignments for specific date or week
         const weekStart = toWeekStartISO(new Date(date));
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 6);
-        
+
         filters.start_date = weekStart;
         filters.end_date = weekEnd.toISOString().split('T')[0];
       }
-      
+
+      console.log('📊 SoldierApi: Querying ShiftAssignment with filters:', filters);
       const assignments = await ShiftAssignment.filter(filters);
-      
+      console.log('📦 SoldierApi: Raw assignments from DB:', assignments);
+
       // Get shift definitions for additional info
       const shifts = await ShiftDefinition.list();
       const shiftsMap = shifts.reduce((acc, shift) => {
@@ -118,14 +120,14 @@ export class SoldierApiService {
         acc[shift.name_en] = shift;
         return acc;
       }, {});
-      
+
       const enrichedAssignments = assignments.map(assignment => ({
         ...assignment,
         shift_definition: shiftsMap[assignment.shift_type],
         shift_display_name: shiftsMap[assignment.shift_type]?.name || assignment.shift_name || assignment.shift_type
       }));
-      
-      console.log('SoldierApi.getMyAssignments: Found', enrichedAssignments.length, 'assignments');
+
+      console.log('✅ SoldierApi.getMyAssignments: Returning', enrichedAssignments.length, 'enriched assignments');
       return enrichedAssignments;
     } catch (error) {
       console.error('SoldierApi.getMyAssignments: Error:', error);

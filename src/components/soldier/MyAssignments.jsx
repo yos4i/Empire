@@ -25,7 +25,7 @@ const WEEKDAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמי
 
 export default function MyAssignments() {
   const { user } = useAuth();
-  const [selectedDate, setSelectedDate] = useState(() => 
+  const [selectedDate, setSelectedDate] = useState(() =>
     addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7)
   );
   const [assignments, setAssignments] = useState([]);
@@ -36,6 +36,39 @@ export default function MyAssignments() {
 
   const weekStart = toWeekStartISO(selectedDate);
 
+  // Debug helper - expose to window for console debugging
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.debugMyAssignments = {
+        userId: user?.uid,
+        weekStart,
+        assignments,
+        stats,
+        user: user,
+        fetchAssignments: () => {
+          console.log('🔧 Manual fetch triggered');
+          fetchAssignments();
+        },
+        testQuery: async () => {
+          console.log('🧪 Testing direct query to Firestore...');
+          console.log('🔍 User ID:', user?.uid);
+          console.log('🔍 Week Start:', weekStart);
+
+          try {
+            const result = await SoldierApiService.getMyAssignments(user?.uid, weekStart);
+            console.log('✅ Query result:', result);
+            return result;
+          } catch (err) {
+            console.error('❌ Query error:', err);
+            return err;
+          }
+        }
+      };
+      console.log('🔧 Debug helper available: window.debugMyAssignments');
+      console.log('🔧 Run window.debugMyAssignments.testQuery() to test the query');
+    }
+  }, [user?.uid, weekStart, assignments, stats, fetchAssignments]);
+
   // Load assignments
   const fetchAssignments = useCallback(async () => {
     if (!user?.uid) return;
@@ -44,19 +77,21 @@ export default function MyAssignments() {
     setError(null);
     
     try {
-      console.log('MyAssignments: Fetching assignments for soldier:', user.uid, 'week:', weekStart);
-      
+      console.log('🔍 MyAssignments: Fetching assignments for soldier:', user.uid, 'week:', weekStart);
+      console.log('🔍 MyAssignments: User object:', user);
+
       const [assignmentsData, statsData] = await Promise.all([
         SoldierApiService.getMyAssignments(user.uid, weekStart),
-        SoldierApiService.getMyStats(user.uid, weekStart, 
+        SoldierApiService.getMyStats(user.uid, weekStart,
           format(addDays(new Date(weekStart), 6), 'yyyy-MM-dd')
         )
       ]);
-      
+
       setAssignments(assignmentsData);
       setStats(statsData);
-      
-      console.log('MyAssignments: Loaded', assignmentsData.length, 'assignments');
+
+      console.log('✅ MyAssignments: Loaded', assignmentsData.length, 'assignments');
+      console.log('📋 MyAssignments: Assignment details:', assignmentsData);
     } catch (error) {
       console.error('MyAssignments: Error fetching assignments:', error);
       setError(error.message);
