@@ -36,8 +36,6 @@ export default function AddSoldierDialog({ isOpen, onClose, onAddSoldier }) {
 
     if (!formData.password.trim()) {
       newErrors.password = 'סיסמה נדרשת';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'סיסמה חייבת להכיל לפחות 6 תווים';
     }
 
     if (!formData.displayName.trim()) {
@@ -46,8 +44,6 @@ export default function AddSoldierDialog({ isOpen, onClose, onAddSoldier }) {
 
     if (!formData.personal_number.trim()) {
       newErrors.personal_number = 'מספר אישי נדרש';
-    } else if (!/^\d{8,9}$/.test(formData.personal_number)) {
-      newErrors.personal_number = 'מספר אישי חייב להכיל 8-9 ספרות';
     }
 
     if (!formData.rank.trim()) {
@@ -207,8 +203,6 @@ export default function AddSoldierDialog({ isOpen, onClose, onAddSoldier }) {
             >
               <option value="קריית_חינוך">קריית חינוך</option>
               <option value="גבולות">גבולות</option>
-              <option value="מודיעין">מודיעין</option>
-              <option value="תחזוקה">תחזוקה</option>
             </select>
           </div>
 

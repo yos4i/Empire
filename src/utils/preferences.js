@@ -22,25 +22,20 @@ export function parseSlot(raw) {
 
   const parts = String(raw).split('_');
   
-  // Last part is usually the label (Hebrew)
-  const label = parts.at(-1) || '';
-  
-  // Preceding parts are time tokens
-  const timeTokens = parts.slice(0, -1);
-  
-  let start = '';
-  let end = '';
-  
-  if (timeTokens.length === 2) {
-    // Format like "1930_1530_ערב"
-    end = timeTokens[0];
-    start = timeTokens[1];
-  } else if (timeTokens.length === 1) {
-    // Format like "1430_בוקר" (only start time)
-    start = timeTokens[0];
+  // Handle new format like "1330_07_בוקר"
+  if (parts.length >= 3) {
+    const start = parts[1];
+    const end = parts[0];
+    const label = parts[2];
+    return {
+      raw,
+      start: start.padStart(4, '0'), // Ensure 4 digits
+      end,
+      label
+    };
   }
-
-  return { raw, start, end, label };
+  
+  return { raw, start: '', end: '', label: parts[0] || '' };
 }
 
 /**

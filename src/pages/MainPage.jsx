@@ -60,3 +60,4 @@ const MainPage = ({ onNavigate, onLogout, userName = 'חייל' }) => {
 export default MainPage;
 
 
+

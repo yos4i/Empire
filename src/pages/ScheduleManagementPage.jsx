@@ -15,7 +15,7 @@ import { useMediaQuery } from '../components/hooks/useMediaQuery';
 import { DAYS, SHIFT_NAMES, SHIFT_REQUIREMENTS } from '../config/shifts';
 import { groupSubmissionsByUser } from '../utils/preferences';
 import { db } from '../config/firebase';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, getDocs } from 'firebase/firestore';
 
 export default function ScheduleManagementPage() {
   const [users, setUsers] = useState({});
@@ -131,31 +131,39 @@ export default function ScheduleManagementPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Real-time listener for shift submissions
+  // Fetch shift submissions for Preferences Panel
   useEffect(() => {
     if (!isPreferencesPanelOpen) return;
-
     setPreferencesLoading(true);
-    
-    const q = query(
-      collection(db, 'shift_submissions'),
-      where('week_start', '==', nextWeekStartStr),
-      orderBy('updated_at', 'desc')
-    );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const submissions = snapshot.docs.map(doc => ({ 
-        id: doc.id, 
-        ...doc.data() 
-      }));
-      setRawSubmissions(submissions);
+    const fetchSubmissions = async () => {
+      try {
+        const q = query(
+          collection(db, 'shift_submissions'),
+          where('week_start', '==', nextWeekStartStr),
+          orderBy('updated_at', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        const submissions = snapshot.docs.map(doc => {
+          const d = doc.data();
+          return {
+            id: doc.id,
+            userName: d.userName,
+            userId: d.user_id,
+            days: d.days,
+            shifts: d.shifts,
+            updatedAt: d.updated_at?.toDate ? d.updated_at.toDate() : null,
+            weekStart: d.week_start
+          };
+        });
+        setRawSubmissions(submissions);
+      } catch (error) {
+        console.error('Error fetching submissions:', error);
+      }
       setPreferencesLoading(false);
-    }, (error) => {
-      console.error('Error listening to submissions:', error);
-      setPreferencesLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    fetchSubmissions();
   }, [isPreferencesPanelOpen, nextWeekStartStr]);
   
   const soldierShiftCounts = useMemo(() => {
@@ -344,19 +352,58 @@ export default function ScheduleManagementPage() {
   };
 
   const normalizedSubmissions = useMemo(() => {
-    // Normalize submissions and group by latest per user
-    const submissionsMap = groupSubmissionsByUser(rawSubmissions);
+    // First normalize the raw submissions to have consistent field names
+    const normalizedRaw = rawSubmissions.map(sub => {
+      console.log('Raw submission:', sub);
+      
+      // Convert the Firestore data structure to the expected format
+      const normalizedDays = {};
+      
+      // Initialize all days
+      ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].forEach(day => {
+        normalizedDays[day] = [];
+      });
+
+      // Process each day's data
+      Object.entries(sub).forEach(([key, value]) => {
+        if (['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].includes(key)) {
+          if (typeof value === 'object') {
+            // Get all true shifts for this day
+            const shifts = Object.entries(value)
+              .filter(([_, isSelected]) => isSelected === true)
+              .map(([shiftName]) => shiftName);
+            normalizedDays[key] = shifts;
+          }
+        }
+      });
+
+      console.log('Normalized days:', normalizedDays);
+
+      const normalized = {
+        id: sub.id,
+        userId: sub.user_id || sub.uid || sub.userId,
+        uid: sub.user_id || sub.uid || sub.userId,
+        userName: sub.userName || sub.name || 'ללא שם',
+        updatedAt: sub.updated_at?.toDate?.() || sub.updatedAt || new Date(),
+        days: normalizedDays,
+        weekStart: sub.week_start || sub.weekStart
+      };
+
+      console.log('Normalized submission:', normalized);
+      return normalized;
+    });
+    
+    // Group by latest submission per user
+    const submissionsMap = groupSubmissionsByUser(normalizedRaw);
     
     // Create map of submissions by UID for O(1) lookup
-    const submissionsByUid = new Map(submissionsMap.map(sub => [sub.uid, sub]));
+    const submissionsByUid = new Map(submissionsMap.map(sub => [sub.userId, sub]));
     
-    console.log('ScheduleManagement: Raw submissions:', rawSubmissions);
-    console.log('ScheduleManagement: Processed submissions map:', submissionsMap);
+    console.log('ScheduleManagement: Normalized submissions:', normalizedRaw);
     console.log('ScheduleManagement: Submissions by UID:', Array.from(submissionsByUid.keys()));
     
     // Get all roster soldiers 
     const allSoldiers = Object.values(users).filter(user => user.role === 'soldier' || user.role === 'user');
-    console.log('ScheduleManagement: All soldier UIDs:', allSoldiers.map(u => u.id));
     
     // Join roster with submissions
     const submitted = [];
@@ -366,8 +413,12 @@ export default function ScheduleManagementPage() {
       const submission = submissionsByUid.get(soldier.id);
       if (submission) {
         // Update submission with soldier info for consistency
-        submission.userName = soldier.hebrew_name || soldier.displayName || soldier.full_name || submission.userName || 'ללא שם';
-        submitted.push(submission);
+        submitted.push({
+          ...submission,
+          userName: soldier.hebrew_name || soldier.displayName || soldier.full_name || submission.userName || 'ללא שם',
+          userId: soldier.id,
+          uid: soldier.id
+        });
       } else {
         // Create empty submission for soldiers who didn't submit
         notSubmitted.push({
@@ -494,5 +545,6 @@ export default function ScheduleManagementPage() {
     </DragDropContext>
   );
 }
+
 
 

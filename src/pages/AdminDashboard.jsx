@@ -7,7 +7,7 @@ import { Button } from "../components/ui/button";
 import { useAuth } from "../contexts/AuthContext";
 import AddSoldierDialog from "../components/admin/AddSoldierDialog";
 import { db } from "../config/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 
 export default function AdminDashboard() {
   const { user, signOut, addSoldier } = useAuth();
@@ -17,11 +17,52 @@ export default function AdminDashboard() {
     await signOut();
     navigate('/login');
   };
+  const [submissions, setSubmissions] = useState([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const [soldiers, setSoldiers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterUnit, setFilterUnit] = useState("הכל");
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [weekStart, setWeekStart] = useState("2025-10-19"); 
+
+
+const loadSubmissions = async (weekStartStr) => {
+  setLoadingSubmissions(true);
+  try {
+    // שולפים רק לשבוע הנבחר
+    const q = query(
+      collection(db, "shift_submissions"),
+      where("week_start", "==", weekStartStr)
+    );
+
+    const snap = await getDocs(q);
+    const rows = snap.docs.map(doc => {
+      const d = doc.data();
+
+      // מיפוי אחיד לשמות שה-UI מצפה להם
+      return {
+        id: doc.id,
+        userName: d.userName || d.username || d.displayName || "", // הגנות
+        userId: d.user_id || d.uid || d.soldier_id || "",          // 👈 היה אצלך userId
+        days: d.days || {},                                        // map של ימים->מערכי סשנים
+        shifts: d.shifts || {},                                    // אם אתה משתמש בזה במקום days
+        updatedAt: d.updated_at?.toDate ? d.updated_at.toDate() 
+                                        : (d.updated_at || new Date()),
+        createdAt: d.created_at?.toDate ? d.created_at.toDate() 
+                                        : (d.created_at || null),
+        weekStart: d.week_start,                                   // "YYYY-MM-DD"
+      };
+    });
+
+    setSubmissions(rows);
+  } finally {
+    setLoadingSubmissions(false);
+  }
+};
+useEffect(() => {
+  loadSubmissions(weekStart);
+}, [weekStart]);
 
   useEffect(() => { loadSoldiers(); }, []);
 
@@ -195,6 +236,18 @@ export default function AdminDashboard() {
               <FileText className="w-10 h-10 text-blue-600" />
             </div>
           </Card>
+          <Card 
+            className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 border-purple-300 bg-gradient-to-r from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-150"
+            onClick={() => navigate('/advanced-schedule')}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-lg font-bold text-purple-700">שיבוץ משמרות מתקדם</p>
+                <p className="text-sm text-purple-600">🎯 גרור ושחרר + שיבוץ אוטומטי</p>
+              </div>
+              <Users className="w-10 h-10 text-purple-600" />
+            </div>
+          </Card>
         </div>
 
         <Card className="mb-6 p-4">
@@ -276,5 +329,6 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
 
 

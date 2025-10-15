@@ -13,6 +13,8 @@ import { startOfWeek, addDays } from "date-fns";
 import { toWeekStartISO } from '../utils/weekKey';
 import { DAYS } from "../config/shifts";
 import { useAuth } from "../contexts/AuthContext";
+import { ShiftSubmissionService } from '../services/shiftSubmission';
+
 
 export default function ShiftSubmissionPage() {
   const { soldierId } = useParams();
@@ -22,7 +24,6 @@ export default function ShiftSubmissionPage() {
   const [shifts, setShifts] = useState(
     DAYS.reduce((acc, day) => ({ ...acc, [day]: [] }), {})
   );
-  const [currentUser, setCurrentUser] = useState(null);
   const [existingSubmission, setExistingSubmission] = useState(null);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState([]);
@@ -49,14 +50,6 @@ export default function ShiftSubmissionPage() {
         return;
       }
       
-      const currentUserData = {
-        id: user.uid, // Use Firebase UID for consistency
-        hebrew_name: user.displayName,
-        full_name: user.displayName,
-        ...user
-      };
-      setCurrentUser(currentUserData);
-
       const submissions = await ShiftSubmission.filter({
         user_id: user.uid, // Use Firebase UID
         week_start: nextWeekStartStr,
@@ -96,49 +89,47 @@ export default function ShiftSubmissionPage() {
     });
   };
 
-  const handleSubmit = async () => {
-    console.log('ShiftSubmissionPage: Starting submission...');
-    console.log('ShiftSubmissionPage: Current user:', currentUser);
-    console.log('ShiftSubmissionPage: Shifts to submit:', shifts);
-    console.log('ShiftSubmissionPage: Week start:', nextWeekStartStr);
+
+const handleSubmit = async () => {
+  setSaving(true);
+  try {
+    // Save using BOTH methods for compatibility
     
-    setSaving(true);
-    try {
-      const submissionData = {
-        uid: user.uid, // Canonical for joins
-        user_id: user.uid, // Keep for backward compatibility 
-        user_name: user.displayName,
-        week_start: nextWeekStartStr, // Filter key, ISO string
-        updated_at: new Date(), // Will be converted to serverTimestamp in entity
-        shifts: shifts // New canonical shape
-      };
-      
-      console.log('ShiftSubmissionPage: Submission data:', submissionData);
-      
-      if (existingSubmission) {
-        console.log('ShiftSubmissionPage: Updating existing submission:', existingSubmission.id);
-        await ShiftSubmission.update(existingSubmission.id, {
-          uid: user.uid,
-          user_id: user.uid,
-          user_name: user.displayName,
-          week_start: nextWeekStartStr,
-          updated_at: new Date(),
-          shifts
-        });
-      } else {
-        console.log('ShiftSubmissionPage: Creating new submission...');
-        const result = await ShiftSubmission.create(submissionData);
-        console.log('ShiftSubmissionPage: Create result:', result);
-      }
-      alert("העדפות המשמרות נשלחו בהצלחה!");
-      loadData();
-    } catch (e) {
-      console.error("ShiftSubmissionPage: Error submitting shifts:", e);
-      console.error("ShiftSubmissionPage: Error details:", e.message, e.stack);
-      alert(`שגיאה בשליחת ההגשה: ${e.message}`);
+    // Method 1: New way using ShiftSubmissionService (for admin to see)
+    await ShiftSubmissionService.submitPreferences(
+      user.uid,
+      user.displayName,
+      nextWeekStartStr,
+      shifts
+    );
+    
+    // Method 2: Old way using ShiftSubmission entity (for backward compatibility)
+    const submissionData = {
+      uid: user.uid,
+      user_id: user.uid,
+      soldier_id: user.uid,
+      userName: user.displayName,
+      week_start: nextWeekStartStr,
+      shifts: shifts,
+      days: shifts
+    };
+    
+    if (existingSubmission) {
+      await ShiftSubmission.update(existingSubmission.id, submissionData);
+    } else {
+      await ShiftSubmission.create(submissionData);
     }
+    
+    alert('Preferences submitted successfully!');
+    navigate(`/soldier/${user.uid}`);
+  } catch (error) {
+    console.error('Error submitting preferences:', error);
+    alert('Error submitting preferences: ' + error.message);
+  } finally {
     setSaving(false);
-  };
+  }
+};
+
   
   const totalShifts = Object.values(shifts).flat().length;
   const progress = totalShifts > 0 ? 100 : 0;
@@ -242,5 +233,6 @@ export default function ShiftSubmissionPage() {
     </div>
   );
 }
+
 
 

@@ -22,12 +22,16 @@ export default function PreferencesPanel({
 
   if (!isOpen) return null;
 
-  const filteredSubmissions = submissions.filter(sub => 
-    sub.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    sub.userId.includes(searchTerm)
-  );
+  const filteredSubmissions = submissions.filter(sub => {
+    const nameMatch = sub.userName?.toLowerCase().includes(searchTerm.toLowerCase());
+    const idMatch = sub.userId?.includes(searchTerm);
+    return nameMatch || idMatch;
+  });
 
-  const submissionsWithPrefs = filteredSubmissions.filter(hasAnyPreferences);
+  // Filter submissions that have any preferences
+  const submissionsWithPrefs = filteredSubmissions.filter(sub => {
+    return Object.values(sub.days || {}).some(dayShifts => dayShifts && dayShifts.length > 0);
+  });
   const submissionsWithoutPrefs = filteredSubmissions.filter(sub => !hasAnyPreferences(sub));
 
   return (
@@ -133,7 +137,6 @@ export default function PreferencesPanel({
                     {submissionsWithoutPrefs.map(submission => (
                       <div key={submission.id} className="bg-red-50 border border-red-200 rounded-lg p-3">
                         <div className="font-medium text-gray-900">{submission.userName}</div>
-                        <div className="text-sm text-gray-600">מזהה: {submission.userId}</div>
                         <div className="text-xs text-red-600 mt-1">לא הגיש העדפות</div>
                       </div>
                     ))}
@@ -150,7 +153,12 @@ export default function PreferencesPanel({
 
 function SubmissionCard({ submission }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const totalShifts = getTotalShifts(submission);
+  
+  console.log('Rendering submission:', submission);
+  
+  // Calculate total shifts
+  const totalShifts = Object.values(submission.days || {}).reduce((total, dayShifts) => 
+    total + (dayShifts?.length || 0), 0);
   
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
@@ -163,17 +171,19 @@ function SubmissionCard({ submission }) {
             <User className="w-5 h-5 text-gray-400" />
             <div>
               <div className="font-medium text-gray-900">{submission.userName}</div>
-              <div className="text-sm text-gray-600">מזהה: {submission.userId}</div>
+              <div className="text-sm text-gray-500">{submission.userId}</div>
             </div>
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="bg-blue-50 text-blue-800">
               {totalShifts} משמרות
             </Badge>
-            <div className="text-sm text-gray-500 flex items-center gap-1">
-              <Clock className="w-4 h-4" />
-              {format(submission.updatedAt, 'dd/MM HH:mm')}
-            </div>
+            {submission.updatedAt && (
+              <div className="text-sm text-gray-500 flex items-center gap-1">
+                <Clock className="w-4 h-4" />
+                {format(new Date(submission.updatedAt), 'dd/MM HH:mm')}
+              </div>
+            )}
             <div className="text-gray-400 text-sm">
               {isExpanded ? '▼' : '▶'}
             </div>
@@ -187,7 +197,9 @@ function SubmissionCard({ submission }) {
             <div className="grid grid-cols-7 gap-3">
               {WEEKDAYS_HE.map((dayName, index) => {
                 const dayKey = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][index];
-                const daySlots = submission.days[dayKey] || [];
+                const daySlots = submission.days?.[dayKey] || [];
+                
+                console.log(`Day slots for ${dayKey}:`, daySlots);
                 
                 return (
                   <div key={dayKey} className="text-center">
@@ -200,9 +212,9 @@ function SubmissionCard({ submission }) {
                           <Badge 
                             key={slotIndex}
                             variant="outline" 
-                            className="text-xs bg-green-50 text-green-800 border-green-200 block w-full text-center"
+                            className="text-xs bg-green-50 text-green-800 border-green-200 block w-full text-center whitespace-nowrap overflow-hidden text-ellipsis"
                           >
-                            {getSlotDisplayText(slot)}
+                            {slot}
                           </Badge>
                         ))
                       ) : (

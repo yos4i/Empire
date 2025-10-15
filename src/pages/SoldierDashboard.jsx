@@ -77,6 +77,26 @@ export default function SoldierDashboard() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-600" />
+                המשמרות שלי
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-gray-600 mb-3">צפה במשמרות שהוקצו לך ואשר אותן</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate(`/soldier/${user?.uid}/assignments`)}
+                className="w-full"
+              >
+                צפה במשמרות
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
                 <Home className="w-5 h-5 text-purple-600" />
                 פרטים אישיים
               </CardTitle>
@@ -109,5 +129,6 @@ export default function SoldierDashboard() {
     </div>
   );
 }
+
 
 
