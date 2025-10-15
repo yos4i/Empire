@@ -6,7 +6,7 @@ import { WeeklySchedule } from '../entities/WeeklySchedule';
 import { ShiftAssignment } from '../entities/ShiftAssignment';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { toWeekStartISO } from '../utils/weekKey';
-import { Calendar, Save, Sparkles, Home, Users } from 'lucide-react';
+import { Calendar, Save, Sparkles, Home, Users, Trash2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import ScheduleBoard from '../components/admin/schedule/ScheduleBoard';
 import AssignSoldierDialog from '../components/admin/schedule/AssignSoldierDialog';
@@ -15,6 +15,7 @@ import { useMediaQuery } from '../components/hooks/useMediaQuery';
 import { DAYS, SHIFT_NAMES, SHIFT_REQUIREMENTS } from '../config/shifts';
 import { db } from '../config/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import { clearAllShiftAssignments, initializeShiftAssignmentsCollection, createTestAssignment } from '../utils/dbUtils';
 
 export default function ScheduleManagementPage() {
   const navigate = useNavigate();
@@ -138,39 +139,8 @@ export default function ScheduleManagementPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Auto-save schedule when it changes (with debounce)
-  useEffect(() => {
-    if (loading) return; // Don't save during initial load
-
-    const timeoutId = setTimeout(async () => {
-      try {
-        if (weeklyScheduleEntity) {
-          await WeeklySchedule.update(weeklyScheduleEntity.id, { schedule });
-          console.log('Auto-saved schedule');
-        } else if (Object.keys(schedule).length > 0) {
-          // Only create if schedule has data
-          const hasAssignments = DAYS.some(day =>
-            Object.values(schedule[day] || {}).some(shift =>
-              shift?.soldiers?.length > 0
-            )
-          );
-          if (hasAssignments) {
-            const newEntity = await WeeklySchedule.create({
-              week_start: nextWeekStartStr,
-              schedule: schedule,
-              is_published: false
-            });
-            setWeeklyScheduleEntity(newEntity);
-            console.log('Auto-saved new schedule');
-          }
-        }
-      } catch (e) {
-        console.error("Error auto-saving:", e);
-      }
-    }, 2000); // Save 2 seconds after last change
-
-    return () => clearTimeout(timeoutId);
-  }, [schedule, weeklyScheduleEntity, loading, nextWeekStartStr]);
+  // NOTE: Auto-save is now handled directly in handleShiftSlotClick function
+  // This ensures shift_assignments are created immediately when soldiers are assigned
 
   // Fetch shift submissions for Preferences Panel - Always load automatically
   useEffect(() => {
@@ -315,8 +285,20 @@ export default function ScheduleManagementPage() {
             for (const soldierId of shift.soldiers) {
               const soldier = users[soldierId];
               if (soldier) {
+                // CRITICAL: Use soldier.uid (Firebase Auth UID), not soldierId (Firestore doc ID)
+                if (!soldier.uid) {
+                  console.error('❌ Soldier missing uid field:', soldier);
+                  continue; // Skip this soldier
+                }
+
+                console.log('📝 Publishing assignment for:', soldier.hebrew_name, {
+                  'Using soldier.uid': soldier.uid,
+                  'NOT using soldierId': soldierId,
+                  'Are they same?': soldier.uid === soldierId ? 'YES' : 'NO'
+                });
+
                 assignments.push({
-                  soldier_id: soldierId,
+                  soldier_id: soldier.uid,  // ✅ FIXED: Use Auth UID, not Firestore doc ID
                   soldier_name: soldier.hebrew_name || soldier.displayName || soldier.full_name,
                   date: dateStr,
                   day_name: day,
@@ -354,7 +336,61 @@ export default function ScheduleManagementPage() {
     }
     setSaving(false);
   };
-  
+
+  const handleClearAllAssignments = async () => {
+    if (!window.confirm("האם אתה בטוח שברצונך למחוק את כל שיבוצי המשמרות? פעולה זו אינה הפיכה!")) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      console.log('🗑️ Clearing all shift assignments...');
+
+      // Initialize collection if it doesn't exist
+      await initializeShiftAssignmentsCollection();
+
+      // Clear all assignments
+      const result = await clearAllShiftAssignments();
+
+      alert(`נמחקו ${result.deleted} שיבוצים בהצלחה! כעת אפשר להתחיל מחדש.`);
+      console.log('✅ Cleared assignments:', result);
+    } catch (e) {
+      console.error("Error clearing assignments:", e);
+      alert("שגיאה במחיקת שיבוצים: " + e.message);
+    }
+    setSaving(false);
+  };
+
+  const handleCreateTestAssignment = async () => {
+    setSaving(true);
+    try {
+      console.log('🧪 Creating test shift assignment...');
+      const result = await createTestAssignment();
+      alert(`✅ נוצר שיבוץ בדיקה בהצלחה! מזהה: ${result.id}\n\nבדוק את Firebase Console לראות את הקולקשן shift_assignments`);
+      console.log('✅ Test assignment created:', result);
+    } catch (e) {
+      console.error("Error creating test assignment:", e);
+      alert("שגיאה ביצירת שיבוץ בדיקה: " + e.message);
+    }
+    setSaving(false);
+  };
+
+  const handleDebugUsers = () => {
+    console.log('🔍 DEBUG: All users loaded in ScheduleManagement:');
+    console.log('Total users:', Object.keys(users).length);
+
+    Object.values(users).forEach(user => {
+      console.log('---');
+      console.log('User:', user.hebrew_name || user.displayName);
+      console.log('  - Firestore doc ID (user.id):', user.id);
+      console.log('  - Firebase Auth UID (user.uid):', user.uid);
+      console.log('  - Are they the same?', user.id === user.uid ? '✅ YES' : '❌ NO');
+      console.log('  - Full object:', user);
+    });
+
+    alert('בדיקת נתוני משתמשים הודפסה לקונסולה. פתח את Developer Tools (F12) כדי לראות.');
+  };
+
   const autoAssign = () => {
      alert("שיבוץ אוטומטי - יפותח בגרסה הבאה. בינתיים, בוא נשבץ לפי הגשות.");
      setSchedule(prev => {
@@ -404,6 +440,8 @@ export default function ScheduleManagementPage() {
 
   // Handle clicking on a shift slot to assign/remove selected soldier
   const handleShiftSlotClick = async (day, shiftKey) => {
+    console.log('🎯 handleShiftSlotClick called:', { day, shiftKey, selectedSoldierId });
+
     if (!selectedSoldierId) {
       console.log('⚠️ No soldier selected. Click on a soldier first.');
       return;
@@ -415,9 +453,11 @@ export default function ScheduleManagementPage() {
       return;
     }
 
+    console.log('👤 Soldier found:', soldier.hebrew_name || soldier.displayName);
+
+    // Track what action we're performing
+    let actionType = null; // 'add' or 'remove'
     let updatedSchedule = null;
-    let isAdding = false;
-    let isRemoving = false;
 
     setSchedule(prev => {
       const newSchedule = JSON.parse(JSON.stringify(prev));
@@ -429,7 +469,7 @@ export default function ScheduleManagementPage() {
           // Soldier is already in this shift - remove them
           newSchedule[day][shiftKey].soldiers.splice(soldierIndex, 1);
           console.log('🗑️ Soldier removed from shift:', soldier.hebrew_name);
-          isRemoving = true;
+          actionType = 'remove';
         } else {
           // Soldier not in shift - add them (with confirmation if already at 6+ shifts)
           const currentCount = soldierShiftCounts[selectedSoldierId] || 0;
@@ -440,7 +480,7 @@ export default function ScheduleManagementPage() {
           }
           newSchedule[day][shiftKey].soldiers.push(selectedSoldierId);
           console.log('✅ Soldier assigned to shift:', soldier.hebrew_name);
-          isAdding = true;
+          actionType = 'add';
         }
         updatedSchedule = newSchedule;
       } else {
@@ -450,8 +490,11 @@ export default function ScheduleManagementPage() {
       return newSchedule;
     });
 
+    console.log('📊 After setSchedule:', { hasSchedule: !!updatedSchedule, actionType });
+
     // Save immediately with the updated schedule
-    if (updatedSchedule) {
+    if (updatedSchedule && actionType) {
+      console.log('✅ Starting save process for action:', actionType);
       setTimeout(async () => {
         try {
           console.log('💾 Auto-saving after assignment...');
@@ -475,7 +518,7 @@ export default function ScheduleManagementPage() {
           const shiftDate = format(addDays(nextWeekStart, dayIndex), 'yyyy-MM-dd');
 
           // 3. Create or delete shift_assignment for the soldier
-          if (isAdding) {
+          if (actionType === 'add') {
             console.log('🔍 Creating shift assignment for soldier:', {
               selectedSoldierId,
               soldier,
@@ -504,6 +547,13 @@ export default function ScheduleManagementPage() {
             // MUST use soldier.uid (Firebase Auth UID) - this is what the soldier logs in with
             // Using soldier.id (Firestore document ID) will cause assignments to not appear
 
+            console.log('🔍 DEBUG: Soldier object before ID resolution:', {
+              'soldier': soldier,
+              'soldier.id': soldier.id,
+              'soldier.uid': soldier.uid,
+              'selectedSoldierId': selectedSoldierId
+            });
+
             if (!soldier.uid) {
               console.error('❌ CRITICAL: Soldier has no uid field!', soldier);
               alert(`שגיאה: החייל ${soldier.hebrew_name || soldier.displayName} חסר שדה uid במסד הנתונים. לא ניתן לשבץ את החייל.`);
@@ -513,11 +563,12 @@ export default function ScheduleManagementPage() {
             const soldierIdToUse = soldier.uid;
 
             console.log('🆔 Soldier ID resolution:', {
-              'soldier.uid (USED)': soldier.uid,
-              'soldier.id (Firestore doc ID)': soldier.id,
-              'selectedSoldierId': selectedSoldierId,
-              'soldierIdToUse': soldierIdToUse,
-              'Soldier name': soldier.hebrew_name || soldier.displayName
+              '✅ soldier.uid (WILL BE USED)': soldier.uid,
+              '❌ soldier.id (Firestore doc ID - NOT USED)': soldier.id,
+              'selectedSoldierId (map key)': selectedSoldierId,
+              'soldierIdToUse (final)': soldierIdToUse,
+              'Soldier name': soldier.hebrew_name || soldier.displayName,
+              'ID Type Check': soldierIdToUse.startsWith('soldier-') ? '✅ Looks like Auth UID' : '⚠️ Does NOT look like Auth UID'
             });
 
             // Create a new shift assignment so soldier can see it
@@ -538,7 +589,7 @@ export default function ScheduleManagementPage() {
 
             const result = await ShiftAssignment.create(assignmentData);
             console.log('✅ Shift assignment created successfully!', result);
-          } else if (isRemoving) {
+          } else if (actionType === 'remove') {
             // CRITICAL: Use soldier.uid for consistency
             if (!soldier.uid) {
               console.error('❌ CRITICAL: Soldier has no uid field!', soldier);
@@ -717,6 +768,9 @@ export default function ScheduleManagementPage() {
                     </div>
 
                     <div className="flex gap-2 items-center">
+                        <Button variant="outline" onClick={handleDebugUsers} className="border-purple-300 text-purple-600 hover:bg-purple-50">🔍 בדוק IDs</Button>
+                        <Button variant="outline" onClick={handleCreateTestAssignment} disabled={saving} className="border-green-300 text-green-600 hover:bg-green-50">🧪 בדיקת DB</Button>
+                        <Button variant="outline" onClick={handleClearAllAssignments} disabled={saving} className="border-red-300 text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4 ml-2"/>נקה שיבוצים</Button>
                         <Button variant="outline" onClick={autoAssign}><Sparkles className="w-4 h-4 ml-2"/>שיבוץ חכם</Button>
                         <Button variant="outline" onClick={handleSaveDraft} disabled={saving}><Save className="w-4 h-4 ml-2"/>שמור טיוטה</Button>
                         <Button onClick={handlePublishToSoldiers} disabled={saving} className="bg-purple-600 hover:bg-purple-700 text-white"><Users className="w-4 h-4 ml-2"/>פרסם לחיילים</Button>
