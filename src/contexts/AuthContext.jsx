@@ -90,7 +90,7 @@ export const AuthProvider = ({ children }) => {
             username: firestoreUser.username,
             displayName: firestoreUser.displayName,
             role: 'soldier',
-            uid: firestoreUser.id,
+            uid: firestoreUser.uid || firestoreUser.id, // Use Firebase Auth UID, fallback to doc ID
             rank: firestoreUser.rank,
             unit: firestoreUser.unit,
             constraints: firestoreUser.constraints || {}
