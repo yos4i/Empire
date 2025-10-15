@@ -18,84 +18,73 @@ export class ShiftAssignment {
   static async filter(filters) {
     try {
       console.log("🔍 ShiftAssignment.filter: Filtering with:", filters);
+
+      // Simple query - just filter by soldier_id to avoid needing composite index
       let q = collection(db, 'shift_assignments');
 
       if (filters.soldier_id) {
         q = query(q, where('soldier_id', '==', filters.soldier_id));
         console.log("📌 ShiftAssignment.filter: Added soldier_id filter:", filters.soldier_id);
       }
-      if (filters.date) {
+
+      // For single exact date match (no range)
+      if (filters.date && !filters.start_date && !filters.end_date) {
         q = query(q, where('date', '==', filters.date));
-        console.log("📌 ShiftAssignment.filter: Added date filter:", filters.date);
+        console.log("📌 ShiftAssignment.filter: Added exact date filter:", filters.date);
       }
-      if (filters.shift_type) {
+
+      // For shift_type filter (only if no date range)
+      if (filters.shift_type && !filters.start_date && !filters.end_date) {
         q = query(q, where('shift_type', '==', filters.shift_type));
         console.log("📌 ShiftAssignment.filter: Added shift_type filter:", filters.shift_type);
       }
-      if (filters.status) {
+
+      // For status filter (only if no date range)
+      if (filters.status && !filters.start_date && !filters.end_date) {
         q = query(q, where('status', '==', filters.status));
         console.log("📌 ShiftAssignment.filter: Added status filter:", filters.status);
       }
+
+      console.log("🔎 ShiftAssignment.filter: Executing Firestore query...");
+      const assignmentsSnapshot = await getDocs(q);
+      console.log("📊 ShiftAssignment.filter: Query returned", assignmentsSnapshot.docs.length, "documents");
+
+      let results = assignmentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Filter date range in JavaScript (to avoid needing composite index)
       if (filters.start_date && filters.end_date) {
-        q = query(q, where('date', '>=', filters.start_date), where('date', '<=', filters.end_date));
-        console.log("📌 ShiftAssignment.filter: Added date range:", filters.start_date, "to", filters.end_date);
-      }
-
-      // Try with orderBy first, fallback to no orderBy if it fails (missing index)
-      try {
-        q = query(q, orderBy('date', 'desc'), orderBy('created_at', 'desc'));
-        console.log("🔎 ShiftAssignment.filter: Executing Firestore query with orderBy...");
-        const assignmentsSnapshot = await getDocs(q);
-        console.log("📊 ShiftAssignment.filter: Query returned", assignmentsSnapshot.docs.length, "documents");
-
-        const results = assignmentsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-
-        console.log("✅ ShiftAssignment.filter: Processed results:", results);
-        return results;
-      } catch (orderByError) {
-        console.warn("⚠️ ShiftAssignment.filter: orderBy failed (likely missing index), trying without orderBy:", orderByError.message);
-
-        // Retry without orderBy
-        q = collection(db, 'shift_assignments');
-
-        if (filters.soldier_id) {
-          q = query(q, where('soldier_id', '==', filters.soldier_id));
-        }
-        if (filters.date) {
-          q = query(q, where('date', '==', filters.date));
-        }
-        if (filters.shift_type) {
-          q = query(q, where('shift_type', '==', filters.shift_type));
-        }
-        if (filters.status) {
-          q = query(q, where('status', '==', filters.status));
-        }
-        if (filters.start_date && filters.end_date) {
-          q = query(q, where('date', '>=', filters.start_date), where('date', '<=', filters.end_date));
-        }
-
-        console.log("🔎 ShiftAssignment.filter: Executing Firestore query WITHOUT orderBy...");
-        const assignmentsSnapshot = await getDocs(q);
-        console.log("📊 ShiftAssignment.filter: Query returned", assignmentsSnapshot.docs.length, "documents");
-
-        const results = assignmentsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-
-        // Sort manually in JavaScript
-        results.sort((a, b) => {
-          if (a.date > b.date) return -1;
-          if (a.date < b.date) return 1;
-          return 0;
+        console.log("📅 ShiftAssignment.filter: Filtering date range in JavaScript:", filters.start_date, "to", filters.end_date);
+        results = results.filter(assignment => {
+          const assignmentDate = assignment.date;
+          return assignmentDate >= filters.start_date && assignmentDate <= filters.end_date;
         });
-
-        console.log("✅ ShiftAssignment.filter: Processed and sorted results:", results);
-        return results;
+        console.log("📅 ShiftAssignment.filter: After date filter:", results.length, "documents");
       }
+
+      // Filter by shift_type in JavaScript if we have date range
+      if (filters.shift_type && (filters.start_date || filters.end_date)) {
+        results = results.filter(assignment => assignment.shift_type === filters.shift_type);
+        console.log("📅 ShiftAssignment.filter: After shift_type filter:", results.length, "documents");
+      }
+
+      // Filter by status in JavaScript if we have date range
+      if (filters.status && (filters.start_date || filters.end_date)) {
+        results = results.filter(assignment => assignment.status === filters.status);
+        console.log("📅 ShiftAssignment.filter: After status filter:", results.length, "documents");
+      }
+
+      // Sort by date (descending) in JavaScript
+      results.sort((a, b) => {
+        if (a.date > b.date) return -1;
+        if (a.date < b.date) return 1;
+        return 0;
+      });
+
+      console.log("✅ ShiftAssignment.filter: Returning", results.length, "filtered and sorted results");
+      return results;
     } catch (error) {
       console.error('❌ ShiftAssignment.filter: Error filtering:', error);
       console.error('❌ Full error:', error);

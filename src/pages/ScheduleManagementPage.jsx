@@ -391,7 +391,14 @@ export default function ScheduleManagementPage() {
       console.log('❌ Soldier deselected');
     } else {
       setSelectedSoldierId(soldierId);
-      console.log('✅ Soldier selected:', users[soldierId]?.hebrew_name, soldierId);
+      const soldierObj = users[soldierId];
+      console.log('✅ Soldier selected:', {
+        name: soldierObj?.hebrew_name || soldierObj?.displayName,
+        selectedSoldierId: soldierId,
+        'soldier.id': soldierObj?.id,
+        'soldier.uid': soldierObj?.uid,
+        'Full soldier object': soldierObj
+      });
     }
   };
 
@@ -493,8 +500,25 @@ export default function ScheduleManagementPage() {
               }
             }
 
-            // Use soldier.uid if available (Firebase Auth ID), otherwise use the document ID
-            const soldierIdToUse = soldier.uid || selectedSoldierId;
+            // CRITICAL: Use the correct soldier identifier for assignments
+            // MUST use soldier.uid (Firebase Auth UID) - this is what the soldier logs in with
+            // Using soldier.id (Firestore document ID) will cause assignments to not appear
+
+            if (!soldier.uid) {
+              console.error('❌ CRITICAL: Soldier has no uid field!', soldier);
+              alert(`שגיאה: החייל ${soldier.hebrew_name || soldier.displayName} חסר שדה uid במסד הנתונים. לא ניתן לשבץ את החייל.`);
+              return;
+            }
+
+            const soldierIdToUse = soldier.uid;
+
+            console.log('🆔 Soldier ID resolution:', {
+              'soldier.uid (USED)': soldier.uid,
+              'soldier.id (Firestore doc ID)': soldier.id,
+              'selectedSoldierId': selectedSoldierId,
+              'soldierIdToUse': soldierIdToUse,
+              'Soldier name': soldier.hebrew_name || soldier.displayName
+            });
 
             // Create a new shift assignment so soldier can see it
             const assignmentData = {
@@ -515,8 +539,13 @@ export default function ScheduleManagementPage() {
             const result = await ShiftAssignment.create(assignmentData);
             console.log('✅ Shift assignment created successfully!', result);
           } else if (isRemoving) {
-            // Use soldier.uid if available (Firebase Auth ID), otherwise use the document ID
-            const soldierIdToUse = soldier.uid || selectedSoldierId;
+            // CRITICAL: Use soldier.uid for consistency
+            if (!soldier.uid) {
+              console.error('❌ CRITICAL: Soldier has no uid field!', soldier);
+              return;
+            }
+
+            const soldierIdToUse = soldier.uid;
 
             // Delete the shift assignment for this soldier/date/shift
             console.log('🗑️ Removing shift assignment:', {

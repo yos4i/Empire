@@ -26,14 +26,28 @@ export class User {
     try {
       console.log('User.list: Loading users from Firestore...');
       const usersSnapshot = await getDocs(collection(db, 'users'));
-      const users = usersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        hebrew_name: doc.data().displayName || doc.data().hebrew_name,
-        full_name: doc.data().displayName || doc.data().full_name,
-        constraints: doc.data().constraints || {},
-        weekly_shifts: doc.data().weekly_shifts || {}
-      }));
+      const users = usersSnapshot.docs.map(doc => {
+        const data = doc.data();
+        const user = {
+          id: doc.id,
+          ...data,
+          hebrew_name: data.displayName || data.hebrew_name,
+          full_name: data.displayName || data.full_name,
+          constraints: data.constraints || {},
+          weekly_shifts: data.weekly_shifts || {}
+        };
+
+        // CRITICAL: Ensure uid field exists for shift assignments
+        // Without uid, soldiers won't be able to see their assigned shifts
+        if (!user.uid) {
+          console.warn(`⚠️ User ${doc.id} (${user.displayName || user.hebrew_name}) is missing 'uid' field!`);
+          console.warn(`⚠️ This user won't be able to see shift assignments. Please add 'uid' field to Firestore.`);
+          // Fallback: use document ID as uid if missing (NOT RECOMMENDED but prevents crashes)
+          user.uid = doc.id;
+        }
+
+        return user;
+      });
       console.log('User.list: Loaded users:', users);
       return users.filter(user => user.role === 'soldier' || user.role === 'user');
     } catch (error) {

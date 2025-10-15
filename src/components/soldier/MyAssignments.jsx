@@ -36,39 +36,6 @@ export default function MyAssignments() {
 
   const weekStart = toWeekStartISO(selectedDate);
 
-  // Debug helper - expose to window for console debugging
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.debugMyAssignments = {
-        userId: user?.uid,
-        weekStart,
-        assignments,
-        stats,
-        user: user,
-        fetchAssignments: () => {
-          console.log('🔧 Manual fetch triggered');
-          fetchAssignments();
-        },
-        testQuery: async () => {
-          console.log('🧪 Testing direct query to Firestore...');
-          console.log('🔍 User ID:', user?.uid);
-          console.log('🔍 Week Start:', weekStart);
-
-          try {
-            const result = await SoldierApiService.getMyAssignments(user?.uid, weekStart);
-            console.log('✅ Query result:', result);
-            return result;
-          } catch (err) {
-            console.error('❌ Query error:', err);
-            return err;
-          }
-        }
-      };
-      console.log('🔧 Debug helper available: window.debugMyAssignments');
-      console.log('🔧 Run window.debugMyAssignments.testQuery() to test the query');
-    }
-  }, [user?.uid, weekStart, assignments, stats, fetchAssignments]);
-
   // Load assignments
   const fetchAssignments = useCallback(async () => {
     if (!user?.uid) return;
@@ -103,6 +70,39 @@ export default function MyAssignments() {
   useEffect(() => {
     fetchAssignments();
   }, [fetchAssignments]);
+
+  // Debug helper - expose to window for console debugging
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.debugMyAssignments = {
+        userId: user?.uid,
+        weekStart,
+        assignments,
+        stats,
+        user: user,
+        fetchAssignments: () => {
+          console.log('🔧 Manual fetch triggered');
+          fetchAssignments();
+        },
+        testQuery: async () => {
+          console.log('🧪 Testing direct query to Firestore...');
+          console.log('🔍 User ID:', user?.uid);
+          console.log('🔍 Week Start:', weekStart);
+
+          try {
+            const result = await SoldierApiService.getMyAssignments(user?.uid, weekStart);
+            console.log('✅ Query result:', result);
+            return result;
+          } catch (err) {
+            console.error('❌ Query error:', err);
+            return err;
+          }
+        }
+      };
+      console.log('🔧 Debug helper available: window.debugMyAssignments');
+      console.log('🔧 Run window.debugMyAssignments.testQuery() to test the query');
+    }
+  }, [user?.uid, weekStart, assignments, stats, fetchAssignments]);
 
   // Navigate weeks
   const navigateWeek = (direction) => {
