@@ -30,28 +30,27 @@ export default function AdminDashboard() {
 const loadSubmissions = async (weekStartStr) => {
   setLoadingSubmissions(true);
   try {
-    // שולפים רק לשבוע הנבחר
+    // Fetch from shift_preferences collection with correct field names
     const q = query(
-      collection(db, "shift_submissions"),
-      where("week_start", "==", weekStartStr)
+      collection(db, "shift_preferences"),
+      where("weekStart", "==", weekStartStr)
     );
 
     const snap = await getDocs(q);
     const rows = snap.docs.map(doc => {
       const d = doc.data();
 
-      // מיפוי אחיד לשמות שה-UI מצפה להם
+      // Map to consistent field names for UI
       return {
         id: doc.id,
-        userName: d.userName || d.username || d.displayName || "", // הגנות
-        userId: d.user_id || d.uid || d.soldier_id || "",          // 👈 היה אצלך userId
-        days: d.days || {},                                        // map של ימים->מערכי סשנים
-        shifts: d.shifts || {},                                    // אם אתה משתמש בזה במקום days
-        updatedAt: d.updated_at?.toDate ? d.updated_at.toDate() 
-                                        : (d.updated_at || new Date()),
-        createdAt: d.created_at?.toDate ? d.created_at.toDate() 
-                                        : (d.created_at || null),
-        weekStart: d.week_start,                                   // "YYYY-MM-DD"
+        userName: d.userName || d.username || d.displayName || "",
+        userId: d.userId || d.uid || d.soldier_id || "",
+        days: d.days || {},  // Object with day names as keys and shift arrays as values
+        updatedAt: d.updatedAt?.toDate ? d.updatedAt.toDate()
+                                        : (d.updatedAt || new Date()),
+        createdAt: d.createdAt?.toDate ? d.createdAt.toDate()
+                                        : (d.createdAt || null),
+        weekStart: d.weekStart,  // "YYYY-MM-DD"
       };
     });
 
@@ -152,13 +151,18 @@ useEffect(() => {
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <Shield className="w-8 h-8 text-blue-600" />
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">דשבורד מנהל</h1>
-                <p className="text-gray-600">ברוך הבא, {user?.displayName}</p>
+            <div className="w-48"></div>
+
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <div className="flex items-center gap-3">
+                <Shield className="w-8 h-8 text-blue-600" />
+                <div className="text-center">
+                  <h1 className="text-3xl font-bold text-gray-900">דשבורד מנהל</h1>
+                  <p className="text-gray-600">ברוך הבא, {user?.displayName}</p>
+                </div>
               </div>
             </div>
+
             <div className="flex gap-2">
               <Button 
                 onClick={() => navigate('/shift-preferences')}
@@ -234,18 +238,6 @@ useEffect(() => {
                 <p className="text-sm text-blue-600">📝 יצירת וניהול סידור</p>
               </div>
               <FileText className="w-10 h-10 text-blue-600" />
-            </div>
-          </Card>
-          <Card 
-            className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 border-purple-300 bg-gradient-to-r from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-150"
-            onClick={() => navigate('/advanced-schedule')}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-lg font-bold text-purple-700">שיבוץ משמרות מתקדם</p>
-                <p className="text-sm text-purple-600">🎯 גרור ושחרר + שיבוץ אוטומטי</p>
-              </div>
-              <Users className="w-10 h-10 text-purple-600" />
             </div>
           </Card>
         </div>

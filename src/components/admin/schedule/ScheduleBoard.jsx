@@ -1,5 +1,4 @@
 import React from 'react';
-import { Droppable, Draggable } from '@hello-pangea/dnd';
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
@@ -15,7 +14,7 @@ const DAYS_HE = {
   friday: 'שישי'
 };
 
-export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, onCancelShift, onShiftClick, onDragEnd, isMobile }) {
+export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId }) {
   
   const getShiftStatusColor = (shift, shiftKey) => {
     if (shift.cancelled) return 'bg-gray-100 border-gray-300';
@@ -44,24 +43,14 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
     const isOverworked = soldierShiftCount > 6;
 
     return (
-      <Draggable
+      <div
         key={`${soldierId}-${day}-${shiftKey}`}
-        draggableId={`${soldierId}|${day}|${shiftKey}`}
-        index={index}
-        isDragDisabled={isPublished}
+        className={`
+          p-2 mb-2 rounded border text-sm transition-all shadow-sm
+          ${isOverworked ? 'bg-red-100 border-red-300' : 'bg-white border-gray-200'}
+          ${!isPublished ? 'hover:shadow-md' : ''}
+        `}
       >
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.draggableProps}
-            {...provided.dragHandleProps}
-            className={`
-              p-2 mb-2 rounded border text-sm transition-all
-              ${snapshot.isDragging ? 'shadow-lg rotate-2' : 'shadow-sm'}
-              ${isOverworked ? 'bg-red-100 border-red-300' : 'bg-white border-gray-200'}
-              ${!isPublished ? 'hover:shadow-md cursor-move' : 'cursor-default'}
-            `}
-          >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <User className="w-3 h-3 text-gray-500" />
@@ -96,8 +85,6 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
               </span>
             </div>
           </div>
-        )}
-      </Draggable>
     );
   };
 
@@ -107,19 +94,29 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
     const required = shift.required || 0;
 
     return (
-      <Droppable droppableId={`${day}|${shiftKey}`} key={`${day}-${shiftKey}`}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className={`
-              min-h-[200px] p-3 rounded-lg border-2 transition-all
-              ${getShiftStatusColor(shift, shiftKey)}
-              ${snapshot.isDraggingOver ? 'border-blue-400 bg-blue-50' : ''}
-              ${shift.cancelled ? 'opacity-50' : ''}
-            `}
-            onClick={() => onShiftClick && onShiftClick(day, shiftKey, SHIFT_NAMES[shiftKey], DAYS_HE[day])}
-          >
+      <div
+        key={`${day}-${shiftKey}`}
+        className={`
+          min-h-[200px] p-3 rounded-lg border-2 transition-all
+          ${getShiftStatusColor(shift, shiftKey)}
+          ${shift.cancelled ? 'opacity-50' : ''}
+          ${selectedSoldierId && !shift.cancelled ? 'cursor-pointer hover:ring-2 hover:ring-blue-300' : ''}
+        `}
+        onClick={(e) => {
+          // Don't trigger if clicking on buttons or soldier cards with their own handlers
+          const target = e.target;
+          const isButton = target.closest('button');
+
+          if (isButton) {
+            return; // Let button handle its own click
+          }
+
+          // Check if click is for soldier assignment
+          if (selectedSoldierId && !shift.cancelled) {
+            onShiftSlotClick && onShiftSlotClick(day, shiftKey);
+          }
+        }}
+      >
             {/* Shift Header */}
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -158,22 +155,6 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
               )}
             </div>
 
-            {/* Add Soldier Button */}
-            {!isPublished && !shift.cancelled && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full mt-2 border-dashed hover:bg-gray-50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onShiftClick && onShiftClick(day, shiftKey, SHIFT_NAMES[shiftKey], DAYS_HE[day]);
-                }}
-              >
-                <Plus className="w-4 h-4 ml-1" />
-                הוסף חייל
-              </Button>
-            )}
-
             {/* Shift Actions */}
             {!isPublished && (
               <div className="flex gap-2 mt-2">
@@ -190,11 +171,7 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                 </Button>
               </div>
             )}
-
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
+      </div>
     );
   };
 

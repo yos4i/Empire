@@ -10,7 +10,6 @@ import AdminDashboard from './pages/AdminDashboard';
 import ShiftSubmissionPage from './pages/ShiftSubmissionPage';
 import ScheduleManagementPage from './pages/ScheduleManagementPage';
 import ShiftPreferencesPage from './pages/ShiftPreferencesPage';
-import AdvancedScheduleManagementPage from './pages/AdvancedScheduleManagementPage';
 import MyAssignmentsPage from './pages/MyAssignmentsPage';
 
 // Loading component for auth restoration
@@ -77,14 +76,6 @@ const AppContent = () => {
         element={
           <ProtectedRoute requiredRole="admin">
             <ShiftPreferencesPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/advanced-schedule"
-        element={
-          <ProtectedRoute requiredRole="admin">
-            <AdvancedScheduleManagementPage />
           </ProtectedRoute>
         }
       />

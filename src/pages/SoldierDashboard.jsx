@@ -106,25 +106,6 @@ export default function SoldierDashboard() {
             </CardContent>
           </Card>
         </div>
-
-        <div className="mt-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>מערכת סידור אימפריה</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">
-                ברוכים הבאים למערכת סידור העבודה המתקדמת. כאן תוכלו להגיש העדפות משמרות,
-                לצפות בסידור השבועי ולנהל את הפרטים האישיים שלכם.
-              </p>
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                <p className="text-blue-800 text-sm">
-                  <strong>הערה:</strong> זוהי גרסת דמו של המערכת. כל הנתונים הם לצרכי הדגמה בלבד.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </div>
   );

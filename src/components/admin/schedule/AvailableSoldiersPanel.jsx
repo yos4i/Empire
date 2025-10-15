@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Droppable, Draggable } from '@hello-pangea/dnd';
 import { Input } from "../../ui/input";
 import { Badge } from "../../ui/badge";
 import { Button } from "../../ui/button";
@@ -49,24 +48,15 @@ export default function AvailableSoldiersPanel({ soldiers, users, assignedSoldie
     const isAssigned = assignedSoldierIds.has(soldier.id);
 
     return (
-      <Draggable
+      <div
         key={soldier.id}
-        draggableId={`${soldier.id}|available`}
-        index={index}
+        className={`
+          p-3 mb-2 rounded-lg border transition-all shadow-sm
+          ${getSoldierStatusColor(soldier)}
+          ${isAssigned ? 'opacity-60' : ''}
+          hover:shadow-md
+        `}
       >
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.draggableProps}
-            {...provided.dragHandleProps}
-            className={`
-              p-3 mb-2 rounded-lg border transition-all cursor-move
-              ${snapshot.isDragging ? 'shadow-lg rotate-2 bg-white' : 'shadow-sm'}
-              ${getSoldierStatusColor(soldier)}
-              ${isAssigned ? 'opacity-60' : ''}
-              hover:shadow-md
-            `}
-          >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-gray-600" />
@@ -137,10 +127,8 @@ export default function AvailableSoldiersPanel({ soldiers, users, assignedSoldie
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        )}
-      </Draggable>
+        </div>
+      </div>
     );
   };
 
@@ -194,33 +182,21 @@ export default function AvailableSoldiersPanel({ soldiers, users, assignedSoldie
 
       {/* Soldiers List */}
       <div className="flex-1 overflow-y-auto p-4">
-        <Droppable droppableId="available">
-          {(provided, snapshot) => (
-            <div
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              className={`
-                min-h-full transition-colors
-                ${snapshot.isDraggingOver ? 'bg-blue-50' : ''}
-              `}
-            >
-              {filteredSoldiers.length === 0 ? (
-                <div className="text-center text-gray-500 py-8">
-                  <User className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                  <p className="text-sm">אין חיילים מתאימים</p>
-                  <p className="text-xs text-gray-400">נסה לשנות את תנאי החיפוש</p>
-                </div>
-              ) : (
-                <>
-                  {filteredSoldiers.map((soldier, index) => 
-                    renderSoldierCard(soldier, index)
-                  )}
-                </>
-              )}
-              {provided.placeholder}
+        <div className="min-h-full">
+          {filteredSoldiers.length === 0 ? (
+            <div className="text-center text-gray-500 py-8">
+              <User className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+              <p className="text-sm">אין חיילים מתאימים</p>
+              <p className="text-xs text-gray-400">נסה לשנות את תנאי החיפוש</p>
             </div>
+          ) : (
+            <>
+              {filteredSoldiers.map((soldier, index) =>
+                renderSoldierCard(soldier, index)
+              )}
+            </>
           )}
-        </Droppable>
+        </div>
       </div>
 
       {/* Quick Stats */}

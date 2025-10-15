@@ -12,15 +12,18 @@ export default function MyAssignmentsPage() {
       {/* Navigation Header */}
       <div className="bg-white border-b border-gray-200 px-4 py-3" dir="rtl">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-gray-900">המשמרות שלי</h1>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => navigate('/soldier')}
             className="flex items-center gap-2"
           >
             <ArrowLeft className="w-4 h-4" />
             חזרה לדשבורד
           </Button>
+
+          <h1 className="text-xl font-semibold text-gray-900 flex-1 text-center">המשמרות שלי</h1>
+
+          <div className="w-32"></div>
         </div>
       </div>
 
