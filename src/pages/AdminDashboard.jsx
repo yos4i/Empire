@@ -7,7 +7,7 @@ import { Button } from "../components/ui/button";
 import { useAuth } from "../contexts/AuthContext";
 import AddSoldierDialog from "../components/admin/AddSoldierDialog";
 import { db } from "../config/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 
 export default function AdminDashboard() {
   const { user, signOut, addSoldier } = useAuth();
@@ -17,52 +17,11 @@ export default function AdminDashboard() {
     await signOut();
     navigate('/login');
   };
-  const [submissions, setSubmissions] = useState([]);
-  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
   const [soldiers, setSoldiers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterUnit, setFilterUnit] = useState("הכל");
   const [loading, setLoading] = useState(false);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [weekStart, setWeekStart] = useState("2025-10-19"); 
-
-
-const loadSubmissions = async (weekStartStr) => {
-  setLoadingSubmissions(true);
-  try {
-    // Fetch from shift_preferences collection with correct field names
-    const q = query(
-      collection(db, "shift_preferences"),
-      where("weekStart", "==", weekStartStr)
-    );
-
-    const snap = await getDocs(q);
-    const rows = snap.docs.map(doc => {
-      const d = doc.data();
-
-      // Map to consistent field names for UI
-      return {
-        id: doc.id,
-        userName: d.userName || d.username || d.displayName || "",
-        userId: d.userId || d.uid || d.soldier_id || "",
-        days: d.days || {},  // Object with day names as keys and shift arrays as values
-        updatedAt: d.updatedAt?.toDate ? d.updatedAt.toDate()
-                                        : (d.updatedAt || new Date()),
-        createdAt: d.createdAt?.toDate ? d.createdAt.toDate()
-                                        : (d.createdAt || null),
-        weekStart: d.weekStart,  // "YYYY-MM-DD"
-      };
-    });
-
-    setSubmissions(rows);
-  } finally {
-    setLoadingSubmissions(false);
-  }
-};
-useEffect(() => {
-  loadSubmissions(weekStart);
-}, [weekStart]);
-
+  const [showAddDialog, setShowAddDialog] = useState(false); 
   useEffect(() => { loadSoldiers(); }, []);
 
   const loadSoldiers = async () => {

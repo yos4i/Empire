@@ -6,17 +6,15 @@ import { WeeklySchedule } from '../entities/WeeklySchedule';
 import { ShiftAssignment } from '../entities/ShiftAssignment';
 import { format, addDays, startOfWeek } from 'date-fns';
 import { toWeekStartISO } from '../utils/weekKey';
-import { Calendar, Save, Send, Sparkles, Home, Eye, Users } from 'lucide-react';
+import { Calendar, Save, Sparkles, Home, Users } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import ScheduleBoard from '../components/admin/schedule/ScheduleBoard';
-import AvailableSoldiersPanel from '../components/admin/schedule/AvailableSoldiersPanel';
 import AssignSoldierDialog from '../components/admin/schedule/AssignSoldierDialog';
 import PreferencesPanel from '../components/admin/PreferencesPanel';
 import { useMediaQuery } from '../components/hooks/useMediaQuery';
 import { DAYS, SHIFT_NAMES, SHIFT_REQUIREMENTS } from '../config/shifts';
-import { groupSubmissionsByUser } from '../utils/preferences';
 import { db } from '../config/firebase';
-import { collection, query, where, orderBy, onSnapshot, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 export default function ScheduleManagementPage() {
   const navigate = useNavigate();
@@ -26,14 +24,10 @@ export default function ScheduleManagementPage() {
   const [weeklyScheduleEntity, setWeeklyScheduleEntity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  
+
   // Preferences panel state
-  const [isPreferencesPanelOpen, setIsPreferencesPanelOpen] = useState(false);
   const [rawSubmissions, setRawSubmissions] = useState([]);
   const [preferencesLoading, setPreferencesLoading] = useState(false);
-  const [isDraggingFromPreferences, setIsDraggingFromPreferences] = useState(false);
   const [selectedSoldierId, setSelectedSoldierId] = useState(null);
   
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -294,7 +288,6 @@ export default function ScheduleManagementPage() {
             setWeeklyScheduleEntity(newEntity);
             console.log('✅ New draft created successfully:', newEntity.id);
         }
-        setHasUnsavedChanges(false);
         alert("טיוטה נשמרה בהצלחה");
     } catch (e) {
         console.error("Error saving draft:", e);
@@ -303,41 +296,6 @@ export default function ScheduleManagementPage() {
     setSaving(false);
   };
   
-  const handlePublish = async () => {
-    if (!window.confirm("האם אתה בטוח שברצונך לפרסם את הסידור? לא ניתן יהיה לערוך אותו לאחר מכן.")) return;
-    setSaving(true);
-    try {
-      const dataToSave = { schedule, is_published: true, published_date: new Date().toISOString() };
-      if (weeklyScheduleEntity) {
-        await WeeklySchedule.update(weeklyScheduleEntity.id, dataToSave);
-      } else {
-        const newEntity = await WeeklySchedule.create({ week_start: nextWeekStartStr, ...dataToSave });
-        setWeeklyScheduleEntity(newEntity);
-      }
-      alert("הסידור פורסם בהצלחה!");
-      loadData();
-    } catch (e) {
-      console.error("Error publishing schedule:", e);
-      alert("שגיאה בפרסום הסידור");
-    }
-    setSaving(false);
-  };
-
-  const handleUnpublish = async () => {
-    if (!window.confirm("האם אתה בטוח שברצונך לבטל את פרסום הסידור? הסידור יחזור למצב טיוטה.")) return;
-    setSaving(true);
-    try {
-      if (weeklyScheduleEntity) {
-        await WeeklySchedule.update(weeklyScheduleEntity.id, { is_published: false });
-        alert("הפרסום בוטל והסידור חזר למצב טיוטה.");
-        loadData();
-      }
-    } catch(e) {
-      console.error("Error un-publishing schedule:", e);
-      alert("שגיאה בביטול הפרסום.");
-    }
-    setSaving(false);
-  };
 
   const handlePublishToSoldiers = async () => {
     if (!window.confirm("האם לפרסם את הסידור לכל החיילים? החיילים יוכלו לראות את השיבוצים שלהם.")) return;
@@ -424,11 +382,6 @@ export default function ScheduleManagementPage() {
   };
 
   const isPublished = weeklyScheduleEntity?.is_published;
-
-  // Handle preferences panel
-  const handleViewPreferences = () => {
-    setIsPreferencesPanelOpen(true);
-  };
 
   // Handle soldier selection from preferences panel
   const handleSelectSoldier = (soldierId) => {
@@ -607,13 +560,11 @@ export default function ScheduleManagementPage() {
   }, [rawSubmissions, users, nextWeekStartStr]);
 
   if (loading) return <div className="p-6 text-center">טוען נתונים...</div>;
-  
-  const assignedSoldierIds = new Set(Object.values(schedule).flatMap((day) => Object.values(day).flatMap((shift) => shift.soldiers || [])));
+
   const availableSoldiers = Object.values(users).filter((u) => u.is_active);
-  
+
   console.log('ScheduleManagement: Available soldiers:', availableSoldiers);
   console.log('ScheduleManagement: Users:', users);
-  console.log('ScheduleManagement: Panel open:', isPanelOpen);
 
   return (
     <>
@@ -627,7 +578,7 @@ export default function ScheduleManagementPage() {
                 loading={preferencesLoading}
                 soldierShiftCounts={soldierShiftCounts}
                 users={users}
-                isDragging={isDraggingFromPreferences}
+                isDragging={false}
                 onSelectSoldier={handleSelectSoldier}
                 selectedSoldierId={selectedSoldierId}
             />

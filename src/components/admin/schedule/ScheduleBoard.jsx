@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
-import { User, Clock, AlertTriangle, X, Plus, Users as UsersIcon } from 'lucide-react';
+import { User, Clock, AlertTriangle, X, Users as UsersIcon } from 'lucide-react';
 import { DAYS, SHIFT_NAMES, SHIFT_TYPES_HE } from '../../../config/shifts';
 
 const DAYS_HE = {

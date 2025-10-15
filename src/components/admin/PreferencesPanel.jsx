@@ -1,14 +1,10 @@
 import React, { useState } from 'react';
-import { Search, Calendar, User, Clock, CheckCircle } from 'lucide-react';
-import { Button } from '../ui/button';
+import { Search, Calendar, User } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { format } from 'date-fns';
 import {
-  WEEKDAYS_HE,
-  hasAnyPreferences,
-  getTotalShifts,
-  getSlotDisplayText
+  hasAnyPreferences
 } from '../../utils/preferences';
 
 export default function PreferencesPanel({
