@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { User } from "../entities/User";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -6,10 +7,13 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Checkbox } from "../components/ui/checkbox";
-import { User as UserIcon, Shield, Save, AlertCircle, Car, Key, EyeOff, Eye } from "lucide-react";
+import { User as UserIcon, Shield, Save, AlertCircle, Car, Key, EyeOff, Eye, ArrowRight } from "lucide-react";
 import { Alert, AlertDescription } from "../components/ui/alert";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function MyStatusPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [currentUser, setCurrentUser] = useState(null);
   const [formData, setFormData] = useState({
     hebrew_name: "",
@@ -19,6 +23,10 @@ export default function MyStatusPage() {
     unit: "",
     rank: "חייל",
     is_driver: false,
+    home_location: "",
+    mother_unit: "",
+    rifleman: "",
+    mission: "",
     equipment: { vest: false, helmet: false, radio: false, weapon: false }
   });
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -43,6 +51,10 @@ export default function MyStatusPage() {
         unit: user.unit || "",
         rank: user.rank || "חייל",
         is_driver: user.is_driver || false,
+        home_location: user.home_location || "",
+        mother_unit: user.mother_unit || "",
+        rifleman: user.rifleman || "",
+        mission: user.mission || "",
         equipment: {
           vest: user.equipment?.vest || false,
           helmet: user.equipment?.helmet || false,
@@ -100,16 +112,43 @@ export default function MyStatusPage() {
     );
   }
 
+  // Check if this is a new user with minimal details
+  const isNewUser = !formData.hebrew_name || !formData.personal_number || !formData.rank;
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen" dir="rtl">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <UserIcon className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">הפרופיל שלי</h1>
+          <div className="flex items-center justify-between mb-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => navigate(`/soldier/${user?.uid}`)}
+              className="flex items-center gap-2"
+            >
+              <ArrowRight className="w-4 h-4" />
+              חזרה לדשבורד
+            </Button>
+            <div className="flex items-center gap-3">
+              <UserIcon className="w-8 h-8 text-blue-600" />
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">הפרופיל שלי</h1>
+                <p className="text-gray-600">עדכן את הפרטים והציוד שלך</p>
+              </div>
+            </div>
+            <div className="w-32"></div>
           </div>
-          <p className="text-gray-600">עדכן את הפרטים והציוד שלך</p>
         </div>
+
+        {/* Welcome message for new users */}
+        {isNewUser && (
+          <Alert className="mb-6 border-blue-200 bg-blue-50">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>ברוך הבא!</strong> זו ההתחברות הראשונה שלך. אנא מלא את כל הפרטים האישיים והציוד שלך למטה ולחץ על "שמור פרטים אישיים" בסוף הדף.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {message && (
           <Alert className={`${message.includes("שגיאה") ? "border-red-200 bg-red-50 text-red-800" : "border-green-200 bg-green-50 text-green-800"} mb-6`}>
@@ -128,7 +167,7 @@ export default function MyStatusPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="hebrew_name">שם מלא (עברית)</Label>
+                <Label htmlFor="hebrew_name">שם מלא </Label>
                 <Input id="hebrew_name" value={formData.hebrew_name} onChange={(e) => setFormData(prev => ({...prev, hebrew_name: e.target.value}))} placeholder="הכנס שם מלא בעברית" />
               </div>
               <div>
@@ -140,14 +179,22 @@ export default function MyStatusPage() {
                 <Input id="weapon_number" value={formData.weapon_number} onChange={(e) => setFormData(prev => ({...prev, weapon_number: e.target.value}))} placeholder="הכנס מספר נשק" />
               </div>
               <div>
-                <Label htmlFor="radio_number">מספר קשר</Label>
-                <Input id="radio_number" value={formData.radio_number} onChange={(e) => setFormData(prev => ({...prev, radio_number: e.target.value}))} placeholder="הכנס מספר קשר" />
+                <Label htmlFor="home_location">מיקום מגורים</Label>
+                <Input id="home_location" value={formData.home_location} onChange={(e) => setFormData(prev => ({...prev, home_location: e.target.value}))} placeholder="מיקום מגורים" />
               </div>
               <div>
-                <Label htmlFor="unit">יחידה</Label>
-                <Select value={formData.unit} onValueChange={(value) => setFormData(prev => ({...prev, unit: value}))}>
+                <Label htmlFor="mother_unit">יחידת אם</Label>
+                <Input id="mother_unit" value={formData.mother_unit} onChange={(e) => setFormData(prev => ({...prev, mother_unit: e.target.value}))} placeholder="יחידת אם" />
+              </div>
+              <div>
+                <Label htmlFor="rifleman">רובאי</Label>
+                <Input id="rifleman" value={formData.rifleman} onChange={(e) => setFormData(prev => ({...prev, rifleman: e.target.value}))} placeholder="רובאי" />
+              </div>
+              <div>
+                <Label htmlFor="mission">משימה</Label>
+                <Select value={formData.mission} onValueChange={(value) => setFormData(prev => ({...prev, mission: value}))}>
                   <SelectTrigger>
-                    <SelectValue placeholder="בחר יחידה" />
+                    <SelectValue placeholder="בחר משימה" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="קריית_חינוך">קריית חינוך</SelectItem>
@@ -155,21 +202,7 @@ export default function MyStatusPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="rank">דרגה</Label>
-                <Select value={formData.rank} onValueChange={(value) => setFormData(prev => ({...prev, rank: value}))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="בחר דרגה" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="חייל">חייל</SelectItem>
-                    <SelectItem value="רב_טוראי">רב טוראי</SelectItem>
-                    <SelectItem value="סמל">סמל</SelectItem>
-                    <SelectItem value="רס_פ">רס״פ</SelectItem>
-                    <SelectItem value="מפקד">מפקד</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+
               <div className="flex items-center space-x-2 pt-2">
                 <Checkbox id="is_driver" checked={formData.is_driver} onCheckedChange={(checked) => setFormData(prev => ({...prev, is_driver: Boolean(checked)}))} />
                 <Label htmlFor="is_driver" className="flex items-center gap-2 mr-2">

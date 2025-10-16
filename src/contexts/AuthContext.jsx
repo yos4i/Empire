@@ -133,41 +133,42 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       console.log('AuthContext: Starting addSoldier with', soldierData);
-      
+
       // Check if username already exists in local storage
       if (mockUsers[soldierData.username.toLowerCase()]) {
         throw new Error('שם משתמש כבר קיים במערכת');
       }
-      
+
       // Generate unique ID
       const uid = `soldier-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Create new soldier data
+
+      // Create new soldier data with ONLY the required fields
+      // The soldier will fill in the rest in "פרטים אישיים"
       const newSoldier = {
         username: soldierData.username.toLowerCase(),
         password: soldierData.password,
-        displayName: soldierData.displayName,
         role: 'soldier',
-        rank: soldierData.rank,
-        unit: soldierData.unit,
-        personal_number: soldierData.personal_number,
         is_active: true,
-        equipment_status: 'מלא',
         created_at: new Date().toISOString(),
-        uid: uid
+        uid: uid,
+        // Optional fields - only include if provided
+        ...(soldierData.displayName && { displayName: soldierData.displayName }),
+        ...(soldierData.rank && { rank: soldierData.rank }),
+        ...(soldierData.unit && { unit: soldierData.unit }),
+        ...(soldierData.personal_number && { personal_number: soldierData.personal_number })
       };
-      
-      console.log('AuthContext: Prepared soldier data', newSoldier);
-      
+
+      console.log('AuthContext: Prepared soldier data (minimal fields)', newSoldier);
+
       // Save to Firestore database
       try {
         console.log('AuthContext: Attempting to save to Firestore...');
         console.log('AuthContext: Firebase db object:', db);
         console.log('AuthContext: Data to save:', newSoldier);
-        
+
         const docRef = await addDoc(collection(db, 'users'), newSoldier);
         console.log('AuthContext: SUCCESS! Soldier saved to Firestore with ID:', docRef.id);
-        
+
         // Update the soldier with the Firestore document ID
         newSoldier.firestoreId = docRef.id;
       } catch (firestoreError) {
@@ -180,17 +181,17 @@ export const AuthProvider = ({ children }) => {
         // Continue with local storage even if Firestore fails
         throw new Error(`Failed to save to database: ${firestoreError.message}`);
       }
-      
+
       // Add to local mock users (for backward compatibility and offline support)
       const updatedMockUsers = {
         ...mockUsers,
         [soldierData.username.toLowerCase()]: newSoldier
       };
       setMockUsers(updatedMockUsers);
-      
+
       // Save updated users to localStorage
       localStorage.setItem('mockUsers', JSON.stringify(updatedMockUsers));
-      
+
       console.log('AuthContext: Added soldier to local storage and Firestore, returning soldier', newSoldier);
       return newSoldier;
     } catch (error) {

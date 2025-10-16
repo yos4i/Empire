@@ -8,11 +8,7 @@ import { Card } from '../ui/card';
 export default function AddSoldierDialog({ isOpen, onClose, onAddSoldier }) {
   const [formData, setFormData] = useState({
     username: '',
-    password: '',
-    displayName: '',
-    rank: '',
-    unit: 'קריית_חינוך',
-    personal_number: ''
+    password: ''
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -36,18 +32,8 @@ export default function AddSoldierDialog({ isOpen, onClose, onAddSoldier }) {
 
     if (!formData.password.trim()) {
       newErrors.password = 'סיסמה נדרשת';
-    }
-
-    if (!formData.displayName.trim()) {
-      newErrors.displayName = 'שם מלא נדרש';
-    }
-
-    if (!formData.personal_number.trim()) {
-      newErrors.personal_number = 'מספר אישי נדרש';
-    }
-
-    if (!formData.rank.trim()) {
-      newErrors.rank = 'דרגה נדרשת';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'סיסמה חייבת להכיל לפחות 6 תווים';
     }
 
     setErrors(newErrors);
@@ -66,11 +52,7 @@ export default function AddSoldierDialog({ isOpen, onClose, onAddSoldier }) {
       console.log('Soldier added successfully');
       setFormData({
         username: '',
-        password: '',
-        displayName: '',
-        rank: '',
-        unit: 'קריית_חינוך',
-        personal_number: ''
+        password: ''
       });
       setErrors({});
       onClose();
@@ -110,10 +92,19 @@ export default function AddSoldierDialog({ isOpen, onClose, onAddSoldier }) {
             </div>
           )}
 
+          {/* Info message */}
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-3 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5" />
+            <div className="text-sm text-blue-700">
+              <p className="font-medium mb-1">שים לב:</p>
+              <p>החייל ימלא את שאר הפרטים (שם, דרגה, מספר אישי, ציוד וכו׳) בעצמו בעמוד "פרטים אישיים" לאחר ההתחברות הראשונה.</p>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="username" className="flex items-center gap-2">
               <User className="w-4 h-4" />
-              שם משתמש
+              שם משתמש *
             </Label>
             <Input
               id="username"
@@ -121,8 +112,9 @@ export default function AddSoldierDialog({ isOpen, onClose, onAddSoldier }) {
               type="text"
               value={formData.username}
               onChange={handleChange}
-              placeholder="הכנס שם משתמש"
+              placeholder="הכנס שם משתמש (לפחות 3 תווים)"
               className={errors.username ? 'border-red-500' : ''}
+              autoComplete="off"
             />
             {errors.username && <p className="text-red-500 text-sm">{errors.username}</p>}
           </div>
@@ -130,7 +122,7 @@ export default function AddSoldierDialog({ isOpen, onClose, onAddSoldier }) {
           <div className="space-y-2">
             <Label htmlFor="password" className="flex items-center gap-2">
               <Lock className="w-4 h-4" />
-              סיסמה
+              סיסמה *
             </Label>
             <Input
               id="password"
@@ -138,85 +130,31 @@ export default function AddSoldierDialog({ isOpen, onClose, onAddSoldier }) {
               type="password"
               value={formData.password}
               onChange={handleChange}
-              placeholder="הכנס סיסמה"
+              placeholder="הכנס סיסמה (לפחות 6 תווים)"
               className={errors.password ? 'border-red-500' : ''}
+              autoComplete="new-password"
             />
             {errors.password && <p className="text-red-500 text-sm">{errors.password}</p>}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="displayName">שם מלא</Label>
-            <Input
-              id="displayName"
-              name="displayName"
-              type="text"
-              value={formData.displayName}
-              onChange={handleChange}
-              placeholder="הכנס שם מלא"
-              className={errors.displayName ? 'border-red-500' : ''}
-            />
-            {errors.displayName && <p className="text-red-500 text-sm">{errors.displayName}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="personal_number">מספר אישי</Label>
-            <Input
-              id="personal_number"
-              name="personal_number"
-              type="text"
-              value={formData.personal_number}
-              onChange={handleChange}
-              placeholder="הכנס מספר אישי"
-              className={errors.personal_number ? 'border-red-500' : ''}
-            />
-            {errors.personal_number && <p className="text-red-500 text-sm">{errors.personal_number}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="rank">דרגה</Label>
-            <select
-              id="rank"
-              name="rank"
-              value={formData.rank}
-              onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-md ${errors.rank ? 'border-red-500' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
-            >
-              <option value="">בחר דרגה</option>
-              <option value="טוראי">טוראי</option>
-              <option value="רב-טוראי">רב-טוראי</option>
-              <option value="סמל">סמל</option>
-              <option value="סמל ראשון">סמל ראשון</option>
-              <option value="רב-סמל">רב-סמל</option>
-              <option value="סגן משנה">סגן משנה</option>
-            </select>
-            {errors.rank && <p className="text-red-500 text-sm">{errors.rank}</p>}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="unit">יחידה</Label>
-            <select
-              id="unit"
-              name="unit"
-              value={formData.unit}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="קריית_חינוך">קריית חינוך</option>
-              <option value="גבולות">גבולות</option>
-            </select>
-          </div>
-
           <div className="flex gap-3 pt-4">
-            <Button 
-              type="submit" 
-              className="flex-1"
+            <Button
+              type="submit"
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
               disabled={loading}
             >
-              {loading ? 'יוצר...' : 'צור חייל'}
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  יוצר חייל...
+                </>
+              ) : (
+                'צור חייל חדש'
+              )}
             </Button>
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={onClose}
               disabled={loading}
             >

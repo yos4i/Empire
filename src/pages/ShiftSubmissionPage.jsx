@@ -217,16 +217,6 @@ const handleSubmit = async () => {
                 </AlertDescription>
               </Alert>
             )}
-
-            {existingSubmission && (
-              <Alert>
-                <Calendar className="h-4 w-4" />
-                <AlertTitle>העדפות קיימות</AlertTitle>
-                <AlertDescription>
-                  העדפות משמרות קיימות נמצאו. לחיצה על "עדכן העדפות" תחליף את ההעדפות הקודמות.
-                </AlertDescription>
-              </Alert>
-            )}
           </div>
         </div>
       </div>

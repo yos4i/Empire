@@ -11,6 +11,7 @@ import ShiftSubmissionPage from './pages/ShiftSubmissionPage';
 import ScheduleManagementPage from './pages/ScheduleManagementPage';
 import ShiftPreferencesPage from './pages/ShiftPreferencesPage';
 import MyAssignmentsPage from './pages/MyAssignmentsPage';
+import MyStatusPage from './pages/MyStatusPage';
 
 // Loading component for auth restoration
 const LoadingScreen = () => (
@@ -41,6 +42,7 @@ const AppContent = () => {
               <Route path="/" element={<SoldierDashboard />} />
               <Route path="/shifts" element={<ShiftSubmissionPage />} />
               <Route path="/assignments" element={<MyAssignmentsPage />} />
+              <Route path="/status" element={<MyStatusPage />} />
             </Routes>
           </ProtectedRoute>
         }

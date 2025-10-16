@@ -2,8 +2,9 @@ import React, { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Home, Calendar, ClipboardList, LogOut } from "lucide-react";
+import { Home, Calendar, ClipboardList, LogOut, User } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import WeeklyScheduleView from "../components/soldier/WeeklyScheduleView";
 
 export default function SoldierDashboard() {
   const { user, signOut } = useAuth();
@@ -42,19 +43,13 @@ export default function SoldierDashboard() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-blue-600" />
-                הסידור השבועי
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600">הסידור לשבוע הנוכחי עדיין לא פורסם</p>
-            </CardContent>
-          </Card>
+        {/* Full Week Schedule */}
+        <div className="mb-6">
+          <WeeklyScheduleView />
+        </div>
 
+        {/* Quick Actions */}
+        <div className="grid md:grid-cols-3 gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -64,8 +59,8 @@ export default function SoldierDashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-gray-600 mb-3">בחר את המשמרות שאתה רוצה לעבוד לשבוע הבא</p>
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 onClick={() => navigate(`/soldier/${user?.uid}/shifts`)}
                 className="w-full"
               >
@@ -83,9 +78,9 @@ export default function SoldierDashboard() {
             </CardHeader>
             <CardContent>
               <p className="text-gray-600 mb-3">צפה במשמרות שהוקצו לך ואשר אותן</p>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => navigate(`/soldier/${user?.uid}/assignments`)}
                 className="w-full"
               >
@@ -97,12 +92,20 @@ export default function SoldierDashboard() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Home className="w-5 h-5 text-purple-600" />
+                <User className="w-5 h-5 text-purple-600" />
                 פרטים אישיים
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600">עדכן את הפרטים והציוד האישי שלך</p>
+              <p className="text-gray-600 mb-3">עדכן את הפרטים והציוד האישי שלך</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/soldier/${user?.uid}/status`)}
+                className="w-full"
+              >
+                עדכן פרטים
+              </Button>
             </CardContent>
           </Card>
         </div>

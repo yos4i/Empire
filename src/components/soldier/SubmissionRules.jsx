@@ -16,38 +16,25 @@ export default function SubmissionRules() {
           <div className="flex items-start gap-2">
             <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
             <div>
-              <span className="font-medium">בחירת משמרות חופשית</span>
-              <p className="text-gray-600">בחר את המשמרות שאתה מעוניין לעבוד</p>
+              <span className="font-medium">בחירת מינימום 5 משמרות</span>
             </div>
           </div>
           <div className="flex items-start gap-2">
             <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
             <div>
-              <span className="font-medium">ללא הגבלות</span>
-              <p className="text-gray-600">ניתן לבחור כמות משמרות לפי העדפתך</p>
+              <span className="font-medium">חובת בחירת משמרת בוקר עד 15:30</span>
             </div>
           </div>
           <div className="flex items-start gap-2">
             <Clock className="w-4 h-4 text-blue-600 mt-0.5" />
             <div>
-              <span className="font-medium">זמני הגשה</span>
-              <p className="text-gray-600">ניתן להגיש בכל עת</p>
+              <span className="font-medium">משמרת ערב תאושר רק על ידי מפקד</span>
             </div>
           </div>
           <div className="flex items-start gap-2">
             <Calendar className="w-4 h-4 text-purple-600 mt-0.5" />
             <div>
-              <span className="font-medium">עדכון הגשות</span>
-              <p className="text-gray-600">ניתן לעדכן ההגשה מספר פעמים</p>
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
-          <div className="flex items-start gap-2">
-            <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
-            <div className="text-sm text-green-800">
-              <p className="font-medium">חופש בחירה:</p>
-              <p>בחר בדיוק את המשמרות שאתה רוצה - ללא הגבלות</p>
+              <span className="font-medium">הגשת סידור עד יום חמישי בשעה 16:00</span>
             </div>
           </div>
         </div>

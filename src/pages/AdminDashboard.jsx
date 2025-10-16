@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Shield, FileText, Search, AlertCircle, LogOut, Plus, Eye } from "lucide-react";
+import { Users, Shield, FileText, Search, AlertCircle, LogOut, Plus, Eye, RefreshCw } from "lucide-react";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { useAuth } from "../contexts/AuthContext";
 import AddSoldierDialog from "../components/admin/AddSoldierDialog";
+import SoldierDetailsDialog from "../components/admin/SoldierDetailsDialog";
 import { db } from "../config/firebase";
 import { collection, getDocs } from "firebase/firestore";
 
@@ -21,14 +22,16 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterUnit, setFilterUnit] = useState("הכל");
   const [loading, setLoading] = useState(false);
-  const [showAddDialog, setShowAddDialog] = useState(false); 
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [selectedSoldier, setSelectedSoldier] = useState(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false); 
   useEffect(() => { loadSoldiers(); }, []);
 
   const loadSoldiers = async () => {
     setLoading(true);
     try {
       console.log('AdminDashboard: Loading soldiers...');
-      
+
       // Load only real soldiers from Firestore
       let allSoldiers = [];
 
@@ -41,19 +44,28 @@ export default function AdminDashboard() {
             const data = doc.data();
             return {
               id: doc.id,
-              hebrew_name: data.displayName,
-              full_name: data.displayName,
-              personal_number: data.personal_number,
-              unit: data.unit,
+              hebrew_name: data.displayName || data.hebrew_name || data.username || 'חייל חדש',
+              full_name: data.displayName || data.hebrew_name || data.username || 'חייל חדש',
+              personal_number: data.personal_number || 'לא מולא',
+              unit: data.mission || data.unit || 'לא מולא', // Use mission field (new) or unit (old)
               role: data.role === 'admin' ? 'admin' : 'user',
-              is_active: data.is_active,
-              rank: data.rank,
-              equipment_status: data.equipment_status || 'מלא',
+              is_active: data.is_active !== false, // Default to true if not set
+              rank: data.rank || 'לא מולא',
+              mission: data.mission,
+              mother_unit: data.mother_unit,
+              equipment_status: data.equipment_status || 'לא מולא',
               constraints: data.constraints || {},
-              weekly_shifts: data.weekly_shifts || {}
+              weekly_shifts: data.weekly_shifts || {},
+              uid: data.uid,
+              username: data.username,
+              weapon_number: data.weapon_number,
+              is_driver: data.is_driver,
+              equipment: data.equipment,
+              created_at: data.created_at,
+              updated_at: data.updated_at
             };
           })
-          .filter(user => user.role === 'user');
+          .filter(user => user.role === 'user' && user.is_active);
         console.log('AdminDashboard: Loaded soldiers from Firestore:', allSoldiers);
       } catch (firestoreError) {
         console.error('AdminDashboard: Error loading from Firestore:', firestoreError);
@@ -70,10 +82,18 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleViewDetails = (soldier) => {
+    setSelectedSoldier(soldier);
+    setShowDetailsDialog(true);
+  };
+
   const filteredSoldiers = soldiers.filter(soldier => {
-    if (soldier.role !== 'user' || !soldier.is_active) return false;
-    const matchesSearch = (soldier.hebrew_name || soldier.full_name)?.toLowerCase().includes(searchTerm.toLowerCase()) || soldier.personal_number?.includes(searchTerm);
-    const matchesUnit = filterUnit === "הכל" || soldier.unit === filterUnit;
+    const matchesSearch = (soldier.hebrew_name || soldier.full_name || '')?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (soldier.personal_number || '')?.includes(searchTerm) ||
+                         (soldier.username || '')?.toLowerCase().includes(searchTerm.toLowerCase());
+    // Check both mission and unit fields for filtering
+    const soldierUnit = soldier.mission || soldier.unit;
+    const matchesUnit = filterUnit === "הכל" || soldierUnit === filterUnit || soldierUnit === 'לא מולא' || !soldierUnit;
     return matchesSearch && matchesUnit;
   });
   
@@ -109,41 +129,16 @@ export default function AdminDashboard() {
     <div className="p-6 bg-gray-50 min-h-screen" dir="rtl">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-48"></div>
+          <div className="flex items-center justify-between relative">
+            <h1 className="text-3xl font-bold text-gray-900 absolute left-1/2 -translate-x-1/2 top-4">
+              דשבורד מנהל
+            </h1>
 
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <div className="flex items-center gap-3">
-                <Shield className="w-8 h-8 text-blue-600" />
-                <div className="text-center">
-                  <h1 className="text-3xl font-bold text-gray-900">דשבורד מנהל</h1>
-                  <p className="text-gray-600">ברוך הבא, {user?.displayName}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => navigate('/shift-preferences')}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <Eye className="w-4 h-4 ml-1" />
-                צפייה בהעדפות
-              </Button>
-              <Button 
-                onClick={() => navigate('/schedule-management')}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <FileText className="w-4 h-4 ml-1" />
-                ניהול סידור
-              </Button>
-              <Button onClick={handleLogout} variant="outline">
-                <LogOut className="w-4 h-4 ml-1" />
-                יציאה
-              </Button>
-            </div>
+            <Button onClick={handleLogout} variant="outline">
+              <LogOut className="w-4 h-4 ml-1" />
+              יציאה
+            </Button>
           </div>
-          <p className="text-gray-600">ניהול כוח האדם ומעקב סטטוס</p>
         </div>
 
 
@@ -207,13 +202,24 @@ export default function AdminDashboard() {
               <Users className="w-5 h-5" />
               <h3 className="text-lg font-semibold">חיילי הכוח ({filteredSoldiers.length})</h3>
             </div>
-            <Button 
-              onClick={() => setShowAddDialog(true)}
-              className="flex items-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              הוסף חייל
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={loadSoldiers}
+                disabled={loading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                רענן
+              </Button>
+              <Button
+                onClick={() => setShowAddDialog(true)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                הוסף חייל
+              </Button>
+            </div>
           </div>
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
@@ -240,26 +246,51 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredSoldiers.map((soldier) => (
-              <Card key={soldier.id} className="p-4">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-gray-900">{soldier.hebrew_name}</h4>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeColor(soldier.equipment_status)}`}>
-                      {soldier.equipment_status || 'לא ידוע'}
-                    </span>
+            {filteredSoldiers.map((soldier) => {
+              // Check if soldier has filled basic details
+              const hasFilledDetails = soldier.home_location ||
+                                       soldier.mission ||
+                                       soldier.mother_unit ||
+                                       soldier.personal_number !== 'לא מולא' ||
+                                       soldier.rifleman;
+
+              return (
+                <Card key={soldier.id} className="p-4">
+                  <div className="space-y-3">
+                    {/* Centered soldier name */}
+                    <div className="text-center">
+                      <h4 className="font-semibold text-lg text-gray-900">{soldier.hebrew_name}</h4>
+                    </div>
+
+                    {/* Status badge below name */}
+                    <div className="flex justify-center">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${hasFilledDetails ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        {hasFilledDetails ? '' : 'לא מולא'}
+                      </span>
+                    </div>
+
+                    {/* Details */}
+                    <div className="space-y-1 text-sm text-gray-600">
+                      <p>מ.א: {soldier.personal_number || 'לא מולא'}</p>
+                      <p>דרגה: {soldier.rank || 'לא מולא'}</p>
+                      <p>יחידה: {soldier.unit ? soldier.unit.replace('_', ' ') : 'לא מולא'}</p>
+                    </div>
+
+                    {/* View details button */}
+                    <div className="pt-2 border-t">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => handleViewDetails(soldier)}
+                      >
+                        צפה בפרטים
+                      </Button>
+                    </div>
                   </div>
-                  <div className="space-y-1 text-sm text-gray-600">
-                    <p>מ.א: {soldier.personal_number}</p>
-                    <p>דרגה: {soldier.rank || 'לא ידועה'}</p>
-                    <p>יחידה: {soldier.unit.replace('_', ' ')}</p>
-                  </div>
-                  <div className="pt-2 border-t">
-                    <Button size="sm" variant="outline" className="w-full">צפה בפרטים</Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         )}
 
@@ -275,6 +306,15 @@ export default function AdminDashboard() {
           isOpen={showAddDialog}
           onClose={() => setShowAddDialog(false)}
           onAddSoldier={handleAddSoldier}
+        />
+
+        <SoldierDetailsDialog
+          isOpen={showDetailsDialog}
+          onClose={() => {
+            setShowDetailsDialog(false);
+            setSelectedSoldier(null);
+          }}
+          soldier={selectedSoldier}
         />
       </div>
     </div>

@@ -732,7 +732,7 @@ export default function ScheduleManagementPage() {
 
   return (
     <>
-        <div className="flex h-[calc(100vh-4rem)] bg-gray-100" dir="rtl">
+        <div className="flex h-[calc(100vh-4rem)] bg-gray-100 overflow-hidden" dir="rtl">
             {/* Preferences Panel - Always open on left */}
             <PreferencesPanel
                 isOpen={true}
@@ -746,8 +746,8 @@ export default function ScheduleManagementPage() {
                 onSelectSoldier={handleSelectSoldier}
                 selectedSoldierId={selectedSoldierId}
             />
-            <div className="flex-grow p-4 md:p-6 flex flex-col">
-                <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+            <div className="flex-grow p-4 md:p-6 flex flex-col overflow-hidden">
+                <div className="flex justify-between items-center mb-4 flex-wrap gap-2 flex-shrink-0">
                     <Button
                         variant="outline"
                         onClick={() => navigate('/admin')}
@@ -757,7 +757,7 @@ export default function ScheduleManagementPage() {
                         חזרה לדף הבית
                     </Button>
 
-                    <div className="flex-1 flex flex-col items-center justify-center">
+                    <div className="flex-1 flex flex-col items-center justify-center min-w-0">
                         <div className="flex items-center gap-3">
                             <Calendar className="w-8 h-8 text-blue-600"/>
                             <div className="text-center">
@@ -767,7 +767,7 @@ export default function ScheduleManagementPage() {
                         </div>
                     </div>
 
-                    <div className="flex gap-2 items-center">
+                    <div className="flex gap-2 items-center flex-wrap">
                         <Button variant="outline" onClick={handleDebugUsers} className="border-purple-300 text-purple-600 hover:bg-purple-50">🔍 בדוק IDs</Button>
                         <Button variant="outline" onClick={handleCreateTestAssignment} disabled={saving} className="border-green-300 text-green-600 hover:bg-green-50">🧪 בדיקת DB</Button>
                         <Button variant="outline" onClick={handleClearAllAssignments} disabled={saving} className="border-red-300 text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4 ml-2"/>נקה שיבוצים</Button>
@@ -777,7 +777,7 @@ export default function ScheduleManagementPage() {
                     </div>
                 </div>
 
-                 <div className="flex-grow overflow-x-auto pb-4">
+                 <div className="flex-1 overflow-auto pb-4 min-h-0">
                     <ScheduleBoard
                         schedule={schedule}
                         users={users}

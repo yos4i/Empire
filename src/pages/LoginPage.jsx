@@ -46,7 +46,7 @@ const LoginPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4" dir="rtl">
       <Card className="w-full max-w-md p-8 space-y-6">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900">🌟 אימפריה</h1>
+          <h1 className="text-3xl font-bold text-gray-900"> אימפריה</h1>
           <h2 className="text-xl font-semibold text-gray-700">מערכת סידור עבודה</h2>
           <p className="text-gray-500">התחבר למערכת כדי להמשיך</p>
         </div>
@@ -73,11 +73,6 @@ const LoginPage = () => {
           )}
         </form>
 
-        <div className="text-center text-sm text-gray-500">
-          <p>משתמשים לדוגמה:</p>
-          <p>מנהל: admin / admin123</p>
-          <p>חייל: daniel / 123456</p>
-        </div>
       </Card>
     </div>
   );

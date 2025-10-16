@@ -71,18 +71,9 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
               )}
             </div>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-gray-500">{soldier.rank}</span>
-              <span className="text-xs text-gray-500">•</span>
-              <span className="text-xs text-gray-500">{soldier.unit?.replace('_', ' ')}</span>
               {isOverworked && (
                 <AlertTriangle className="w-3 h-3 text-red-500" />
               )}
-            </div>
-            <div className="flex items-center gap-1 mt-1">
-              <Clock className="w-3 h-3 text-gray-400" />
-              <span className="text-xs text-gray-500">
-                {soldierShiftCount} משמרות השבוע
-              </span>
             </div>
           </div>
     );
@@ -189,20 +180,20 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
+    <div className="space-y-4 h-full">
+      <Card className="h-full flex flex-col">
+        <CardHeader className="flex-shrink-0">
           <CardTitle className="flex items-center gap-2">
             <UsersIcon className="w-5 h-5" />
             לוח סידור עבודה
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 flex-1 overflow-auto">
           {/* Desktop Grid Layout */}
-          <div className="hidden md:block overflow-x-auto">
-            <div className="min-w-[1000px]">
+          <div className="hidden md:block h-full">
+            <div className="min-w-[1200px] pb-4">
               {/* Header Row - Days as columns */}
-              <div className="grid gap-2 p-4 bg-gray-50 border-b" style={{ gridTemplateColumns: '200px repeat(6, 1fr)' }}>
+              <div className="grid gap-2 p-4 bg-gray-50 border-b sticky top-0 z-10" style={{ gridTemplateColumns: '200px repeat(6, 1fr)' }}>
                 <div className="font-semibold text-center text-gray-700">סוג משמרת</div>
                 {DAYS.map(day => (
                   <div key={day} className="font-semibold text-center text-gray-700">
@@ -229,7 +220,7 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                   {/* Day Cells for this shift */}
                   {DAYS.map(day => (
                     <div key={`${day}-${shiftKey}`}>
-                      {schedule[day]?.[shiftKey] ? 
+                      {schedule[day]?.[shiftKey] ?
                         renderShiftCell(day, shiftKey, schedule[day][shiftKey]) :
                         <div className="min-h-[200px] bg-gray-100 rounded-lg flex items-center justify-center">
                           <span className="text-gray-400 text-sm">לא זמין</span>
@@ -271,20 +262,20 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
       </Card>
 
       {/* Schedule Summary */}
-      <Card>
+      <Card className="flex-shrink-0">
         <CardHeader>
           <CardTitle className="text-lg">סיכום סידור</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {Object.keys(SHIFT_NAMES).map(shiftKey => {
-              const totalAssigned = DAYS.reduce((sum, day) => 
+              const totalAssigned = DAYS.reduce((sum, day) =>
                 sum + (schedule[day]?.[shiftKey]?.soldiers?.length || 0), 0
               );
-              const totalRequired = DAYS.reduce((sum, day) => 
+              const totalRequired = DAYS.reduce((sum, day) =>
                 sum + (schedule[day]?.[shiftKey]?.required || 0), 0
               );
-              const totalCancelled = DAYS.reduce((sum, day) => 
+              const totalCancelled = DAYS.reduce((sum, day) =>
                 sum + (schedule[day]?.[shiftKey]?.cancelled ? 1 : 0), 0
               );
 
