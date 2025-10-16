@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ShiftSubmission } from "../entities/ShiftSubmission";
-import { ClipboardList, AlertTriangle, Calendar, Home } from "lucide-react";
+import { ClipboardList, AlertTriangle, Home } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -98,7 +98,7 @@ const handleSubmit = async () => {
     // Method 1: New way using ShiftSubmissionService (for admin to see)
     await ShiftSubmissionService.submitPreferences(
       user.uid,
-      user.displayName,
+      user.displayName || user.username || user.hebrew_name,
       nextWeekStartStr,
       shifts
     );
@@ -108,7 +108,7 @@ const handleSubmit = async () => {
       uid: user.uid,
       user_id: user.uid,
       soldier_id: user.uid,
-      userName: user.displayName,
+      userName: user.displayName || user.username || user.hebrew_name,
       week_start: nextWeekStartStr,
       shifts: shifts,
       days: shifts

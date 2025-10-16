@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays, startOfWeek } from 'date-fns';
-import { ChevronLeft, ChevronRight, Calendar, Eye, Download, Search, Filter, Users, Home } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, Eye, Search, Filter, Users, Home } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -28,18 +28,48 @@ export default function ShiftPreferencesPage() {
     try {
       // Load users
       const allUsers = await User.list();
-      const usersMap = allUsers.reduce((acc, user) => { 
-        acc[user.id] = user; 
-        return acc; 
+      const usersMap = allUsers.reduce((acc, user) => {
+        acc[user.id] = user;
+        return acc;
       }, {});
       setUsers(usersMap);
 
-      // Load submissions for the selected week
+      // Load submissions from shift_preferences collection (same as Schedule Management)
       const submissionsMap = {};
-      
-      // First, check user weekly_shifts data
+
+      try {
+        const { collection: firestoreCollection, query: firestoreQuery, where: firestoreWhere, getDocs: firestoreGetDocs } = await import('firebase/firestore');
+        const { db } = await import('../config/firebase');
+
+        const q = firestoreQuery(
+          firestoreCollection(db, 'shift_preferences'),
+          firestoreWhere('weekStart', '==', selectedWeekStr)
+        );
+        const snapshot = await firestoreGetDocs(q);
+
+        console.log('ShiftPreferencesPage: Loaded', snapshot.docs.length, 'preferences from shift_preferences collection');
+
+        snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          console.log('Preference document:', doc.id, data);
+
+          // Map the userId from the document to the user
+          if (data.userId && data.days) {
+            // Find the user by matching uid or id
+            const user = allUsers.find(u => u.uid === data.userId || u.id === data.userId);
+            if (user) {
+              submissionsMap[user.id] = data.days;
+              console.log(`Mapped preference for ${user.hebrew_name}:`, data.days);
+            }
+          }
+        });
+      } catch (error) {
+        console.error('Error loading from shift_preferences:', error);
+      }
+
+      // Fallback: check user weekly_shifts data
       allUsers.forEach(user => {
-        if (user.weekly_shifts && user.weekly_shifts[selectedWeekStr]) {
+        if (!submissionsMap[user.id] && user.weekly_shifts && user.weekly_shifts[selectedWeekStr]) {
           const userShifts = user.weekly_shifts[selectedWeekStr].shifts;
           if (userShifts) {
             submissionsMap[user.id] = userShifts;
@@ -47,7 +77,7 @@ export default function ShiftPreferencesPage() {
         }
       });
 
-      // Also check shift_submissions collection as fallback
+      // Final fallback: check shift_submissions collection
       const allSubmissions = await ShiftSubmission.filter({ week_start: selectedWeekStr });
       allSubmissions.forEach(sub => {
         if (!submissionsMap[sub.user_id]) {
@@ -55,6 +85,7 @@ export default function ShiftPreferencesPage() {
         }
       });
 
+      console.log('ShiftPreferencesPage: Final submissions map:', submissionsMap);
       setSubmissions(submissionsMap);
     } catch (error) {
       console.error("Error loading shift preferences data:", error);
@@ -73,45 +104,6 @@ export default function ShiftPreferencesPage() {
   const getShiftDisplayName = (shiftType, unit) => {
     const fullShiftKey = `${unit}_${shiftType}`;
     return SHIFT_NAMES[fullShiftKey] || `${unit.replace('_', ' ')} ${shiftType}`;
-  };
-
-  const exportToCSV = () => {
-    const csvData = [];
-    const header = ['שם חייל', 'מספר אישי', 'יחידה', ...DAYS_HE];
-    csvData.push(header);
-
-    Object.values(users)
-      .filter(user => user.role !== 'admin' && user.is_active)
-      .filter(user => {
-        const matchesSearch = (user.hebrew_name || user.full_name)?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            user.personal_number?.includes(searchTerm);
-        const matchesUnit = filterUnit === "הכל" || user.unit === filterUnit;
-        return matchesSearch && matchesUnit;
-      })
-      .forEach(user => {
-        const row = [
-          user.hebrew_name || user.full_name,
-          user.personal_number,
-          user.unit?.replace('_', ' ') || ''
-        ];
-        
-        DAYS.forEach(day => {
-          const dayShifts = submissions[user.id]?.[day] || [];
-          const shiftsDisplay = dayShifts.map(shift => 
-            getShiftDisplayName(shift, user.unit)
-          ).join('; ');
-          row.push(shiftsDisplay);
-        });
-        
-        csvData.push(row);
-      });
-
-    const csvContent = csvData.map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `shift_preferences_${selectedWeekStr}.csv`;
-    link.click();
   };
 
   const getFilteredUsers = () => {
@@ -271,19 +263,19 @@ export default function ShiftPreferencesPage() {
               <div className="flex flex-col md:flex-row gap-4 flex-1">
                 <div className="flex-1 relative">
                   <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input 
-                    placeholder="חיפוש לפי שם או מספר אישי..." 
-                    value={searchTerm} 
-                    onChange={(e) => setSearchTerm(e.target.value)} 
-                    className="pr-10" 
+                  <Input
+                    placeholder="חיפוש לפי שם או מספר אישי..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pr-10"
                   />
                 </div>
                 <div className="flex gap-2">
                   {["הכל", "קריית_חינוך", "גבולות"].map((unit) => (
-                    <Button 
-                      key={unit} 
-                      variant={filterUnit === unit ? "default" : "outline"} 
-                      size="sm" 
+                    <Button
+                      key={unit}
+                      variant={filterUnit === unit ? "default" : "outline"}
+                      size="sm"
                       onClick={() => setFilterUnit(unit)}
                     >
                       {unit.replace("_", " ")}
@@ -291,14 +283,6 @@ export default function ShiftPreferencesPage() {
                   ))}
                 </div>
               </div>
-              <Button 
-                onClick={exportToCSV} 
-                className="flex items-center gap-2"
-                disabled={filteredUsers.length === 0}
-              >
-                <Download className="w-4 h-4" />
-                ייצא לCSV
-              </Button>
             </div>
           </CardContent>
         </Card>

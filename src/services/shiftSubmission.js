@@ -25,11 +25,12 @@ export class ShiftSubmissionService {
       
       const submissionData = {
         userId: userId,
-        userName: userName,
         weekStart: weekStart,
         days: preferences, // Object with days as keys and shift arrays as values
         updatedAt: Timestamp.now(),
-        createdAt: Timestamp.now()
+        createdAt: Timestamp.now(),
+        // Only include userName if it's defined
+        ...(userName && { userName: userName })
       };
       
       // Use setDoc to create or update the document

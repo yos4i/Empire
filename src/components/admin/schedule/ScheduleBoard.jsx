@@ -14,7 +14,7 @@ const DAYS_HE = {
   friday: 'שישי'
 };
 
-export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId }) {
+export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId }) {
   
   const getShiftStatusColor = (shift, shiftKey) => {
     if (shift.cancelled) return 'bg-gray-100 border-gray-300';
@@ -146,8 +146,8 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
               )}
             </div>
 
-            {/* Shift Actions */}
-            {!isPublished && (
+            {/* Shift Actions - Only show when edit mode is active */}
+            {!isPublished && isEditMode && (
               <div className="flex gap-2 mt-2">
                 <Button
                   variant="ghost"

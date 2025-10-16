@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Shield, FileText, Search, AlertCircle, LogOut, Plus, Eye, RefreshCw } from "lucide-react";
+import { Users, Shield, FileText, Search, AlertCircle, LogOut, Plus, Eye } from "lucide-react";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -11,7 +11,7 @@ import { db } from "../config/firebase";
 import { collection, getDocs } from "firebase/firestore";
 
 export default function AdminDashboard() {
-  const { user, signOut, addSoldier } = useAuth();
+  const { signOut, addSoldier } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -116,15 +116,6 @@ export default function AdminDashboard() {
     }
   };
 
-
-  const getStatusBadgeColor = (status) => {
-    switch (status) {
-      case 'מלא': return 'bg-green-100 text-green-800';
-      case 'חסר': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   return (
     <div className="p-6 bg-gray-50 min-h-screen" dir="rtl">
       <div className="max-w-7xl mx-auto">
@@ -203,15 +194,6 @@ export default function AdminDashboard() {
               <h3 className="text-lg font-semibold">חיילי הכוח ({filteredSoldiers.length})</h3>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={loadSoldiers}
-                disabled={loading}
-                className="flex items-center gap-2"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                רענן
-              </Button>
               <Button
                 onClick={() => setShowAddDialog(true)}
                 className="flex items-center gap-2"
