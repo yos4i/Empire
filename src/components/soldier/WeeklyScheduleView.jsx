@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { format, addDays, startOfWeek } from 'date-fns';
-import { Calendar, User, Clock, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Calendar, User, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -30,6 +30,7 @@ export default function WeeklyScheduleView() {
 
   useEffect(() => {
     loadSchedule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart]);
 
   const loadSchedule = async () => {

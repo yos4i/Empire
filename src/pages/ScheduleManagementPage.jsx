@@ -15,7 +15,7 @@ import { useMediaQuery } from '../components/hooks/useMediaQuery';
 import { DAYS, SHIFT_NAMES, SHIFT_REQUIREMENTS } from '../config/shifts';
 import { db } from '../config/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { clearAllShiftAssignments, initializeShiftAssignmentsCollection, createTestAssignment } from '../utils/dbUtils';
+import { clearAllShiftAssignments, initializeShiftAssignmentsCollection } from '../utils/dbUtils';
 
 export default function ScheduleManagementPage() {
   const navigate = useNavigate();
@@ -382,62 +382,6 @@ export default function ScheduleManagementPage() {
       alert("שגיאה במחיקת שיבוצים: " + e.message);
     }
     setSaving(false);
-  };
-
-  const handleCreateTestAssignment = async () => {
-    setSaving(true);
-    try {
-      console.log('🧪 Creating test shift assignment...');
-      const result = await createTestAssignment();
-      alert(`✅ נוצר שיבוץ בדיקה בהצלחה! מזהה: ${result.id}\n\nבדוק את Firebase Console לראות את הקולקשן shift_assignments`);
-      console.log('✅ Test assignment created:', result);
-    } catch (e) {
-      console.error("Error creating test assignment:", e);
-      alert("שגיאה ביצירת שיבוץ בדיקה: " + e.message);
-    }
-    setSaving(false);
-  };
-
-  const handleDebugUsers = () => {
-    console.log('🔍 DEBUG: All users loaded in ScheduleManagement:');
-    console.log('Total users:', Object.keys(users).length);
-
-    Object.values(users).forEach(user => {
-      console.log('---');
-      console.log('User:', user.hebrew_name || user.displayName);
-      console.log('  - Firestore doc ID (user.id):', user.id);
-      console.log('  - Firebase Auth UID (user.uid):', user.uid);
-      console.log('  - Are they the same?', user.id === user.uid ? '✅ YES' : '❌ NO');
-      console.log('  - Full object:', user);
-    });
-
-    alert('בדיקת נתוני משתמשים הודפסה לקונסולה. פתח את Developer Tools (F12) כדי לראות.');
-  };
-
-  const autoAssign = () => {
-     alert("שיבוץ אוטומטי - יפותח בגרסה הבאה. בינתיים, בוא נשבץ לפי הגשות.");
-     setSchedule(prev => {
-        const newSchedule = initializeSchedule();
-        const assignedSoldiers = new Set();
-        for (const userId in submissions) {
-            for (const day in submissions[userId]) {
-                for(const shiftType of submissions[userId][day]) {
-                    const unit = users[userId]?.unit;
-                    if (!unit) continue;
-                    const key = `${unit}_${shiftType}`;
-                    if(newSchedule[day] && newSchedule[day][key]) {
-                        if (newSchedule[day][key].soldiers.length < newSchedule[day][key].required) {
-                            if (!assignedSoldiers.has(userId)) {
-                                newSchedule[day][key].soldiers.push(userId);
-                                assignedSoldiers.add(userId);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return newSchedule;
-    });
   };
 
   const isPublished = weeklyScheduleEntity?.is_published;
