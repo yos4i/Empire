@@ -93,9 +93,10 @@ export const AuthProvider = ({ children }) => {
             uid: firestoreUser.uid || firestoreUser.id, // Use Firebase Auth UID, fallback to doc ID
             rank: firestoreUser.rank,
             unit: firestoreUser.unit,
+            mission: firestoreUser.mission, // Include mission field for shift filtering
             constraints: firestoreUser.constraints || {}
           };
-          
+
           setUser(userData);
           localStorage.setItem('authUser', JSON.stringify(userData));
           console.log('AuthContext: Soldier logged in from Firestore:', userData);
