@@ -261,49 +261,6 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
         </CardContent>
       </Card>
 
-      {/* Schedule Summary */}
-      <Card className="flex-shrink-0">
-        <CardHeader>
-          <CardTitle className="text-lg">סיכום סידור</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {Object.keys(SHIFT_NAMES).map(shiftKey => {
-              const totalAssigned = DAYS.reduce((sum, day) =>
-                sum + (schedule[day]?.[shiftKey]?.soldiers?.length || 0), 0
-              );
-              const totalRequired = DAYS.reduce((sum, day) =>
-                sum + (schedule[day]?.[shiftKey]?.required || 0), 0
-              );
-              const totalCancelled = DAYS.reduce((sum, day) =>
-                sum + (schedule[day]?.[shiftKey]?.cancelled ? 1 : 0), 0
-              );
-
-              return (
-                <div key={shiftKey} className="bg-gray-50 p-3 rounded-lg">
-                  <h4 className="font-medium text-sm mb-2">
-                    {SHIFT_TYPES_HE[shiftKey]?.name || shiftKey}
-                  </h4>
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span>משובצים:</span>
-                      <span className={totalAssigned >= totalRequired ? 'text-green-600' : 'text-red-600'}>
-                        {totalAssigned}/{totalRequired}
-                      </span>
-                    </div>
-                    {totalCancelled > 0 && (
-                      <div className="flex justify-between">
-                        <span>מבוטלות:</span>
-                        <span className="text-gray-500">{totalCancelled}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

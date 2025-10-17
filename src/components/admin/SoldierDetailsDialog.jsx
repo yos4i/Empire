@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, User, Shield, Phone, MapPin, Award, Car, Package, Calendar } from 'lucide-react';
+import { X, User, Shield, MapPin, Award, Car, Package, Calendar } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';

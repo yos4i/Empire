@@ -14,19 +14,13 @@ import { useAuth } from "../contexts/AuthContext";
 export default function MyStatusPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [currentUser, setCurrentUser] = useState(null);
   const [formData, setFormData] = useState({
     hebrew_name: "",
     personal_number: "",
     weapon_number: "",
-    radio_number: "",
     unit: "",
     rank: "חייל",
     is_driver: false,
-    home_location: "",
-    mother_unit: "",
-    rifleman: "",
-    mission: "",
     equipment: { vest: false, helmet: false, radio: false, weapon: false }
   });
   const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -42,12 +36,10 @@ export default function MyStatusPage() {
     setLoading(true);
     try {
       const user = await User.me();
-      setCurrentUser(user);
       setFormData({
         hebrew_name: user.hebrew_name || user.full_name || "",
         personal_number: user.personal_number || "",
         weapon_number: user.weapon_number || "",
-        radio_number: user.radio_number || "",
         unit: user.unit || "",
         rank: user.rank || "חייל",
         is_driver: user.is_driver || false,
