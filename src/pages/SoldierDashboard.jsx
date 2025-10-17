@@ -20,6 +20,14 @@ export default function SoldierDashboard() {
     }
   }, [user, soldierId, navigate]);
 
+  // Debug: Log user data to verify mission field
+  useEffect(() => {
+    if (user) {
+      console.log('🔍 SoldierDashboard - User data:', user);
+      console.log('🔍 SoldierDashboard - User mission:', user.mission);
+    }
+  }, [user]);
+
   const handleLogout = async () => {
     await signOut();
     navigate('/login');
@@ -30,10 +38,8 @@ export default function SoldierDashboard() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-3">
-              <Home className="w-8 h-8 text-blue-600" />
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">ברוך הבא, {user?.displayName}</h1>
-                <p className="text-gray-600">דרגה: {user?.rank} | יחידה: {user?.unit?.replace('_', ' ')}</p>
+                <h1 className="text-3xl font-bold text-gray-900">{user?.displayName}</h1>
               </div>
             </div>
             <Button onClick={handleLogout} variant="outline" size="sm">
@@ -45,7 +51,7 @@ export default function SoldierDashboard() {
 
         {/* Full Week Schedule */}
         <div className="mb-6">
-          <WeeklyScheduleView />
+          <WeeklyScheduleView soldierMission={user?.mission} />
         </div>
 
         {/* Quick Actions */}

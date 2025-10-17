@@ -18,7 +18,7 @@ const DAYS_HE = {
   friday: 'שישי'
 };
 
-export default function WeeklyScheduleView() {
+export default function WeeklyScheduleView({ soldierMission }) {
   const [selectedDate, setSelectedDate] = useState(() =>
     addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7)
   );
@@ -27,6 +27,9 @@ export default function WeeklyScheduleView() {
   const [loading, setLoading] = useState(true);
 
   const weekStart = toWeekStartISO(selectedDate);
+
+  // Debug: Log the soldier's mission
+  console.log('🔍 WeeklyScheduleView - soldierMission:', soldierMission);
 
   useEffect(() => {
     loadSchedule();
@@ -144,16 +147,28 @@ export default function WeeklyScheduleView() {
                 </div>
 
                 {/* Schedule Rows - Each shift type */}
-                {Object.keys(SHIFT_NAMES).map(shiftKey => (
+                {Object.keys(SHIFT_NAMES).filter(shiftKey => {
+                  // Filter by soldier's mission
+                  console.log('🔍 WeeklyScheduleView - Checking shift:', shiftKey, 'soldierMission:', soldierMission);
+                  if (soldierMission) {
+                    if (soldierMission === 'קריית_חינוך' && !shiftKey.includes('קריית_חינוך')) {
+                      console.log('❌ WeeklyScheduleView - Skipping', shiftKey, '(not קריית_חינוך)');
+                      return false; // Skip non-kiryat shifts
+                    }
+                    if (soldierMission === 'גבולות' && !shiftKey.includes('גבולות')) {
+                      console.log('❌ WeeklyScheduleView - Skipping', shiftKey, '(not גבולות)');
+                      return false; // Skip non-borders shifts
+                    }
+                  }
+                  console.log('✅ WeeklyScheduleView - Including shift:', shiftKey);
+                  return true;
+                }).map(shiftKey => (
                 <div key={shiftKey} className="grid gap-2 p-4 border-b" style={{ gridTemplateColumns: '150px repeat(6, 1fr)' }}>
                   {/* Shift Type Header */}
                   <div className="flex items-center justify-center bg-purple-50 rounded-lg p-3">
                     <div className="text-center">
                       <span className="font-medium text-purple-900 block text-sm">
                         {SHIFT_TYPES_HE[shiftKey]?.name || shiftKey}
-                      </span>
-                      <span className="text-xs text-purple-600">
-                        {SHIFT_NAMES[shiftKey]?.split('(')[1]?.replace(')', '') || ''}
                       </span>
                     </div>
                   </div>
@@ -173,6 +188,17 @@ export default function WeeklyScheduleView() {
                     const assigned = shift.soldiers?.length || 0;
                     const required = shift.required || 0;
 
+                    // Get custom hours if available
+                    let timeString = '';
+                    if (shift.customStartTime && shift.customEndTime) {
+                      timeString = `${shift.customStartTime}-${shift.customEndTime}`;
+                    } else {
+                      // Extract default times from shift name
+                      const shiftDisplayName = SHIFT_NAMES[shiftKey] || '';
+                      const timeMatch = shiftDisplayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
+                      timeString = timeMatch ? `${timeMatch[1]}-${timeMatch[2]}` : '';
+                    }
+
                     return (
                       <div
                         key={`${day}-${shiftKey}`}
@@ -183,17 +209,24 @@ export default function WeeklyScheduleView() {
                         `}
                       >
                         {/* Shift Header */}
-                        <div className="flex items-center justify-between mb-2">
-                          <Badge
-                            className={`text-xs ${
-                              assigned === 0 ? 'bg-red-100 text-red-800' :
-                              assigned < required ? 'bg-yellow-100 text-yellow-800' :
-                              assigned === required ? 'bg-green-100 text-green-800' :
-                              'bg-blue-100 text-blue-800'
-                            }`}
-                          >
-                            {assigned}/{required}
-                          </Badge>
+                        <div className="flex flex-col gap-1 mb-2">
+                          {timeString && (
+                            <div className="text-xs font-semibold text-gray-700 text-center">
+                              {timeString}
+                            </div>
+                          )}
+                          <div className="flex items-center justify-center">
+                            <Badge
+                              className={`text-xs ${
+                                assigned === 0 ? 'bg-red-100 text-red-800' :
+                                assigned < required ? 'bg-yellow-100 text-yellow-800' :
+                                assigned === required ? 'bg-green-100 text-green-800' :
+                                'bg-blue-100 text-blue-800'
+                              }`}
+                            >
+                              {assigned}/{required}
+                            </Badge>
+                          </div>
                         </div>
 
                         {/* Cancelled Notice */}

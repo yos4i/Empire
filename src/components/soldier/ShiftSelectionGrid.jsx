@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Clock, Sun, Sunset } from "lucide-react";
 import { format, addDays, startOfWeek } from "date-fns";
 import { DAYS } from "../../config/shifts";
+import { shiftDefinitionsService } from "../../services/shiftDefinitions";
 
 const DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי"];
 
@@ -43,17 +44,122 @@ const SHIFTS_CONFIG = {
   ]
 };
 
-export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmissionOpen = true }) {
+export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmissionOpen = true, weeklySchedule, soldierMission }) {
   const nextWeekStart = addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7);
+  const [dynamicShiftsConfig, setDynamicShiftsConfig] = useState(SHIFTS_CONFIG);
+  const [loading, setLoading] = useState(true);
+
+  // Load dynamic shift definitions and apply custom hours from weekly schedule
+  useEffect(() => {
+    let unsubscribe;
+
+    const loadShiftDefinitions = async () => {
+      try {
+        // Subscribe to real-time shift definition updates
+        unsubscribe = shiftDefinitionsService.subscribeToShiftDefinitions((updatedShifts) => {
+          console.log('ShiftSelectionGrid: Received shift definitions update');
+
+          // Convert shift definitions to SHIFTS_CONFIG format
+          const newConfig = {};
+
+          DAYS.forEach((dayKey) => {
+            newConfig[dayKey] = [];
+
+            // Get all shifts from the updated definitions
+            Object.entries(updatedShifts.SHIFT_NAMES || {}).forEach(([shiftKey, displayName]) => {
+              const shiftData = updatedShifts.rawShifts?.[shiftKey];
+              if (!shiftData) return;
+
+              // Filter by soldier's mission
+              // If soldier has "קריית_חינוך" mission, only show קריית_חינוך shifts
+              // If soldier has "גבולות" mission, only show גבולות shifts
+              console.log('🔍 ShiftSelectionGrid: Checking shift:', shiftKey, 'soldierMission:', soldierMission);
+              if (soldierMission) {
+                if (soldierMission === 'קריית_חינוך' && !shiftKey.includes('קריית_חינוך')) {
+                  console.log('❌ ShiftSelectionGrid: Skipping', shiftKey, '(not קריית_חינוך)');
+                  return; // Skip non-kiryat shifts
+                }
+                if (soldierMission === 'גבולות' && !shiftKey.includes('גבולות')) {
+                  console.log('❌ ShiftSelectionGrid: Skipping', shiftKey, '(not גבולות)');
+                  return; // Skip non-borders shifts
+                }
+              }
+              console.log('✅ ShiftSelectionGrid: Including shift:', shiftKey);
+
+              // Extract just the shift type part (without mission prefix)
+              const shiftTypePart = shiftKey.replace(`${shiftData.mission}_`, '');
+
+              // Determine icon based on shift type
+              const isEvening = shiftData.type === 'ערב' || shiftTypePart.includes('ערב');
+              const icon = isEvening ? Sunset : Sun;
+
+              // Check if weekly schedule has custom hours for this specific day/shift
+              let startTime = shiftData.startTime;
+              let endTime = shiftData.endTime;
+
+              if (weeklySchedule?.schedule?.[dayKey]?.[shiftKey]) {
+                const dayShift = weeklySchedule.schedule[dayKey][shiftKey];
+                console.log(`🔍 ShiftSelectionGrid: Checking ${dayKey} ${shiftKey}:`, dayShift);
+                if (dayShift.customStartTime && dayShift.customEndTime) {
+                  startTime = dayShift.customStartTime;
+                  endTime = dayShift.customEndTime;
+                  console.log(`✅ ShiftSelectionGrid: Using custom hours for ${dayKey} ${shiftKey}: ${startTime}-${endTime}`);
+                } else {
+                  console.log(`ℹ️ ShiftSelectionGrid: No custom hours for ${dayKey} ${shiftKey}, using default: ${startTime}-${endTime}`);
+                }
+              } else {
+                console.log(`⚠️ ShiftSelectionGrid: No schedule data for ${dayKey} ${shiftKey}`);
+              }
+
+              // Create label from start and end times
+              const label = `${shiftData.shiftType} ${startTime}-${endTime}`;
+
+              newConfig[dayKey].push({
+                type: shiftTypePart,
+                label: label,
+                icon: icon,
+                isLong: shiftData.isLong || false,
+                fullKey: shiftKey
+              });
+            });
+          });
+
+          setDynamicShiftsConfig(newConfig);
+          setLoading(false);
+        });
+      } catch (error) {
+        console.error('ShiftSelectionGrid: Error loading shift definitions:', error);
+        // Fall back to static config
+        setDynamicShiftsConfig(SHIFTS_CONFIG);
+        setLoading(false);
+      }
+    };
+
+    loadShiftDefinitions();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [weeklySchedule]);
 
   const canSubmit = isSubmissionOpen;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       {DAYS_HE.map((dayName, index) => {
         const dayKey = DAYS[index];
         const dayShifts = shifts[dayKey] || [];
-        const dayShiftsConfig = SHIFTS_CONFIG[dayKey] || [];
+        const dayShiftsConfig = dynamicShiftsConfig[dayKey] || [];
         const currentDate = addDays(nextWeekStart, index);
         return (
           <Card key={dayKey} className="overflow-hidden">
