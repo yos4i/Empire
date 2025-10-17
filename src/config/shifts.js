@@ -18,9 +18,9 @@ export const SHIFT_TYPES_HE = {
 };
 
 export const SHIFT_REQUIREMENTS = {
-  "קריית_חינוך_בוקר_07_1430": { required: 18, commander: 1, sergeant: 1, driver: 1 },
-  "קריית_חינוך_ערב_1530_1930": { required: 6, commander: 0, sergeant: 0, driver: 0 },
-  "גבולות_בוקר_07_1530": { required: 6, commander: 0, sergeant: 0, driver: 0 }
+  "קריית_חינוך_בוקר_07_1430": { required: 18},
+  "קריית_חינוך_ערב_1530_1930": { required: 6},
+  "גבולות_בוקר_07_1530": { required: 6}
 };
 
 export const LONG_SHIFTS = ["גבולות_בוקר_07_1530"];

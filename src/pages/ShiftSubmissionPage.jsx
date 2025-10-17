@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ShiftSubmission } from "../entities/ShiftSubmission";
+import { WeeklySchedule } from "../entities/WeeklySchedule";
 import { ClipboardList, AlertTriangle, Home } from "lucide-react";
 import { Button } from "../components/ui/button";
-import { Card, CardContent } from "../components/ui/card";
-import { Badge } from "../components/ui/badge";
-import { Progress } from "../components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import ShiftSelectionGrid from "../components/soldier/ShiftSelectionGrid";
 import SubmissionRules from "../components/soldier/SubmissionRules";
@@ -28,6 +26,7 @@ export default function ShiftSubmissionPage() {
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [weeklySchedule, setWeeklySchedule] = useState(null);
 
   // Security check: Ensure the soldier can only access their own route
   useEffect(() => {
@@ -49,7 +48,17 @@ export default function ShiftSubmissionPage() {
         console.error("No authenticated user found");
         return;
       }
-      
+
+      // Load the weekly schedule to get custom shift hours
+      const schedules = await WeeklySchedule.filter({ week_start: nextWeekStartStr });
+      if (schedules.length > 0) {
+        setWeeklySchedule(schedules[0]);
+        console.log('📅 ShiftSubmissionPage: Loaded weekly schedule:', schedules[0]);
+        console.log('📅 ShiftSubmissionPage: Schedule data:', schedules[0].schedule);
+      } else {
+        console.log('⚠️ ShiftSubmissionPage: No weekly schedule found for', nextWeekStartStr);
+      }
+
       const submissions = await ShiftSubmission.filter({
         user_id: user.uid, // Use Firebase UID
         week_start: nextWeekStartStr,
@@ -130,9 +139,6 @@ const handleSubmit = async () => {
   }
 };
 
-  
-  const totalShifts = Object.values(shifts).flat().length;
-  const progress = totalShifts > 0 ? 100 : 0;
 
   if (loading) {
     return (
@@ -163,30 +169,13 @@ const handleSubmit = async () => {
           </div>
         </div>
 
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">התקדמות ההגשה</h3>
-              <Badge 
-                variant="default"
-                className="bg-green-100 text-green-800"
-              >
-                {totalShifts} משמרות נבחרו
-              </Badge>
-            </div>
-            <Progress value={progress} className="mb-2" />
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>בחר את המשמרות המועדפות עליך</span>
-              <span>✓ מוכן להגשה</span>
-            </div>
-          </CardContent>
-        </Card>
-
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <ShiftSelectionGrid 
+            <ShiftSelectionGrid
               shifts={shifts}
               onToggleShift={toggleShift}
+              weeklySchedule={weeklySchedule}
+              soldierMission={user?.mission}
             />
 
             <div className="mt-6 flex justify-end gap-3">

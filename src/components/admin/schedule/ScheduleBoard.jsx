@@ -14,7 +14,9 @@ const DAYS_HE = {
   friday: 'שישי'
 };
 
-export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId }) {
+export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId, onEditShiftHours, dynamicShiftNames }) {
+  // Use dynamic shift names from Firestore if available, otherwise fall back to static
+  const shiftNames = dynamicShiftNames || SHIFT_NAMES;
   
   const getShiftStatusColor = (shift, shiftKey) => {
     if (shift.cancelled) return 'bg-gray-100 border-gray-300';
@@ -84,6 +86,18 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
     const assigned = shift.soldiers?.length || 0;
     const required = shift.required || 0;
 
+    // Check if this specific day/shift has custom hours
+    let timeString = '';
+    if (shift.customStartTime && shift.customEndTime) {
+      // Use custom hours for this specific day/shift
+      timeString = `${shift.customStartTime}-${shift.customEndTime}`;
+    } else {
+      // Extract times from shift name (default hours)
+      const shiftDisplayName = shiftNames[shiftKey] || SHIFT_NAMES[shiftKey] || '';
+      const timeMatch = shiftDisplayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
+      timeString = timeMatch ? `${timeMatch[1]}-${timeMatch[2]}` : '';
+    }
+
     return (
       <div
         key={`${day}-${shiftKey}`}
@@ -110,16 +124,30 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
       >
             {/* Shift Header */}
             <div className="flex items-center justify-between mb-3">
-              <div>
+              <div className="flex-1">
                 <h4 className="font-semibold text-sm text-gray-900">
                   {shiftInfo?.name || shiftKey}
                 </h4>
-                <p className="text-xs text-gray-600">
-                  {SHIFT_NAMES[shiftKey]?.split('(')[1]?.replace(')', '') || ''}
+                <p className="text-xs text-gray-600 font-medium">
+                  {timeString || 'אין שעות'}
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <Badge 
+                {!isPublished && isEditMode && onEditShiftHours && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 hover:bg-orange-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditShiftHours(day, shiftKey, shiftNames[shiftKey]);
+                    }}
+                    title="ערוך שעות משמרת"
+                  >
+                    <Clock className="w-3 h-3 text-orange-600" />
+                  </Button>
+                )}
+                <Badge
                   className={`text-xs ${getRequirementBadgeColor(assigned, required)}`}
                 >
                   {assigned}/{required}
@@ -211,9 +239,6 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                       <span className="font-medium text-purple-900 block">
                         {SHIFT_TYPES_HE[shiftKey]?.name || shiftKey}
                       </span>
-                      <span className="text-xs text-purple-600">
-                        {SHIFT_NAMES[shiftKey]?.split('(')[1]?.replace(')', '') || ''}
-                      </span>
                     </div>
                   </div>
 
@@ -241,9 +266,6 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                   <h3 className="font-medium text-purple-900">
                     {SHIFT_TYPES_HE[shiftKey]?.name || shiftKey}
                   </h3>
-                  <p className="text-xs text-purple-600">
-                    {SHIFT_NAMES[shiftKey]?.split('(')[1]?.replace(')', '') || ''}
-                  </p>
                 </div>
                 <div className="p-3 space-y-3">
                   {DAYS.map(day => 

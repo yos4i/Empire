@@ -11,11 +11,14 @@ import { Button } from '../components/ui/button';
 import ScheduleBoard from '../components/admin/schedule/ScheduleBoard';
 import AssignSoldierDialog from '../components/admin/schedule/AssignSoldierDialog';
 import PreferencesPanel from '../components/admin/PreferencesPanel';
+import QuickShiftHoursEditor from '../components/admin/schedule/QuickShiftHoursEditor';
 import { useMediaQuery } from '../components/hooks/useMediaQuery';
 import { DAYS, SHIFT_NAMES, SHIFT_REQUIREMENTS } from '../config/shifts';
 import { db } from '../config/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { clearAllShiftAssignments, initializeShiftAssignmentsCollection } from '../utils/dbUtils';
+import { shiftDefinitionsService } from '../services/shiftDefinitions';
+import * as shiftsConfig from '../config/shifts';
 
 export default function ScheduleManagementPage() {
   const navigate = useNavigate();
@@ -34,7 +37,13 @@ export default function ScheduleManagementPage() {
 
   // Edit mode state - controls whether cancel shift button is visible
   const [isEditMode, setIsEditMode] = useState(false);
-  
+
+  // Quick shift hours editor state
+  const [editingShift, setEditingShift] = useState(null); // { shiftKey, shiftName }
+
+  // Dynamic shift definitions state
+  const [dynamicShiftNames, setDynamicShiftNames] = useState(SHIFT_NAMES);
+
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [dialogShift, setDialogShift] = useState(null);
 
@@ -149,6 +158,33 @@ export default function ScheduleManagementPage() {
   }, [nextWeekStartStr, initializeSchedule]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Initialize shift definitions from config and subscribe to real-time updates
+  useEffect(() => {
+    const initializeShiftDefinitions = async () => {
+      try {
+        // Initialize Firestore with static config if needed
+        await shiftDefinitionsService.initializeFromConfig(shiftsConfig);
+
+        // Subscribe to real-time updates
+        const unsubscribe = shiftDefinitionsService.subscribeToShiftDefinitions((updatedShifts) => {
+          console.log('ScheduleManagement: Received shift definitions update:', updatedShifts);
+          setDynamicShiftNames(updatedShifts.SHIFT_NAMES);
+
+          // Reload schedule to reflect new shift definitions
+          loadData();
+        });
+
+        return () => {
+          unsubscribe();
+        };
+      } catch (error) {
+        console.error('ScheduleManagement: Error initializing shift definitions:', error);
+      }
+    };
+
+    initializeShiftDefinitions();
+  }, [loadData]);
 
   // NOTE: Auto-save is now handled directly in handleShiftSlotClick function
   // This ensures shift_assignments are created immediately when soldiers are assigned
@@ -382,6 +418,56 @@ export default function ScheduleManagementPage() {
       alert("שגיאה במחיקת שיבוצים: " + e.message);
     }
     setSaving(false);
+  };
+
+  const handleEditShiftHours = (day, shiftKey, shiftName) => {
+    console.log('Opening shift hours editor for:', day, shiftKey, shiftName);
+    setEditingShift({ day, shiftKey, shiftName });
+  };
+
+  const handleSaveShiftHours = async (day, shiftKey, startTime, endTime) => {
+    try {
+      console.log('💾 Saving shift hours for:', day, shiftKey, 'New times:', startTime, '-', endTime);
+
+      // Update the schedule state with new times for this specific day/shift
+      const newSchedule = JSON.parse(JSON.stringify(schedule));
+
+      if (newSchedule[day]?.[shiftKey]) {
+        // Store the custom hours in the shift data
+        newSchedule[day][shiftKey].customStartTime = startTime;
+        newSchedule[day][shiftKey].customEndTime = endTime;
+
+        console.log('📝 Updated shift data:', newSchedule[day][shiftKey]);
+      }
+
+      setSchedule(newSchedule);
+
+      // Immediately save to database
+      try {
+        if (weeklyScheduleEntity) {
+          await WeeklySchedule.update(weeklyScheduleEntity.id, { schedule: newSchedule });
+          console.log('✅ Weekly schedule updated in database!');
+        } else {
+          const newEntity = await WeeklySchedule.create({
+            week_start: nextWeekStartStr,
+            schedule: newSchedule,
+            is_published: false
+          });
+          setWeeklyScheduleEntity(newEntity);
+          console.log('✅ New schedule created in database!');
+        }
+
+        alert(`שעות המשמרת עודכנו בהצלחה עבור יום ${day}!`);
+      } catch (saveError) {
+        console.error('❌ Error saving to database:', saveError);
+        alert('שגיאה בשמירה למאגר: ' + saveError.message);
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Error saving shift hours:', error);
+      throw error;
+    }
   };
 
   const isPublished = weeklyScheduleEntity?.is_published;
@@ -619,7 +705,7 @@ export default function ScheduleManagementPage() {
                             disabled={saving}
                             className={isEditMode ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}
                         >
-                            <Edit2 className="w-4 h-4 ml-2"/>ערוך משמרות
+                            <Edit2 className="w-4 h-4 ml-2"/>ערוך
                         </Button>
                         <Button
                             variant="default"
@@ -647,6 +733,8 @@ export default function ScheduleManagementPage() {
                         isMobile={isMobile}
                         onShiftSlotClick={handleShiftSlotClick}
                         selectedSoldierId={selectedSoldierId}
+                        onEditShiftHours={handleEditShiftHours}
+                        dynamicShiftNames={dynamicShiftNames}
                     />
                  </div>
             </div>
@@ -659,6 +747,15 @@ export default function ScheduleManagementPage() {
             allSoldiers={availableSoldiers}
             assignedSoldiers={dialogShift ? schedule[dialogShift.day][dialogShift.shiftKey].soldiers : []}
             onToggleAssign={handleToggleAssign}
+        />
+
+        <QuickShiftHoursEditor
+            isOpen={!!editingShift}
+            onClose={() => setEditingShift(null)}
+            day={editingShift?.day}
+            shiftKey={editingShift?.shiftKey}
+            shiftName={editingShift?.shiftName}
+            onSave={handleSaveShiftHours}
         />
     </>
   );

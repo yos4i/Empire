@@ -142,7 +142,7 @@ export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmission
         unsubscribe();
       }
     };
-  }, [weeklySchedule]);
+  }, [weeklySchedule, soldierMission]);
 
   const canSubmit = isSubmissionOpen;
 

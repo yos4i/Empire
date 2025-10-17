@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Home, Calendar, ClipboardList, LogOut, User } from "lucide-react";
+import { Calendar, ClipboardList, LogOut, User } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import WeeklyScheduleView from "../components/soldier/WeeklyScheduleView";
 
