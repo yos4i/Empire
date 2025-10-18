@@ -1,11 +1,68 @@
-import React from 'react';
-import { X, User, Shield, MapPin, Award, Car, Package, Calendar } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, User, Shield, MapPin, Award, Car, Package, Calendar, Trash2, Edit, Save } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { User as UserEntity } from '../../entities/User';
 
-export default function SoldierDetailsDialog({ isOpen, onClose, soldier }) {
+export default function SoldierDetailsDialog({ isOpen, onClose, soldier, onDelete }) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedMission, setEditedMission] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Initialize editedMission when soldier changes
+  useEffect(() => {
+    if (soldier) {
+      setEditedMission(soldier.mission || '');
+      setIsEditing(false);
+    }
+  }, [soldier]);
+
   if (!isOpen || !soldier) return null;
+
+  const handleSaveMission = async () => {
+    setSaving(true);
+    try {
+      // Update soldier's mission in Firestore
+      await UserEntity.update(soldier.id, {
+        mission: editedMission,
+        unit: editedMission, // Also update unit field for backward compatibility
+        updated_at: new Date().toISOString()
+      });
+      alert('המשימה עודכנה בהצלחה!');
+      setIsEditing(false);
+
+      // Reload the page to show updated data
+      window.location.reload();
+    } catch (error) {
+      console.error('Error updating mission:', error);
+      alert('שגיאה בעדכון המשימה: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!showDeleteConfirm) {
+      setShowDeleteConfirm(true);
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await onDelete(soldier);
+      onClose();
+    } catch (error) {
+      console.error('Error deleting soldier:', error);
+      alert('שגיאה במחיקת החייל: ' + error.message);
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" dir="rtl">
@@ -71,6 +128,59 @@ export default function SoldierDetailsDialog({ isOpen, onClose, soldier }) {
                   <p className="font-semibold text-gray-900">
                     {soldier.unit ? soldier.unit.replace('_', ' ') : 'לא מולא'}
                   </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4">
+              <div className="flex items-start gap-3">
+                <MapPin className="w-5 h-5 text-green-600 mt-1" />
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600 mb-2">משימה (ניתן לעריכה)</p>
+                  {isEditing ? (
+                    <div className="flex gap-2">
+                      <Select value={editedMission} onValueChange={setEditedMission}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="בחר משימה" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="קריית_חינוך">קריית חינוך</SelectItem>
+                          <SelectItem value="גבולות">גבולות</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        size="sm"
+                        onClick={handleSaveMission}
+                        disabled={saving}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        <Save className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setIsEditing(false);
+                          setEditedMission(soldier.mission || '');
+                        }}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <p className="font-semibold text-gray-900">
+                        {soldier.mission ? soldier.mission.replace('_', ' ') : 'לא מולא'}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsEditing(true)}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
@@ -181,10 +291,32 @@ export default function SoldierDetailsDialog({ isOpen, onClose, soldier }) {
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-white border-t p-4 flex justify-end">
-          <Button onClick={onClose} className="bg-blue-600 hover:bg-blue-700">
-            סגור
+        <div className="sticky bottom-0 bg-white border-t p-4 flex justify-between items-center">
+          <Button
+            onClick={handleDelete}
+            disabled={deleting}
+            className={`flex items-center gap-2 ${
+              showDeleteConfirm
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-red-500 hover:bg-red-600'
+            }`}
+          >
+            <Trash2 className="w-4 h-4" />
+            {deleting ? 'מוחק...' : showDeleteConfirm ? 'לחץ שוב לאישור מחיקה' : 'מחק חייל'}
           </Button>
+          <div className="flex gap-2">
+            {showDeleteConfirm && (
+              <Button
+                onClick={() => setShowDeleteConfirm(false)}
+                variant="outline"
+              >
+                ביטול
+              </Button>
+            )}
+            <Button onClick={onClose} className="bg-blue-600 hover:bg-blue-700">
+              סגור
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

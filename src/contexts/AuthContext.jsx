@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../config/firebase';
-import { collection, addDoc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
 
 const AuthContext = createContext({});
 
@@ -203,12 +203,49 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const deleteSoldier = async (soldier) => {
+    setLoading(true);
+    try {
+      console.log('AuthContext: Starting deleteSoldier for', soldier);
+
+      // Delete from Firestore
+      try {
+        console.log('AuthContext: Attempting to delete from Firestore with ID:', soldier.id);
+        await deleteDoc(doc(db, 'users', soldier.id));
+        console.log('AuthContext: SUCCESS! Soldier deleted from Firestore');
+      } catch (firestoreError) {
+        console.error('AuthContext: FAILED to delete from Firestore:', firestoreError);
+        throw new Error(`Failed to delete from database: ${firestoreError.message}`);
+      }
+
+      // Remove from local mock users
+      if (soldier.username) {
+        const updatedMockUsers = { ...mockUsers };
+        delete updatedMockUsers[soldier.username.toLowerCase()];
+        setMockUsers(updatedMockUsers);
+
+        // Save updated users to localStorage
+        localStorage.setItem('mockUsers', JSON.stringify(updatedMockUsers));
+        console.log('AuthContext: Removed soldier from local storage');
+      }
+
+      console.log('AuthContext: Soldier deleted successfully');
+      return true;
+    } catch (error) {
+      console.error('AuthContext: Error in deleteSoldier', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const value = {
     user,
     loading,
     signIn,
     signOut,
     addSoldier,
+    deleteSoldier,
     isAdmin: user?.role === 'admin',
     isSoldier: user?.role === 'soldier',
     isAuthenticated: !!user

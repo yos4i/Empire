@@ -44,6 +44,9 @@ export default function ScheduleManagementPage() {
   // Dynamic shift definitions state
   const [dynamicShiftNames, setDynamicShiftNames] = useState(SHIFT_NAMES);
 
+  // Mission filter state
+  const [missionFilter, setMissionFilter] = useState("הכל"); // "הכל", "קריית_חינוך", "גבולות"
+
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [dialogShift, setDialogShift] = useState(null);
 
@@ -135,6 +138,9 @@ export default function ScheduleManagementPage() {
               ...latestRequirements,
               soldiers: existingShiftData.soldiers || [],
               cancelled: existingShiftData.cancelled || false,
+              // Preserve custom shift hours if they exist
+              ...(existingShiftData.customStartTime && { customStartTime: existingShiftData.customStartTime }),
+              ...(existingShiftData.customEndTime && { customEndTime: existingShiftData.customEndTime }),
             };
 
             if (existingShiftData.soldiers && existingShiftData.soldiers.length > 0) {
@@ -720,6 +726,32 @@ export default function ScheduleManagementPage() {
                     </div>
                 </div>
 
+                {/* Mission Filter Buttons */}
+                <div className="flex gap-2 mb-4 flex-shrink-0">
+                    <span className="text-sm font-medium text-gray-700 flex items-center">סינון לפי משימה:</span>
+                    <Button
+                        variant={missionFilter === "הכל" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setMissionFilter("הכל")}
+                    >
+                        הכל
+                    </Button>
+                    <Button
+                        variant={missionFilter === "קריית_חינוך" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setMissionFilter("קריית_חינוך")}
+                    >
+                        קריית חינוך
+                    </Button>
+                    <Button
+                        variant={missionFilter === "גבולות" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setMissionFilter("גבולות")}
+                    >
+                        גבולות
+                    </Button>
+                </div>
+
                  <div className="flex-1 overflow-auto pb-4 min-h-0">
                     <ScheduleBoard
                         schedule={schedule}
@@ -735,6 +767,7 @@ export default function ScheduleManagementPage() {
                         selectedSoldierId={selectedSoldierId}
                         onEditShiftHours={handleEditShiftHours}
                         dynamicShiftNames={dynamicShiftNames}
+                        missionFilter={missionFilter}
                     />
                  </div>
             </div>

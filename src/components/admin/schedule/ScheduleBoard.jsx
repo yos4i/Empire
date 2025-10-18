@@ -14,9 +14,32 @@ const DAYS_HE = {
   friday: 'שישי'
 };
 
-export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId, onEditShiftHours, dynamicShiftNames }) {
+export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId, onEditShiftHours, dynamicShiftNames, missionFilter }) {
   // Use dynamic shift names from Firestore if available, otherwise fall back to static
   const shiftNames = dynamicShiftNames || SHIFT_NAMES;
+
+  // Filter shifts by mission if missionFilter is provided
+  const getFilteredShiftKeys = () => {
+    const allShiftKeys = Object.keys(SHIFT_NAMES);
+
+    // If no filter, show all shifts
+    if (!missionFilter || missionFilter === "הכל") {
+      return allShiftKeys;
+    }
+
+    // Filter by mission
+    return allShiftKeys.filter(shiftKey => {
+      if (missionFilter === 'קריית_חינוך') {
+        return shiftKey.includes('קריית_חינוך');
+      }
+      if (missionFilter === 'גבולות') {
+        return shiftKey.includes('גבולות');
+      }
+      return true;
+    });
+  };
+
+  const filteredShiftKeys = getFilteredShiftKeys();
   
   const getShiftStatusColor = (shift, shiftKey) => {
     if (shift.cancelled) return 'bg-gray-100 border-gray-300';
@@ -231,12 +254,12 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
               </div>
 
               {/* Schedule Grid - Each row is a shift type */}
-              {Object.keys(SHIFT_NAMES).map(shiftKey => (
+              {filteredShiftKeys.map(shiftKey => (
                 <div key={shiftKey} className="grid gap-2 p-4 border-b" style={{ gridTemplateColumns: '200px repeat(6, 1fr)' }}>
                   {/* Shift Type Header */}
-                  <div className="flex items-center justify-center bg-purple-50 rounded-lg p-4">
+                  <div className="flex items-center justify-center bg-purple-100 border-2 border-purple-300 rounded-lg p-4">
                     <div className="text-center">
-                      <span className="font-medium text-purple-900 block">
+                      <span className="font-bold text-lg text-purple-900 block">
                         {SHIFT_TYPES_HE[shiftKey]?.name || shiftKey}
                       </span>
                     </div>
@@ -260,10 +283,10 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
 
           {/* Mobile Layout */}
           <div className="md:hidden">
-            {Object.keys(SHIFT_NAMES).map(shiftKey => (
+            {filteredShiftKeys.map(shiftKey => (
               <div key={shiftKey} className="border-b last:border-b-0">
-                <div className="bg-purple-50 p-3 border-b">
-                  <h3 className="font-medium text-purple-900">
+                <div className="bg-purple-100 border-b-2 border-purple-300 p-3">
+                  <h3 className="font-bold text-lg text-purple-900">
                     {SHIFT_TYPES_HE[shiftKey]?.name || shiftKey}
                   </h3>
                 </div>

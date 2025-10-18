@@ -11,7 +11,7 @@ import { db } from "../config/firebase";
 import { collection, getDocs } from "firebase/firestore";
 
 export default function AdminDashboard() {
-  const { signOut, addSoldier } = useAuth();
+  const { signOut, addSoldier, deleteSoldier } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -105,13 +105,29 @@ export default function AdminDashboard() {
       console.log('AdminDashboard: Adding soldier', soldierData);
       const newSoldier = await addSoldier(soldierData);
       console.log('AdminDashboard: Soldier added successfully', newSoldier);
-      
+
       // Reload the entire soldiers list to include the new Firestore entry
       await loadSoldiers();
-      
+
       console.log('AdminDashboard: Reloaded soldiers list after adding new soldier');
     } catch (error) {
       console.error('AdminDashboard: Error adding soldier', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteSoldier = async (soldier) => {
+    try {
+      console.log('AdminDashboard: Deleting soldier', soldier);
+      await deleteSoldier(soldier);
+      console.log('AdminDashboard: Soldier deleted successfully');
+
+      // Reload the soldiers list after deletion
+      await loadSoldiers();
+
+      console.log('AdminDashboard: Reloaded soldiers list after deleting soldier');
+    } catch (error) {
+      console.error('AdminDashboard: Error deleting soldier', error);
       throw error;
     }
   };
@@ -297,6 +313,7 @@ export default function AdminDashboard() {
             setSelectedSoldier(null);
           }}
           soldier={selectedSoldier}
+          onDelete={handleDeleteSoldier}
         />
       </div>
     </div>

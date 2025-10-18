@@ -7,7 +7,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Checkbox } from "../components/ui/checkbox";
-import { User as UserIcon, Shield, Save, AlertCircle, Car, Key, EyeOff, Eye, ArrowRight } from "lucide-react";
+import { User as UserIcon, Shield, Save, AlertCircle, Car, ArrowRight } from "lucide-react";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -23,12 +23,9 @@ export default function MyStatusPage() {
     is_driver: false,
     equipment: { vest: false, helmet: false, radio: false, weapon: false }
   });
-  const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
-  const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [passwordMessage, setPasswordMessage] = useState("");
 
   useEffect(() => { loadUserData(); }, []);
 
@@ -66,28 +63,14 @@ export default function MyStatusPage() {
     try {
       await User.updateMyUserData(formData);
       setMessage("הפרטים עודכנו בהצלחה!");
+
+      // Reload user data to show the updated values in the form
+      await loadUserData();
+
       setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       console.error("שגיאה בעדכון הפרטים:", error);
       setMessage("שגיאה בעדכון הפרטים");
-    }
-    setSaving(false);
-  };
-
-  const handlePasswordChange = async () => {
-    setPasswordMessage("");
-    if(!passwordData.currentPassword) { setPasswordMessage("יש להזין את הסיסמה הנוכחית."); return; }
-    if(passwordData.newPassword.length < 6) { setPasswordMessage("סיסמה חדשה חייבת להיות לפחות 6 תווים."); return; }
-    if (passwordData.newPassword !== passwordData.confirmPassword) { setPasswordMessage("הסיסמאות החדשות אינן תואמות."); return; }
-    setSaving(true);
-    try {
-      await User.updateMyUserData({ password_hash: passwordData.newPassword, password_changed_at: new Date().toISOString() });
-      setPasswordMessage("הסיסמה שונתה בהצלחה!");
-      setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-      setTimeout(() => setPasswordMessage(""), 3000);
-    } catch (error) {
-      console.error("שגיאה בשינוי הסיסמה:", error);
-      setPasswordMessage("שגיאה בשינוי הסיסמה.");
     }
     setSaving(false);
   };
@@ -111,24 +94,23 @@ export default function MyStatusPage() {
     <div className="p-6 bg-gray-50 min-h-screen" dir="rtl">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
+          <div className="relative flex items-center justify-center mb-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate(`/soldier/${user?.uid}`)}
-              className="flex items-center gap-2"
+              className="absolute left-0 flex items-center gap-2"
             >
               <ArrowRight className="w-4 h-4" />
               חזרה לדשבורד
             </Button>
             <div className="flex items-center gap-3">
               <UserIcon className="w-8 h-8 text-blue-600" />
-              <div>
+              <div className="text-center">
                 <h1 className="text-3xl font-bold text-gray-900">הפרופיל שלי</h1>
                 <p className="text-gray-600">עדכן את הפרטים והציוד שלך</p>
               </div>
             </div>
-            <div className="w-32"></div>
           </div>
         </div>
 
@@ -182,18 +164,6 @@ export default function MyStatusPage() {
                 <Label htmlFor="rifleman">רובאי</Label>
                 <Input id="rifleman" value={formData.rifleman} onChange={(e) => setFormData(prev => ({...prev, rifleman: e.target.value}))} placeholder="רובאי" />
               </div>
-              <div>
-                <Label htmlFor="mission">משימה</Label>
-                <Select value={formData.mission} onValueChange={(value) => setFormData(prev => ({...prev, mission: value}))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="בחר משימה" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="קריית_חינוך">קריית חינוך</SelectItem>
-                    <SelectItem value="גבולות">גבולות</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
 
               <div className="flex items-center space-x-2 pt-2">
                 <Checkbox id="is_driver" checked={formData.is_driver} onCheckedChange={(checked) => setFormData(prev => ({...prev, is_driver: Boolean(checked)}))} />
@@ -222,49 +192,6 @@ export default function MyStatusPage() {
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Key className="w-5 h-5" />
-                  שינוי סיסמה
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {passwordMessage && (
-                  <Alert className={`${passwordMessage.includes("שגיאה") ? "text-red-800 border-red-200 bg-red-50" : "text-green-800 border-green-200 bg-green-50"}`}>
-                    <AlertDescription>{passwordMessage}</AlertDescription>
-                  </Alert>
-                )}
-                <div>
-                  <Label htmlFor="currentPassword">סיסמה נוכחית</Label>
-                  <Input id="currentPassword" type="password" value={passwordData.currentPassword} onChange={(e) => setPasswordData(prev => ({...prev, currentPassword: e.target.value}))} placeholder="הכנס סיסמה נוכחית" />
-                </div>
-                <div>
-                  <Label htmlFor="newPassword">סיסמה חדשה</Label>
-                  <div className="relative">
-                    <Input id="newPassword" type={showPassword ? "text" : "password"} value={passwordData.newPassword} onChange={(e) => setPasswordData(prev => ({...prev, newPassword: e.target.value}))} placeholder="לפחות 6 תווים" />
-                    <Button type="button" variant="ghost" size="icon" className="absolute left-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowPassword(!showPassword)}>
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </Button>
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="confirmPassword">אישור סיסמה חדשה</Label>
-                  <Input id="confirmPassword" type="password" value={passwordData.confirmPassword} onChange={(e) => setPasswordData(prev => ({...prev, confirmPassword: e.target.value}))} placeholder="הכנס שוב את הסיסמה החדשה" />
-                </div>
-                <Button onClick={handlePasswordChange} disabled={saving} variant="outline">
-                  <Key className="w-4 h-4 mr-2"/>
-                  שנה סיסמה
-                </Button>
-                <Alert className="bg-yellow-50 border-yellow-200">
-                  <AlertCircle className="w-4 h-4 text-yellow-600" />
-                  <AlertDescription className="text-yellow-800">
-                    <strong>הערה אבטחה:</strong> שינוי סיסמה יעבור בעתיד לנקודת קצה מאובטחת בשרת.
-                  </AlertDescription>
-                </Alert>
               </CardContent>
             </Card>
           </div>

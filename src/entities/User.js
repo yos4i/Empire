@@ -1,43 +1,46 @@
 import { db } from '../config/firebase';
-import { collection, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 export class User {
   static async me() {
     try {
-      // Get current user from Firebase Auth
-      const { getAuth } = await import('firebase/auth');
-      const auth = getAuth();
-      const currentUser = auth.currentUser;
-
-      if (!currentUser) {
+      // Get current user from localStorage (session)
+      const savedUser = localStorage.getItem('authUser');
+      if (!savedUser) {
         throw new Error('No authenticated user found');
       }
 
-      console.log('User.me: Loading user data for UID:', currentUser.uid);
+      const currentUser = JSON.parse(savedUser);
+      const userUid = currentUser.uid;
 
-      // Load user data from Firestore
-      const userDoc = doc(db, 'users', currentUser.uid);
-      const userSnapshot = await getDoc(userDoc);
+      if (!userUid) {
+        throw new Error('No UID found for user');
+      }
 
-      if (!userSnapshot.exists()) {
+      console.log('User.me: Loading user data for UID:', userUid);
+
+      // Search for user document by uid field (not document ID)
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const userDoc = usersSnapshot.docs.find(doc => doc.data().uid === userUid);
+
+      if (!userDoc) {
         console.warn('User.me: User document not found in Firestore');
-        // Return basic user info from Auth
+        // Return basic user info from session
         return {
-          id: currentUser.uid,
-          uid: currentUser.uid,
-          email: currentUser.email,
+          id: userUid,
+          uid: userUid,
           displayName: currentUser.displayName,
           hebrew_name: currentUser.displayName || '',
           equipment: { vest: false, helmet: false, radio: false, weapon: false }
         };
       }
 
-      const userData = userSnapshot.data();
+      const userData = userDoc.data();
       console.log('User.me: Loaded user data:', userData);
 
       return {
-        id: currentUser.uid,
-        uid: currentUser.uid,
+        id: userDoc.id,
+        uid: userUid,
         ...userData,
         hebrew_name: userData.displayName || userData.hebrew_name || '',
         equipment: userData.equipment || { vest: false, helmet: false, radio: false, weapon: false }

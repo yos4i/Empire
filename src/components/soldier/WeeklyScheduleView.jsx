@@ -29,7 +29,12 @@ export default function WeeklyScheduleView({ soldierMission }) {
   const weekStart = toWeekStartISO(selectedDate);
 
   // Debug: Log the soldier's mission
-  console.log('🔍 WeeklyScheduleView - soldierMission:', soldierMission);
+  console.log('🔍 WeeklyScheduleView - soldierMission prop received:', soldierMission);
+
+  // If soldierMission is undefined or null, log a warning
+  if (!soldierMission) {
+    console.warn('⚠️ WeeklyScheduleView - No soldierMission provided! All shifts will be shown. User needs to set their mission in Personal Details or re-login.');
+  }
 
   useEffect(() => {
     loadSchedule();

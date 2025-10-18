@@ -1,15 +1,17 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Calendar, ClipboardList, LogOut, User } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import WeeklyScheduleView from "../components/soldier/WeeklyScheduleView";
+import { User as UserEntity } from "../entities/User";
 
 export default function SoldierDashboard() {
   const { user, signOut } = useAuth();
   const { soldierId } = useParams();
   const navigate = useNavigate();
+  const [userMission, setUserMission] = useState(user?.mission);
 
   // Security check: Ensure the soldier can only access their own dashboard
   useEffect(() => {
@@ -20,11 +22,33 @@ export default function SoldierDashboard() {
     }
   }, [user, soldierId, navigate]);
 
-  // Debug: Log user data to verify mission field
+  // Debug: Log user data to verify mission field and fetch from Firestore if missing
   useEffect(() => {
     if (user) {
       console.log('🔍 SoldierDashboard - User data:', user);
       console.log('🔍 SoldierDashboard - User mission:', user.mission);
+
+      // If user.mission is missing, try to fetch it from Firestore
+      if (!user.mission) {
+        console.warn('⚠️ SoldierDashboard - User mission is missing! Attempting to fetch from Firestore...');
+        const fetchMission = async () => {
+          try {
+            const userData = await UserEntity.me();
+            console.log('✅ SoldierDashboard - Fetched user data from Firestore:', userData);
+            if (userData.mission) {
+              setUserMission(userData.mission);
+              console.log('✅ SoldierDashboard - Set mission to:', userData.mission);
+            } else {
+              console.warn('⚠️ SoldierDashboard - User has no mission set in Firestore either. Please set it in Personal Details.');
+            }
+          } catch (error) {
+            console.error('❌ SoldierDashboard - Failed to fetch user data:', error);
+          }
+        };
+        fetchMission();
+      } else {
+        setUserMission(user.mission);
+      }
     }
   }, [user]);
 
@@ -51,7 +75,7 @@ export default function SoldierDashboard() {
 
         {/* Full Week Schedule */}
         <div className="mb-6">
-          <WeeklyScheduleView soldierMission={user?.mission} />
+          <WeeklyScheduleView soldierMission={userMission} />
         </div>
 
         {/* Quick Actions */}
