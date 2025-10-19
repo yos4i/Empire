@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Shield, FileText, Search, AlertCircle, LogOut, Plus, Eye } from "lucide-react";
+import { Users, Shield, FileText, Search, LogOut, Plus, Eye } from "lucide-react";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -61,6 +61,7 @@ export default function AdminDashboard() {
               weapon_number: data.weapon_number,
               is_driver: data.is_driver,
               equipment: data.equipment,
+              on_standby: data.on_standby || false,
               created_at: data.created_at,
               updated_at: data.updated_at
             };
@@ -159,22 +160,22 @@ export default function AdminDashboard() {
               <Users className="w-8 h-8 text-blue-500" />
             </div>
           </Card>
-          <Card className="p-4">
+          <Card className="p-4 bg-green-50 border-green-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">חיילים פעילים</p>
-                <p className="text-2xl font-bold text-green-600">{soldiers.filter(s => s.is_active).length}</p>
+                <p className="text-sm font-medium text-gray-600">בכוננות</p>
+                <p className="text-2xl font-bold text-green-600">{soldiers.filter(s => s.on_standby).length}</p>
               </div>
               <Shield className="w-8 h-8 text-green-500" />
             </div>
           </Card>
-          <Card className="p-4">
+          <Card className="p-4 bg-red-50 border-red-200">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">ציוד חסר</p>
-                <p className="text-2xl font-bold text-red-600">{soldiers.filter(s => s.equipment_status === 'חסר').length}</p>
+                <p className="text-sm font-medium text-gray-600">לא בכוננות</p>
+                <p className="text-2xl font-bold text-red-600">{soldiers.filter(s => !s.on_standby).length}</p>
               </div>
-              <AlertCircle className="w-8 h-8 text-red-500" />
+              <Shield className="w-8 h-8 text-red-500" />
             </div>
           </Card>
           <Card 
@@ -253,17 +254,23 @@ export default function AdminDashboard() {
                                        soldier.rifleman;
 
               return (
-                <Card key={soldier.id} className="p-4">
+                <Card key={soldier.id} className={`p-4 ${soldier.on_standby ? 'border-2 border-green-400' : ''}`}>
                   <div className="space-y-3">
                     {/* Centered soldier name */}
                     <div className="text-center">
                       <h4 className="font-semibold text-lg text-gray-900">{soldier.hebrew_name}</h4>
                     </div>
 
-                    {/* Status badge below name */}
-                    <div className="flex justify-center">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${hasFilledDetails ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {hasFilledDetails ? '' : 'לא מולא'}
+                    {/* Status badges below name */}
+                    <div className="flex justify-center gap-2">
+                      {!hasFilledDetails && (
+                        <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          לא מולא
+                        </span>
+                      )}
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${soldier.on_standby ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        <Shield className="w-3 h-3" />
+                        {soldier.on_standby ? 'בכוננות' : 'לא בכוננות'}
                       </span>
                     </div>
 

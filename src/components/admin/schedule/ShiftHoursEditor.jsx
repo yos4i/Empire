@@ -149,10 +149,10 @@ export default function ShiftHoursEditor({ isOpen, onClose, onSave }) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="md:col-span-2">
                         <h3 className="font-semibold text-lg mb-2 text-gray-900">
-                          {shift.displayName}
+                          {shift.displayName.replace('ק.חינוך', '').replace('חינוך', '').trim()}
                         </h3>
                         <p className="text-sm text-gray-600 mb-3">
-                          משימה: {shift.mission} | סוג: {shift.shiftType}
+                          משימה: {shift.mission.replace('קריית_', 'קריית ').replace('_', ' ')} | סוג: {shift.shiftType.replace('חינוך_', '')}
                         </p>
                       </div>
 

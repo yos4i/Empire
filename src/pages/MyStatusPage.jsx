@@ -6,7 +6,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
-import { User as UserIcon, Shield, Save, AlertCircle, Car, ArrowRight } from "lucide-react";
+import { User as UserIcon, Shield, Save, AlertCircle, ArrowRight } from "lucide-react";
 import { Alert, AlertDescription } from "../components/ui/alert";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -20,7 +20,8 @@ export default function MyStatusPage() {
     unit: "",
     rank: "חייל",
     is_driver: false,
-    equipment: { vest: false, helmet: false, radio: false, weapon: false }
+    magazines: 0,
+    equipment: { vest: false, helmet: false, weapon: false }
   });
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -43,10 +44,10 @@ export default function MyStatusPage() {
         mother_unit: user.mother_unit || "",
         rifleman: user.rifleman || "",
         mission: user.mission || "",
+        magazines: user.magazines || 0,
         equipment: {
           vest: user.equipment?.vest || false,
           helmet: user.equipment?.helmet || false,
-          radio: user.equipment?.radio || false,
           weapon: user.equipment?.weapon || false
         }
       });
@@ -91,23 +92,24 @@ export default function MyStatusPage() {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen" dir="rtl">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-2xl mx-auto">
         <div className="mb-8">
-          <div className="relative flex items-center justify-center mb-2">
+          <div className="flex flex-col sm:flex-row items-center gap-4 mb-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => navigate(`/soldier/${user?.uid}`)}
-              className="absolute left-0 flex items-center gap-2"
+              className="flex items-center gap-2 shrink-0 self-start sm:self-center"
             >
               <ArrowRight className="w-4 h-4" />
-              חזרה לדשבורד
+              <span className="hidden sm:inline">חזרה לדשבורד</span>
+              <span className="sm:hidden">חזור</span>
             </Button>
-            <div className="flex items-center gap-3">
-              <UserIcon className="w-8 h-8 text-blue-600" />
-              <div className="text-center">
-                <h1 className="text-3xl font-bold text-gray-900">הפרופיל שלי</h1>
-                <p className="text-gray-600">עדכן את הפרטים והציוד שלך</p>
+            <div className="flex items-center gap-3 flex-1">
+              <UserIcon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
+              <div className="text-center sm:text-right">
+                <h1 className="text-xl sm:text-3xl font-bold text-gray-900">הפרופיל שלי</h1>
+                <p className="text-sm sm:text-base text-gray-600">עדכן את הפרטים והציוד שלך</p>
               </div>
             </div>
           </div>
@@ -130,70 +132,76 @@ export default function MyStatusPage() {
           </Alert>
         )}
 
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center justify-center gap-2">
                 <UserIcon className="w-5 h-5" />
                 פרטים אישיים
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="hebrew_name">שם מלא </Label>
-                <Input id="hebrew_name" value={formData.hebrew_name} onChange={(e) => setFormData(prev => ({...prev, hebrew_name: e.target.value}))} placeholder="הכנס שם מלא בעברית" />
+                <Label htmlFor="hebrew_name" className="text-center block">שם מלא</Label>
+                <Input id="hebrew_name" value={formData.hebrew_name} onChange={(e) => setFormData(prev => ({...prev, hebrew_name: e.target.value}))} placeholder="הכנס שם מלא בעברית" className="text-center" />
               </div>
               <div>
-                <Label htmlFor="personal_number">מספר אישי</Label>
-                <Input id="personal_number" value={formData.personal_number} onChange={(e) => setFormData(prev => ({...prev, personal_number: e.target.value}))} placeholder="הכנס מספר אישי" />
+                <Label htmlFor="personal_number" className="text-center block">מספר אישי</Label>
+                <Input id="personal_number" value={formData.personal_number} onChange={(e) => setFormData(prev => ({...prev, personal_number: e.target.value}))} placeholder="הכנס מספר אישי" className="text-center" />
               </div>
               <div>
-                <Label htmlFor="weapon_number">מספר נשק</Label>
-                <Input id="weapon_number" value={formData.weapon_number} onChange={(e) => setFormData(prev => ({...prev, weapon_number: e.target.value}))} placeholder="הכנס מספר נשק" />
+                <Label htmlFor="weapon_number" className="text-center block">מספר נשק</Label>
+                <Input id="weapon_number" value={formData.weapon_number} onChange={(e) => setFormData(prev => ({...prev, weapon_number: e.target.value}))} placeholder="הכנס מספר נשק" className="text-center" />
               </div>
               <div>
-                <Label htmlFor="home_location">מיקום מגורים</Label>
-                <Input id="home_location" value={formData.home_location} onChange={(e) => setFormData(prev => ({...prev, home_location: e.target.value}))} placeholder="מיקום מגורים" />
+                <Label htmlFor="home_location" className="text-center block">מיקום מגורים</Label>
+                <Input id="home_location" value={formData.home_location} onChange={(e) => setFormData(prev => ({...prev, home_location: e.target.value}))} placeholder="מיקום מגורים" className="text-center" />
               </div>
               <div>
-                <Label htmlFor="mother_unit">יחידת אם</Label>
-                <Input id="mother_unit" value={formData.mother_unit} onChange={(e) => setFormData(prev => ({...prev, mother_unit: e.target.value}))} placeholder="יחידת אם" />
+                <Label htmlFor="mother_unit" className="text-center block">יחידת אם</Label>
+                <Input id="mother_unit" value={formData.mother_unit} onChange={(e) => setFormData(prev => ({...prev, mother_unit: e.target.value}))} placeholder="יחידת אם" className="text-center" />
               </div>
               <div>
-                <Label htmlFor="rifleman">רובאי</Label>
-                <Input id="rifleman" value={formData.rifleman} onChange={(e) => setFormData(prev => ({...prev, rifleman: e.target.value}))} placeholder="רובאי" />
-              </div>
-
-              <div className="flex items-center space-x-2 pt-2">
-                <Checkbox id="is_driver" checked={formData.is_driver} onCheckedChange={(checked) => setFormData(prev => ({...prev, is_driver: Boolean(checked)}))} />
-                <Label htmlFor="is_driver" className="flex items-center gap-2 mr-2">
-                  <Car className="w-4 h-4"/>
-                  אני נהג/ת
-                </Label>
+                <Label htmlFor="rifleman" className="text-center block">רובאי</Label>
+                <Input id="rifleman" value={formData.rifleman} onChange={(e) => setFormData(prev => ({...prev, rifleman: e.target.value}))} placeholder="רובאי" className="text-center" />
               </div>
             </CardContent>
           </Card>
 
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="w-5 h-5" />
-                  ציוד חתום
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-4">
-                  {['vest','helmet','radio','weapon'].map(key => (
-                    <div key={key} className="flex items-center space-x-2">
-                      <Checkbox id={key} checked={formData.equipment[key]} onCheckedChange={(checked) => handleEquipmentChange(key, checked)} />
-                      <Label htmlFor={key} className="mr-2">{key === 'vest' ? 'ווסט' : key === 'helmet' ? 'קסדה' : key === 'radio' ? 'קשר' : 'נשק'}</Label>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-center gap-2">
+                <Shield className="w-5 h-5" />
+                ציוד חתום
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                {['vest','helmet','weapon'].map(key => (
+                  <div key={key} className="flex items-center justify-center space-x-2">
+                    <Checkbox id={key} checked={formData.equipment[key]} onCheckedChange={(checked) => handleEquipmentChange(key, checked)} />
+                    <Label htmlFor={key} className="mr-2">{key === 'vest' ? 'ווסט' : key === 'helmet' ? 'קסדה' : 'נשק'}</Label>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <Label htmlFor="magazines" className="text-center block">מחסניות</Label>
+                <Input
+                  id="magazines"
+                  type="number"
+                  min="1"
+                  max="7"
+                  value={formData.magazines}
+                  onChange={(e) => {
+                    const value = Math.min(7, Math.max(1, parseInt(e.target.value) || 0));
+                    setFormData(prev => ({...prev, magazines: value}));
+                  }}
+                  placeholder="1-7"
+                  className="text-center"
+                />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="mt-8 flex justify-end">

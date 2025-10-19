@@ -55,9 +55,11 @@ export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmission
 
     const loadShiftDefinitions = async () => {
       try {
+        console.log('🎯 ShiftSelectionGrid: soldierMission prop =', soldierMission);
         // Subscribe to real-time shift definition updates
         unsubscribe = shiftDefinitionsService.subscribeToShiftDefinitions((updatedShifts) => {
           console.log('ShiftSelectionGrid: Received shift definitions update');
+          console.log('🎯 Available shifts:', Object.keys(updatedShifts.SHIFT_NAMES || {}));
 
           // Convert shift definitions to SHIFTS_CONFIG format
           const newConfig = {};
@@ -112,7 +114,9 @@ export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmission
               }
 
               // Create label from start and end times
-              const label = `${shiftData.shiftType} ${startTime}-${endTime}`;
+              // Remove "חינוך_" prefix from shift type for cleaner display
+              const displayShiftType = shiftData.shiftType.replace('חינוך_', '');
+              const label = `${displayShiftType} ${startTime}-${endTime}`;
 
               newConfig[dayKey].push({
                 type: shiftTypePart,
@@ -124,6 +128,7 @@ export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmission
             });
           });
 
+          console.log('🎯 Final filtered shifts config:', newConfig);
           setDynamicShiftsConfig(newConfig);
           setLoading(false);
         });

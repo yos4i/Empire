@@ -109,6 +109,9 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
     const assigned = shift.soldiers?.length || 0;
     const required = shift.required || 0;
 
+    // Remove "חינוך_" prefix from shift name for cleaner display
+    const displayShiftName = shiftInfo?.name ? shiftInfo.name.replace('חינוך_', '').replace('ק.חינוך ', '') : shiftKey.replace('חינוך_', '');
+
     // Check if this specific day/shift has custom hours
     let timeString = '';
     if (shift.customStartTime && shift.customEndTime) {
@@ -149,7 +152,7 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
             <div className="flex items-center justify-between mb-3">
               <div className="flex-1">
                 <h4 className="font-semibold text-sm text-gray-900">
-                  {shiftInfo?.name || shiftKey}
+                  {displayShiftName}
                 </h4>
                 <p className="text-xs text-gray-600 font-medium">
                   {timeString || 'אין שעות'}

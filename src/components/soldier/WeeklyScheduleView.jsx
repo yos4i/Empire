@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { format, addDays, startOfWeek } from 'date-fns';
-import { Calendar, User, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Calendar, User, ChevronLeft, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { WeeklySchedule } from '../../entities/WeeklySchedule';
 import { User as UserEntity } from '../../entities/User';
 import { toWeekStartISO } from '../../utils/weekKey';
@@ -122,8 +123,19 @@ export default function WeeklyScheduleView({ soldierMission }) {
         </CardHeader>
       </Card>
 
-      {/* No schedule message */}
-      {!schedule && (
+      {/* No mission assigned message */}
+      {!soldierMission ? (
+        <Alert className="bg-yellow-50 border-yellow-200">
+          <AlertTriangle className="h-5 w-5 text-yellow-600" />
+          <AlertTitle className="text-yellow-900 font-semibold">אין אפשרות לצפות בסידור כרגע</AlertTitle>
+          <AlertDescription className="text-yellow-800">
+            <p className="mb-2">המשימה שלך טרם הוגדרה על ידי המנהל.</p>
+            <p>נא לפנות למנהל המערכת כדי שיקצה אותך למשימה (גבולות או קריית חינוך).</p>
+            <p className="mt-3 text-sm">לאחר שהמשימה תוגדר, תוכל לצפות בסידור השבועי שלך.</p>
+          </AlertDescription>
+        </Alert>
+      ) : !schedule ? (
+        /* No schedule message */
         <Card>
           <CardContent className="text-center py-8">
             <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -133,10 +145,10 @@ export default function WeeklyScheduleView({ soldierMission }) {
             </p>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
-      {/* Schedule Grid - Only show if schedule exists */}
-      {schedule && (
+      {/* Schedule Grid - Only show if schedule exists AND soldier has a mission */}
+      {soldierMission && schedule && (
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -173,7 +185,7 @@ export default function WeeklyScheduleView({ soldierMission }) {
                   <div className="flex items-center justify-center bg-purple-50 rounded-lg p-3">
                     <div className="text-center">
                       <span className="font-medium text-purple-900 block text-sm">
-                        {SHIFT_TYPES_HE[shiftKey]?.name || shiftKey}
+                        {(SHIFT_TYPES_HE[shiftKey]?.name || shiftKey).replace('ק.חינוך ', '').replace('חינוך_', '')}
                       </span>
                     </div>
                   </div>

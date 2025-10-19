@@ -12,13 +12,14 @@ import { toWeekStartISO } from '../utils/weekKey';
 import { DAYS } from "../config/shifts";
 import { useAuth } from "../contexts/AuthContext";
 import { ShiftSubmissionService } from '../services/shiftSubmission';
+import { User } from '../entities/User';
 
 
 export default function ShiftSubmissionPage() {
   const { soldierId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   const [shifts, setShifts] = useState(
     DAYS.reduce((acc, day) => ({ ...acc, [day]: [] }), {})
   );
@@ -27,6 +28,7 @@ export default function ShiftSubmissionPage() {
   const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [weeklySchedule, setWeeklySchedule] = useState(null);
+  const [soldierMission, setSoldierMission] = useState(null);
 
   // Security check: Ensure the soldier can only access their own route
   useEffect(() => {
@@ -48,6 +50,29 @@ export default function ShiftSubmissionPage() {
         console.error("No authenticated user found");
         return;
       }
+
+      // Check if mission is in user object, if not fetch from Firestore
+      let mission = user.mission;
+      if (!mission) {
+        console.log('🔍 ShiftSubmissionPage: Mission not in user object, fetching from Firestore...');
+        try {
+          const userDoc = await User.me();
+          if (userDoc?.mission) {
+            mission = userDoc.mission;
+            console.log('✅ ShiftSubmissionPage: Fetched mission from Firestore:', mission);
+
+            // Update localStorage with mission
+            const updatedUser = { ...user, mission };
+            localStorage.setItem('authUser', JSON.stringify(updatedUser));
+          } else {
+            console.warn('⚠️ ShiftSubmissionPage: No mission found in Firestore for this user');
+          }
+        } catch (err) {
+          console.error('❌ ShiftSubmissionPage: Error fetching mission from Firestore:', err);
+        }
+      }
+      setSoldierMission(mission);
+      console.log('🎯 ShiftSubmissionPage: Final mission value:', mission);
 
       // Load the weekly schedule to get custom shift hours
       const schedules = await WeeklySchedule.filter({ week_start: nextWeekStartStr });
@@ -150,44 +175,63 @@ const handleSubmit = async () => {
     <div className="p-4 md:p-6 bg-gray-50 min-h-screen" dir="rtl">
       <div className="max-w-6xl mx-auto">
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
-              <ClipboardList className="w-8 h-8 text-blue-600" />
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">העדפות משמרות</h1>
-                <p className="text-gray-600">בחר את המשמרות שאתה מעוניין לעבוד בהן לשבוע הבא</p>
-              </div>
-            </div>
-            <Button 
-              variant="outline" 
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-2">
+            <Button
+              variant="outline"
               onClick={() => navigate(`/soldier/${user?.uid}`)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 shrink-0 order-1 sm:order-none"
             >
               <Home className="w-4 h-4" />
-              חזרה לדשבורד
+              <span className="hidden sm:inline">חזרה לדשבורד</span>
+              <span className="sm:hidden">חזור</span>
             </Button>
+
+            <div className="flex items-center gap-3 order-2 sm:order-none flex-1">
+              <ClipboardList className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
+              <div>
+                <h1 className="text-xl sm:text-3xl font-bold text-gray-900">העדפות משמרות</h1>
+                <p className="text-sm sm:text-base text-gray-600">בחר את המשמרות שאתה מעוניין לעבוד בהן לשבוע הבא</p>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <ShiftSelectionGrid
-              shifts={shifts}
-              onToggleShift={toggleShift}
-              weeklySchedule={weeklySchedule}
-              soldierMission={user?.mission}
-            />
+            {console.log('🎯 ShiftSubmissionPage: Passing soldierMission to grid:', soldierMission, 'Full user:', user)}
 
-            <div className="mt-6 flex justify-end gap-3">
-              <Button
-                onClick={handleSubmit}
-                disabled={saving}
-                size="lg"
-                className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto"
-              >
-                {saving ? "שולח..." : existingSubmission ? "עדכן העדפות" : "שלח העדפות"}
-              </Button>
-            </div>
+            {/* Show message if soldier doesn't have a mission assigned */}
+            {!soldierMission ? (
+              <Alert className="bg-yellow-50 border-yellow-200">
+                <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                <AlertTitle className="text-yellow-900 font-semibold">לא ניתן להגיש העדפות כרגע</AlertTitle>
+                <AlertDescription className="text-yellow-800">
+                  <p className="mb-2">המשימה שלך טרם הוגדרה על ידי המנהל.</p>
+                  <p>נא לפנות למנהל המערכת כדי שיקצה אותך למשימה (גבולות או קריית חינוך).</p>
+                  <p className="mt-3 text-sm">לאחר שהמשימה תוגדר, תוכל לבחור את העדפות המשמרות שלך.</p>
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                <ShiftSelectionGrid
+                  shifts={shifts}
+                  onToggleShift={toggleShift}
+                  weeklySchedule={weeklySchedule}
+                  soldierMission={soldierMission}
+                />
+
+                <div className="mt-6 flex justify-end gap-3">
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={saving}
+                    size="lg"
+                    className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto"
+                  >
+                    {saving ? "שולח..." : existingSubmission ? "עדכן העדפות" : "שלח העדפות"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="space-y-6">
