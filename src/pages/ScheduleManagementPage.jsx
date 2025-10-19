@@ -4,19 +4,19 @@ import { User } from '../entities/User';
 import { ShiftSubmission } from '../entities/ShiftSubmission';
 import { WeeklySchedule } from '../entities/WeeklySchedule';
 import { ShiftAssignment } from '../entities/ShiftAssignment';
-import { format, addDays, startOfWeek } from 'date-fns';
+import { format, addDays, startOfWeek, addWeeks } from 'date-fns';
 import { toWeekStartISO } from '../utils/weekKey';
-import { Calendar, Home, Users, Trash2, Edit2, Save } from 'lucide-react';
+import { Calendar, Home, Users, Trash2, Edit2, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import ScheduleBoard from '../components/admin/schedule/ScheduleBoard';
 import AssignSoldierDialog from '../components/admin/schedule/AssignSoldierDialog';
 import PreferencesPanel from '../components/admin/PreferencesPanel';
 import QuickShiftHoursEditor from '../components/admin/schedule/QuickShiftHoursEditor';
 import { useMediaQuery } from '../components/hooks/useMediaQuery';
-import { DAYS, SHIFT_NAMES, SHIFT_REQUIREMENTS } from '../config/shifts';
+import { DAYS, SHIFT_NAMES, SHIFT_REQUIREMENTS, DAY_END_TIMES } from '../config/shifts';
 import { db } from '../config/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { clearAllShiftAssignments, initializeShiftAssignmentsCollection } from '../utils/dbUtils';
+import { clearAllShiftAssignments, initializeShiftAssignmentsCollection, clearAllShiftData } from '../utils/dbUtils';
 import { shiftDefinitionsService } from '../services/shiftDefinitions';
 import * as shiftsConfig from '../config/shifts';
 
@@ -47,22 +47,36 @@ export default function ScheduleManagementPage() {
   // Mission filter state
   const [missionFilter, setMissionFilter] = useState("הכל"); // "הכל", "קריית_חינוך", "גבולות"
 
+  // Week navigation state
+  const [weekOffset, setWeekOffset] = useState(1); // 0 = current week, 1 = next week, etc.
+
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [dialogShift, setDialogShift] = useState(null);
 
-  const nextWeekStart = addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7);
-  const nextWeekStartStr = toWeekStartISO(nextWeekStart);
+  const selectedWeekStart = addWeeks(startOfWeek(new Date(), { weekStartsOn: 0 }), weekOffset);
+  const nextWeekStart = selectedWeekStart; // For backwards compatibility
+  const nextWeekStartStr = toWeekStartISO(selectedWeekStart);
 
   const initializeSchedule = useCallback(() => {
     const newSchedule = {};
     for (const day of DAYS) {
       newSchedule[day] = {};
+      const dayEndTime = DAY_END_TIMES[day];
+
       for (const shiftKey in SHIFT_NAMES) {
-        newSchedule[day][shiftKey] = { 
+        const shiftData = {
           soldiers: [],
           cancelled: false,
           ...SHIFT_REQUIREMENTS[shiftKey]
         };
+
+        // Add custom end times for morning shifts based on the day
+        if (shiftKey.includes('בוקר')) {
+          shiftData.customStartTime = '07:00';
+          shiftData.customEndTime = dayEndTime;
+        }
+
+        newSchedule[day][shiftKey] = shiftData;
       }
     }
     return newSchedule;
@@ -402,6 +416,28 @@ export default function ScheduleManagementPage() {
     setSaving(false);
   };
 
+  const handleResetShiftData = async () => {
+    if (!window.confirm("⚠️ האם אתה בטוח שברצונך לאפס את הגדרות המשמרות?\n\nפעולה זו תמחק:\n- הגדרות משמרות (shift_definitions)\n- סוגי משמרות (shift_types)\n- שעות מותאמות אישית (weekly_shift_hours)\n\nהמשמרות יטענו מחדש מההגדרות בקוד עם השעות החדשות.\n\nפעולה זו אינה הפיכה!")) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      console.log('🗑️ Resetting shift data...');
+
+      const results = await clearAllShiftData();
+
+      alert(`✅ הגדרות המשמרות אופסו בהצלחה!\n\nנמחקו:\n- ${results.definitions.deleted} הגדרות משמרות\n- ${results.types.deleted} סוגי משמרות\n- ${results.weeklyHours.deleted} שעות מותאמות\n\nהעמוד ייטען מחדש כעת...`);
+
+      // Reload the page to reinitialize everything
+      window.location.reload();
+    } catch (error) {
+      console.error('❌ Error resetting shift data:', error);
+      alert('שגיאה באיפוס הגדרות המשמרות: ' + error.message);
+    }
+    setSaving(false);
+  };
+
   const handleClearAllAssignments = async () => {
     if (!window.confirm("האם אתה בטוח שברצונך למחוק את כל שיבוצי המשמרות? פעולה זו אינה הפיכה!")) {
       return;
@@ -694,7 +730,25 @@ export default function ScheduleManagementPage() {
                             <Calendar className="w-8 h-8 text-blue-600"/>
                             <div className="text-center">
                                 <h1 className="text-2xl md:text-3xl font-bold text-black">ניהול סידור עבודה</h1>
-                                <p className="text-gray-600">שבוע מתאריך: {format(nextWeekStart, 'dd/MM/yyyy')}</p>
+                                <div className="flex items-center gap-2 justify-center">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setWeekOffset(weekOffset - 1)}
+                                        className="h-8 w-8 p-0"
+                                    >
+                                        <ChevronRight className="w-4 h-4"/>
+                                    </Button>
+                                    <p className="text-gray-600 min-w-[150px] text-center">שבוע מתאריך: {format(selectedWeekStart, 'dd/MM/yyyy')}</p>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setWeekOffset(weekOffset + 1)}
+                                        className="h-8 w-8 p-0"
+                                    >
+                                        <ChevronLeft className="w-4 h-4"/>
+                                    </Button>
+                                </div>
                                 {saveStatus && (
                                     <p className={`text-sm mt-1 ${saveStatus.includes('✅') ? 'text-green-600' : saveStatus.includes('❌') ? 'text-red-600' : 'text-blue-600'}`}>
                                         {saveStatus}
@@ -722,6 +776,7 @@ export default function ScheduleManagementPage() {
                             <Save className="w-4 h-4 ml-2"/>שמור סידור
                         </Button>
                         <Button variant="outline" onClick={handleClearAllAssignments} disabled={saving} className="border-red-300 text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4 ml-2"/>נקה שיבוצים</Button>
+                        <Button variant="outline" onClick={handleResetShiftData} disabled={saving} className="border-orange-300 text-orange-600 hover:bg-orange-50"><Trash2 className="w-4 h-4 ml-2"/>אפס הגדרות משמרות</Button>
                         <Button onClick={handlePublishToSoldiers} disabled={saving} className="bg-purple-600 hover:bg-purple-700 text-white"><Users className="w-4 h-4 ml-2"/>פרסם לחיילים</Button>
                     </div>
                 </div>

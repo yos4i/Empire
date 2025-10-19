@@ -148,3 +148,124 @@ export async function createTestAssignment() {
     throw new Error(`Failed to create test assignment: ${error.message}`);
   }
 }
+
+/**
+ * Clear shift definitions collection
+ * Use this to reset shift definitions to defaults
+ */
+export async function clearShiftDefinitions() {
+  try {
+    console.log('🗑️ Clearing shift definitions...');
+
+    const definitionsRef = collection(db, 'shift_definitions');
+    const snapshot = await getDocs(definitionsRef);
+
+    console.log(`📊 Found ${snapshot.docs.length} shift definitions to delete`);
+
+    if (snapshot.docs.length === 0) {
+      console.log('✅ No shift definitions to delete');
+      return { deleted: 0, message: 'No shift definitions found' };
+    }
+
+    let deletedCount = 0;
+    for (const document of snapshot.docs) {
+      await deleteDoc(doc(db, 'shift_definitions', document.id));
+      deletedCount++;
+      console.log(`🗑️ Deleted shift definition ${deletedCount}/${snapshot.docs.length}: ${document.id}`);
+    }
+
+    console.log(`✅ Successfully deleted ${deletedCount} shift definitions`);
+    return { deleted: deletedCount, message: `Deleted ${deletedCount} shift definitions` };
+  } catch (error) {
+    console.error('❌ Error clearing shift definitions:', error);
+    throw new Error(`Failed to clear shift definitions: ${error.message}`);
+  }
+}
+
+/**
+ * Clear shift types collection
+ * Use this to reset shift types to defaults
+ */
+export async function clearShiftTypes() {
+  try {
+    console.log('🗑️ Clearing shift types...');
+
+    const typesRef = collection(db, 'shift_types');
+    const snapshot = await getDocs(typesRef);
+
+    console.log(`📊 Found ${snapshot.docs.length} shift types to delete`);
+
+    if (snapshot.docs.length === 0) {
+      console.log('✅ No shift types to delete');
+      return { deleted: 0, message: 'No shift types found' };
+    }
+
+    let deletedCount = 0;
+    for (const document of snapshot.docs) {
+      await deleteDoc(doc(db, 'shift_types', document.id));
+      deletedCount++;
+      console.log(`🗑️ Deleted shift type ${deletedCount}/${snapshot.docs.length}: ${document.id}`);
+    }
+
+    console.log(`✅ Successfully deleted ${deletedCount} shift types`);
+    return { deleted: deletedCount, message: `Deleted ${deletedCount} shift types` };
+  } catch (error) {
+    console.error('❌ Error clearing shift types:', error);
+    throw new Error(`Failed to clear shift types: ${error.message}`);
+  }
+}
+
+/**
+ * Clear weekly shift hours collection
+ * Use this to reset custom shift hours for all weeks
+ */
+export async function clearWeeklyShiftHours() {
+  try {
+    console.log('🗑️ Clearing weekly shift hours...');
+
+    const hoursRef = collection(db, 'weekly_shift_hours');
+    const snapshot = await getDocs(hoursRef);
+
+    console.log(`📊 Found ${snapshot.docs.length} weekly shift hours to delete`);
+
+    if (snapshot.docs.length === 0) {
+      console.log('✅ No weekly shift hours to delete');
+      return { deleted: 0, message: 'No weekly shift hours found' };
+    }
+
+    let deletedCount = 0;
+    for (const document of snapshot.docs) {
+      await deleteDoc(doc(db, 'weekly_shift_hours', document.id));
+      deletedCount++;
+      console.log(`🗑️ Deleted weekly shift hours ${deletedCount}/${snapshot.docs.length}: ${document.id}`);
+    }
+
+    console.log(`✅ Successfully deleted ${deletedCount} weekly shift hours`);
+    return { deleted: deletedCount, message: `Deleted ${deletedCount} weekly shift hours` };
+  } catch (error) {
+    console.error('❌ Error clearing weekly shift hours:', error);
+    throw new Error(`Failed to clear weekly shift hours: ${error.message}`);
+  }
+}
+
+/**
+ * Clear all shift-related data (definitions, types, and weekly hours)
+ * This will force the system to regenerate everything from code defaults
+ */
+export async function clearAllShiftData() {
+  try {
+    console.log('🗑️ Clearing ALL shift-related data...');
+
+    const results = {
+      definitions: await clearShiftDefinitions(),
+      types: await clearShiftTypes(),
+      weeklyHours: await clearWeeklyShiftHours()
+    };
+
+    console.log('✅ All shift data cleared:', results);
+    return results;
+  } catch (error) {
+    console.error('❌ Error clearing all shift data:', error);
+    throw new Error(`Failed to clear all shift data: ${error.message}`);
+  }
+}

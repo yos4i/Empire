@@ -59,7 +59,16 @@ class ShiftTypesService {
       defaultStartTime: '07:00',
       defaultEndTime: '14:30',
       required: 18,
-      order: 1
+      order: 1,
+      // Day-specific times for kiryat_hinuch morning shifts
+      daySpecificTimes: {
+        sunday: { startTime: '07:00', endTime: '13:30' },
+        monday: { startTime: '07:00', endTime: '14:30' },
+        tuesday: { startTime: '07:00', endTime: '13:30' },
+        wednesday: { startTime: '07:00', endTime: '14:30' },
+        thursday: { startTime: '07:00', endTime: '13:30' },
+        friday: { startTime: '07:00', endTime: '12:00' }
+      }
     },
     {
       id: 'kiryat_hinuch_evening',
@@ -79,10 +88,19 @@ class ShiftTypesService {
       type: 'borders',
       category: 'borders',
       defaultStartTime: '07:00',
-      defaultEndTime: '15:30',
+      defaultEndTime: '13:30',
       required: 6,
-      isLong: true,
-      order: 3
+      isLong: false,
+      order: 3,
+      // Day-specific times for borders shifts
+      daySpecificTimes: {
+        sunday: { startTime: '07:00', endTime: '13:30' },
+        monday: { startTime: '07:00', endTime: '14:30' },
+        tuesday: { startTime: '07:00', endTime: '13:30' },
+        wednesday: { startTime: '07:00', endTime: '14:30' },
+        thursday: { startTime: '07:00', endTime: '13:30' },
+        friday: { startTime: '07:00', endTime: '12:00' }
+      }
     }
   ];
 
@@ -206,10 +224,18 @@ class ShiftTypesService {
     days.forEach(day => {
       shifts[day] = {};
       ShiftTypesService.defaultShiftTypes.forEach(shiftType => {
-        shifts[day][shiftType.id] = {
-          startTime: shiftType.defaultStartTime,
-          endTime: shiftType.defaultEndTime
-        };
+        // Check if shift has day-specific times
+        if (shiftType.daySpecificTimes && shiftType.daySpecificTimes[day]) {
+          shifts[day][shiftType.id] = {
+            startTime: shiftType.daySpecificTimes[day].startTime,
+            endTime: shiftType.daySpecificTimes[day].endTime
+          };
+        } else {
+          shifts[day][shiftType.id] = {
+            startTime: shiftType.defaultStartTime,
+            endTime: shiftType.defaultEndTime
+          };
+        }
       });
     });
 

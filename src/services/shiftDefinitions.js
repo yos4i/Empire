@@ -39,15 +39,17 @@ class ShiftDefinitionsService {
         const requirements = staticConfig.SHIFT_REQUIREMENTS[shiftKey] || {};
         const typeInfo = staticConfig.SHIFT_TYPES_HE[shiftKey] || {};
 
-        // Extract times from display name
+        // Extract times from display name or use defaults
         const timeMatch = displayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
         const startTime = timeMatch ? timeMatch[1] : '07:00';
-        const endTime = timeMatch ? timeMatch[2] : '15:00';
+        // For morning shifts, use a default that will be overridden by day-specific times
+        // For evening shifts, use the extracted time
+        const endTime = timeMatch ? timeMatch[2] : (typeInfo.type === 'ערב' ? '19:30' : '13:30');
 
         // Extract mission and type from key
         const parts = shiftKey.split('_');
         const mission = parts[0];
-        const shiftType = parts.slice(1, parts.length - 2).join('_'); // Get middle parts
+        const shiftType = parts.slice(1).join('_'); // Get the shift type part
 
         const shiftData = {
           key: shiftKey,
