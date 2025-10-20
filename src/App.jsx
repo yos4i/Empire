@@ -1,6 +1,6 @@
 import React from 'react';
 import './App.css';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -91,8 +91,27 @@ const AppContent = () => {
         }
       />
       <Route path="/" element={<LoginPage />} />
+      {/* Catch-all route for undefined paths - redirect based on auth state */}
+      <Route path="*" element={<RedirectHandler />} />
     </Routes>
   );
+};
+
+// Component to handle redirects for undefined routes
+const RedirectHandler = () => {
+  const { user } = useAuth();
+
+  // If user is logged in, redirect to their dashboard
+  if (user) {
+    if (user.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    } else if (user.role === 'soldier') {
+      return <Navigate to="/soldier" replace />;
+    }
+  }
+
+  // If not logged in, redirect to login page
+  return <Navigate to="/login" replace />;
 };
 
 const queryClient = new QueryClient();
