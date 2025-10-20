@@ -198,21 +198,6 @@ export default function SoldierDetailsDialog({ isOpen, onClose, soldier, onDelet
             </Card>
           </div>
 
-          {/* Driver Status */}
-          {soldier.is_driver !== undefined && (
-            <Card className="p-4">
-              <div className="flex items-center gap-3">
-                <Car className="w-5 h-5 text-blue-600" />
-                <div>
-                  <p className="text-sm text-gray-600">סטטוס נהג</p>
-                  <Badge className={soldier.is_driver ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                    {soldier.is_driver ? 'נהג/ת' : 'לא נהג/ת'}
-                  </Badge>
-                </div>
-              </div>
-            </Card>
-          )}
-
           {/* Equipment Section */}
           <Card className="p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -230,7 +215,7 @@ export default function SoldierDetailsDialog({ isOpen, onClose, soldier, onDelet
               </div>
               <div className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded-full ${soldier.equipment?.radio ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                <span className="text-sm text-gray-700">קשר</span>
+                <span className="text-sm text-gray-700">כמות מחסניות</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className={`w-3 h-3 rounded-full ${soldier.equipment?.weapon ? 'bg-green-500' : 'bg-gray-300'}`}></div>

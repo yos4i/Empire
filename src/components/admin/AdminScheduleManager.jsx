@@ -27,8 +27,8 @@ const WEEKDAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמי
 
 export default function AdminScheduleManager() {
   const { user } = useAuth();
-  const [selectedDate, setSelectedDate] = useState(() => 
-    addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7)
+  const [selectedDate, setSelectedDate] = useState(() =>
+    startOfWeek(new Date(), { weekStartsOn: 0 })
   );
   const [preferences, setPreferences] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -208,11 +208,11 @@ export default function AdminScheduleManager() {
                 </Button>
                 
                 <Button
-                  variant="outline" 
-                  onClick={() => setSelectedDate(addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7))}
+                  variant="outline"
+                  onClick={() => setSelectedDate(startOfWeek(new Date(), { weekStartsOn: 0 }))}
                   disabled={assigning}
                 >
-                  השבוע הבא
+                  השבוע הנוכחי
                 </Button>
                 
                 <Button

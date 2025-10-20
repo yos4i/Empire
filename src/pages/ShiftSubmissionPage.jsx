@@ -42,7 +42,7 @@ export default function ShiftSubmissionPage() {
     }
   }, [user, soldierId, navigate]);
 
-  const nextWeekStart = addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7);
+  const nextWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
   const nextWeekStartStr = toWeekStartISO(nextWeekStart);
 
   const loadData = useCallback(async () => {
@@ -189,26 +189,25 @@ const handleSubmit = async () => {
 
   return (
     <div className="p-4 md:p-6 bg-gray-50 min-h-screen" dir="rtl">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 mb-2">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-6 md:mb-8">
+          <div className="flex items-center justify-between mb-6">
             <Button
               variant="outline"
               onClick={() => navigate(`/soldier/${user?.uid}`)}
-              className="flex items-center gap-2 shrink-0 order-1 sm:order-none"
+              className="flex items-center gap-2"
             >
               <Home className="w-4 h-4" />
               <span className="hidden sm:inline">חזרה לדשבורד</span>
               <span className="sm:hidden">חזור</span>
             </Button>
 
-            <div className="flex items-center gap-3 order-2 sm:order-none flex-1">
-              <ClipboardList className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
-              <div>
-                <h1 className="text-xl sm:text-3xl font-bold text-gray-900">העדפות משמרות</h1>
-                <p className="text-sm sm:text-base text-gray-600">שבוע {format(nextWeekStart, 'dd/MM/yyyy')} - {format(addDays(nextWeekStart, 6), 'dd/MM/yyyy')}</p>
-              </div>
+            <div className="flex-1 flex flex-col items-center justify-center">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 text-center mb-1">העדפות משמרות</h1>
+              <p className="text-sm md:text-base text-gray-600 text-center">שבוע {format(nextWeekStart, 'dd/MM/yyyy')} - {format(addDays(nextWeekStart, 6), 'dd/MM/yyyy')}</p>
             </div>
+
+            <div className="w-20 sm:w-32"></div>
           </div>
 
           {/* Week Status Banner */}

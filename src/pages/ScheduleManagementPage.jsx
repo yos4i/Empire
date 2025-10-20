@@ -49,7 +49,7 @@ export default function ScheduleManagementPage() {
   const [missionFilter, setMissionFilter] = useState("הכל"); // "הכל", "קריית_חינוך", "גבולות"
 
   // Week navigation state
-  const [weekOffset, setWeekOffset] = useState(1); // 0 = current week, 1 = next week, etc.
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = current week, 1 = next week, etc.
 
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [dialogShift, setDialogShift] = useState(null);

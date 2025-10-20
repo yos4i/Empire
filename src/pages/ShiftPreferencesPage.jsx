@@ -18,7 +18,7 @@ export default function ShiftPreferencesPage() {
   const [submissions, setSubmissions] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedWeek, setSelectedWeek] = useState(addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7));
+  const [selectedWeek, setSelectedWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 0 }));
   const [filterUnit, setFilterUnit] = useState("הכל");
 
   const selectedWeekStr = format(selectedWeek, 'yyyy-MM-dd');
@@ -147,28 +147,24 @@ export default function ShiftPreferencesPage() {
     <div className="p-4 md:p-6 bg-gray-50 min-h-screen" dir="rtl">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
+        <div className="mb-6 md:mb-8">
+          <div className="flex items-center justify-between mb-6">
             <Button
               variant="outline"
               onClick={() => navigate('/admin')}
               className="flex items-center gap-2"
             >
               <Home className="w-4 h-4"/>
-              חזרה לדף הבית
+              <span className="hidden sm:inline">חזרה לדף הבית</span>
+              <span className="sm:hidden">חזור</span>
             </Button>
 
             <div className="flex-1 flex flex-col items-center justify-center">
-              <div className="flex items-center gap-3">
-                <Eye className="w-8 h-8 text-blue-600" />
-                <div className="text-center">
-                  <h1 className="text-3xl font-bold text-gray-900">צפייה בהעדפות משמרות</h1>
-                  <p className="text-gray-600">סקירת העדפות החיילים לפי שבוע</p>
-                </div>
-              </div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 text-center mb-1">צפייה בהעדפות משמרות</h1>
+              <p className="text-sm md:text-base text-gray-600 text-center">שבוע {format(selectedWeek, 'dd/MM/yyyy')} - {format(addDays(selectedWeek, 6), 'dd/MM/yyyy')}</p>
             </div>
 
-            <div className="w-32"></div>
+            <div className="w-20 sm:w-32"></div>
           </div>
         </div>
 
@@ -194,12 +190,12 @@ export default function ShiftPreferencesPage() {
                   <ChevronRight className="w-4 h-4" />
                   שבוע קודם
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setSelectedWeek(addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedWeek(startOfWeek(new Date(), { weekStartsOn: 0 }))}
                 >
-                  השבוע הבא
+                  השבוע הנוכחי
                 </Button>
                 <Button 
                   variant="outline" 
@@ -215,43 +211,43 @@ export default function ShiftPreferencesPage() {
         </Card>
 
         {/* Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+          <Card className="p-4 md:p-5">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Users className="w-8 h-8 md:w-10 md:h-10 text-blue-500" />
               <div>
-                <p className="text-sm font-medium text-gray-600">סה״כ חיילים</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                <p className="text-xs md:text-sm text-gray-600 mb-1">סה״כ חיילים</p>
+                <p className="text-2xl md:text-3xl font-bold text-blue-600">{stats.total}</p>
               </div>
-              <Users className="w-8 h-8 text-blue-500" />
             </div>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
+          <Card className="p-4 md:p-5">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Eye className="w-8 h-8 md:w-10 md:h-10 text-green-500" />
               <div>
-                <p className="text-sm font-medium text-gray-600">הגישו העדפות</p>
-                <p className="text-2xl font-bold text-green-600">{stats.submitted}</p>
+                <p className="text-xs md:text-sm text-gray-600 mb-1">הגישו העדפות</p>
+                <p className="text-2xl md:text-3xl font-bold text-green-600">{stats.submitted}</p>
               </div>
-              <Eye className="w-8 h-8 text-green-500" />
             </div>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
+          <Card className="p-4 md:p-5">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Calendar className="w-8 h-8 md:w-10 md:h-10 text-red-500" />
               <div>
-                <p className="text-sm font-medium text-gray-600">טרם הגישו</p>
-                <p className="text-2xl font-bold text-red-600">{stats.pending}</p>
+                <p className="text-xs md:text-sm text-gray-600 mb-1">טרם הגישו</p>
+                <p className="text-2xl md:text-3xl font-bold text-red-600">{stats.pending}</p>
               </div>
-              <Calendar className="w-8 h-8 text-red-500" />
             </div>
           </Card>
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
+          <Card className="p-4 md:p-5">
+            <div className="flex flex-col items-center text-center gap-2">
+              <Filter className="w-8 h-8 md:w-10 md:h-10 text-purple-500" />
               <div>
-                <p className="text-sm font-medium text-gray-600">אחוז הגשה</p>
-                <p className="text-2xl font-bold text-blue-600">
+                <p className="text-xs md:text-sm text-gray-600 mb-1">אחוז הגשה</p>
+                <p className="text-2xl md:text-3xl font-bold text-purple-600">
                   {stats.total > 0 ? Math.round((stats.submitted / stats.total) * 100) : 0}%
                 </p>
               </div>
-              <Filter className="w-8 h-8 text-blue-500" />
             </div>
           </Card>
         </div>

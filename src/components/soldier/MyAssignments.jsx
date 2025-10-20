@@ -28,7 +28,7 @@ const WEEKDAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמי
 export default function MyAssignments() {
   const { user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(() =>
-    addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7)
+    startOfWeek(new Date(), { weekStartsOn: 0 })
   );
   const [assignments, setAssignments] = useState([]);
   const [stats, setStats] = useState({});
@@ -210,13 +210,12 @@ export default function MyAssignments() {
 
   return (
     <div className="p-3 md:p-6 bg-gray-50 min-h-screen" dir="rtl">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
 
         {/* Header */}
         <div className="mb-4 md:mb-6">
-          {/* Title - Mobile Centered */}
-          <div className="flex flex-col items-center justify-center mb-3 md:mb-4">
-
+          {/* Week Display - Centered */}
+          <div className="flex flex-col items-center justify-center mb-4">
             <p className="text-sm md:text-base text-gray-600 text-center">
               שבוע {format(selectedDate, 'dd/MM/yyyy')} - {format(addDays(selectedDate, 6), 'dd/MM/yyyy')}
             </p>
@@ -237,10 +236,10 @@ export default function MyAssignments() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setSelectedDate(addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7))}
+              onClick={() => setSelectedDate(startOfWeek(new Date(), { weekStartsOn: 0 }))}
               className="px-2 md:px-4 text-xs md:text-sm"
             >
-              השבוע הבא
+              השבוע הנוכחי
             </Button>
 
             <Button
@@ -265,34 +264,34 @@ export default function MyAssignments() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-4">
-            <Card className="p-3 md:p-4">
-              <div className="flex items-center justify-between">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-4 max-w-3xl mx-auto">
+            <Card className="p-4 md:p-5">
+              <div className="flex flex-col items-center text-center gap-2">
+                <Clock className="w-8 h-8 md:w-10 md:h-10 text-blue-500" />
                 <div>
-                  <p className="text-xs md:text-sm text-gray-600">סה״כ משמרות</p>
-                  <p className="text-xl md:text-2xl font-bold">{stats.total_shifts || 0}</p>
+                  <p className="text-xs md:text-sm text-gray-600 mb-1">סה״כ משמרות</p>
+                  <p className="text-2xl md:text-3xl font-bold text-blue-600">{stats.total_shifts || 0}</p>
                 </div>
-                <Clock className="w-6 h-6 md:w-8 md:h-8 text-blue-500" />
               </div>
             </Card>
 
-            <Card className="p-3 md:p-4">
-              <div className="flex items-center justify-between">
+            <Card className="p-4 md:p-5">
+              <div className="flex flex-col items-center text-center gap-2">
+                <ArrowLeftRight className="w-8 h-8 md:w-10 md:h-10 text-orange-500" />
                 <div>
-                  <p className="text-xs md:text-sm text-gray-600">בקשות החלפה</p>
-                  <p className="text-xl md:text-2xl font-bold text-yellow-600">{assignments.filter(a => a.status === 'swap_requested').length}</p>
+                  <p className="text-xs md:text-sm text-gray-600 mb-1">בקשות החלפה</p>
+                  <p className="text-2xl md:text-3xl font-bold text-orange-600">{assignments.filter(a => a.status === 'swap_requested').length}</p>
                 </div>
-                <ArrowLeftRight className="w-6 h-6 md:w-8 md:h-8 text-yellow-500" />
               </div>
             </Card>
 
-            <Card className="p-3 md:p-4">
-              <div className="flex items-center justify-between">
+            <Card className="p-4 md:p-5 sm:col-span-2 md:col-span-1">
+              <div className="flex flex-col items-center text-center gap-2">
+                <User className="w-8 h-8 md:w-10 md:h-10 text-green-500" />
                 <div>
-                  <p className="text-xs md:text-sm text-gray-600">הושלמו</p>
-                  <p className="text-xl md:text-2xl font-bold text-gray-600">{stats.completed_shifts || 0}</p>
+                  <p className="text-xs md:text-sm text-gray-600 mb-1">הושלמו</p>
+                  <p className="text-2xl md:text-3xl font-bold text-green-600">{stats.completed_shifts || 0}</p>
                 </div>
-                <User className="w-6 h-6 md:w-8 md:h-8 text-gray-500" />
               </div>
             </Card>
           </div>

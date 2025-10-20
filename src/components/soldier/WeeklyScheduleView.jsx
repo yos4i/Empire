@@ -21,7 +21,7 @@ const DAYS_HE = {
 
 export default function WeeklyScheduleView({ soldierMission }) {
   const [selectedDate, setSelectedDate] = useState(() =>
-    addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7)
+    startOfWeek(new Date(), { weekStartsOn: 0 })
   );
   const [schedule, setSchedule] = useState(null);
   const [users, setUsers] = useState({});
