@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
-import { User, Clock, AlertTriangle, X, Users as UsersIcon, ArrowLeftRight } from 'lucide-react';
+import { User, Clock, AlertTriangle, X, Users as UsersIcon, ArrowLeftRight, Clock3 } from 'lucide-react';
 import { DAYS, SHIFT_NAMES, SHIFT_TYPES_HE } from '../../../config/shifts';
 
 const DAYS_HE = {
@@ -14,7 +14,7 @@ const DAYS_HE = {
   friday: 'שישי'
 };
 
-export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId, onEditShiftHours, dynamicShiftNames, missionFilter, shiftAssignments = [] }) {
+export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId, onEditShiftHours, dynamicShiftNames, missionFilter, shiftAssignments = [], onToggleLongShift }) {
   // Use dynamic shift names from Firestore if available, otherwise fall back to static
   const shiftNames = dynamicShiftNames || SHIFT_NAMES;
 
@@ -62,11 +62,17 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
 
   // Helper to get assignment info for a specific soldier/shift/day
   const getAssignmentInfo = (soldierId, shiftKey, day) => {
-    return shiftAssignments.find(assignment =>
-      assignment.soldier_id === soldierId &&
+    // Get the soldier's Auth UID (assignments use Auth UID, not Firestore doc ID)
+    const soldier = users[soldierId];
+    const soldierUid = soldier?.uid || soldierId;
+
+    const assignment = shiftAssignments.find(assignment =>
+      assignment.soldier_id === soldierUid &&
       assignment.shift_type === shiftKey &&
       assignment.day_name === day
     );
+
+    return assignment;
   };
 
   const renderSoldierCard = (soldierId, shiftKey, day, index) => {
@@ -76,17 +82,28 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
     const soldierShiftCount = soldierShiftCounts[soldierId] || 0;
     const isOverworked = soldierShiftCount > 6;
 
-    // Get assignment info to check for swap requests
+    // Get assignment info to check for swap requests and long shift status
     const assignmentInfo = getAssignmentInfo(soldierId, shiftKey, day);
     const hasSwapRequest = assignmentInfo?.status === 'swap_requested';
     const swapReason = assignmentInfo?.swap_reason;
+    const isLongShift = assignmentInfo?.isLongShift || false;
+
+    // Log only when isLongShift is true to reduce noise
+    if (isLongShift) {
+      console.log('⏰ Rendering soldier card with LONG SHIFT:', {
+        soldier: soldier.hebrew_name,
+        day,
+        shiftKey,
+        isLongShift: assignmentInfo.isLongShift
+      });
+    }
 
     return (
       <div
         key={`${soldierId}-${day}-${shiftKey}`}
         className={`
           p-2 mb-2 rounded border text-sm transition-all shadow-sm
-          ${hasSwapRequest ? 'bg-orange-50 border-orange-300' : isOverworked ? 'bg-red-100 border-red-300' : 'bg-white border-gray-200'}
+          ${hasSwapRequest ? 'bg-orange-50 border-orange-300' : isOverworked ? 'bg-red-100 border-red-300' : isLongShift ? 'bg-amber-50 border-amber-300 border-l-4' : 'bg-white border-gray-200'}
           ${!isPublished ? 'hover:shadow-md' : ''}
         `}
       >
@@ -96,11 +113,38 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                 <span className="font-medium text-gray-900">{soldier.hebrew_name}</span>
               </div>
               <div className="flex items-center gap-1">
+                {isLongShift && (
+                  <Badge className="bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 flex items-center gap-1">
+                    <Clock3 className="w-3 h-3" />
+                    עד 15:30
+                  </Badge>
+                )}
                 {hasSwapRequest && (
                   <Badge className="bg-orange-100 text-orange-800 text-xs px-1.5 py-0.5 flex items-center gap-1">
                     <ArrowLeftRight className="w-3 h-3" />
                     החלפה
                   </Badge>
+                )}
+                {!isPublished && onToggleLongShift && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`h-5 w-5 p-0 ${isLongShift ? 'hover:bg-amber-100 text-amber-600' : 'hover:bg-gray-100 text-gray-400'}`}
+                    onClick={(e) => {
+                      console.log('🕐 Clock button clicked!', {
+                        day,
+                        shiftKey,
+                        soldierId,
+                        currentIsLongShift: isLongShift,
+                        willToggleTo: !isLongShift
+                      });
+                      e.stopPropagation();
+                      onToggleLongShift(day, shiftKey, soldierId, !isLongShift);
+                    }}
+                    title={isLongShift ? "בטל משמרת ארוכה" : "סמן כמשמרת ארוכה (עד 15:30)"}
+                  >
+                    <Clock3 className="w-4 h-4" />
+                  </Button>
                 )}
                 {!isPublished && (
                   <Button

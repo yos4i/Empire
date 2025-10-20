@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Calendar, User, Shield } from 'lucide-react';
+import { Search, Calendar, User, Shield, Clock3 } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { format } from 'date-fns';
@@ -272,6 +272,7 @@ function SubmissionCard({ submission, index, soldierShiftCounts, users, onSelect
                 { key: 'saturday', name: 'ש׳' }
               ].map(({ key, name }) => {
                 const daySlots = submission.days?.[key] || [];
+                const hasLongShift = submission.longShiftDays?.[key];
 
                 return (
                   <div key={key} className="flex items-start gap-1 border-b border-gray-200 pb-1 last:border-b-0">
@@ -280,14 +281,22 @@ function SubmissionCard({ submission, index, soldierShiftCounts, users, onSelect
                     </div>
                     <div className="flex flex-col gap-0.5 flex-1">
                       {daySlots.length > 0 ? (
-                        daySlots.map((slot, idx) => (
-                          <Badge
-                            key={idx}
-                            className="text-xs bg-green-100 text-green-800 border-green-300 justify-center"
-                          >
-                            {slot}
-                          </Badge>
-                        ))
+                        <>
+                          {daySlots.map((slot, idx) => (
+                            <Badge
+                              key={idx}
+                              className={`text-xs border-green-300 justify-center ${hasLongShift ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}
+                            >
+                              {slot}
+                            </Badge>
+                          ))}
+                          {hasLongShift && (
+                            <Badge className="text-xs bg-amber-100 text-amber-800 justify-center flex items-center gap-1">
+                              <Clock3 className="w-3 h-3" />
+                              עד 15:30
+                            </Badge>
+                          )}
+                        </>
                       ) : (
                         <span className="text-xs text-gray-400 text-center">—</span>
                       )}

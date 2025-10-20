@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { format, addDays, startOfWeek } from 'date-fns';
-import { Calendar, User, ChevronLeft, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
+import { Calendar, User, Clock3, ChevronLeft, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { WeeklySchedule } from '../../entities/WeeklySchedule';
 import { User as UserEntity } from '../../entities/User';
+import { ShiftAssignment } from '../../entities/ShiftAssignment';
 import { toWeekStartISO } from '../../utils/weekKey';
 import { DAYS, SHIFT_NAMES, SHIFT_TYPES_HE } from '../../config/shifts';
 
@@ -25,6 +26,7 @@ export default function WeeklyScheduleView({ soldierMission }) {
   );
   const [schedule, setSchedule] = useState(null);
   const [users, setUsers] = useState({});
+  const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const weekStart = toWeekStartISO(selectedDate);
@@ -55,8 +57,16 @@ export default function WeeklyScheduleView({ soldierMission }) {
         return acc;
       }, {});
 
+      // Load shift assignments to check for long shifts
+      const weekEndDate = format(addDays(new Date(weekStart), 6), 'yyyy-MM-dd');
+      const shiftAssignments = await ShiftAssignment.filter({
+        start_date: weekStart,
+        end_date: weekEndDate
+      });
+
       setSchedule(weeklySchedule?.schedule || null);
       setUsers(usersMap);
+      setAssignments(shiftAssignments);
     } catch (error) {
       console.error('Error loading weekly schedule:', error);
     }
@@ -77,6 +87,37 @@ export default function WeeklyScheduleView({ soldierMission }) {
     if (assigned < required) return 'bg-yellow-50 border-yellow-200';
     if (assigned === required) return 'bg-green-50 border-green-200';
     return 'bg-blue-50 border-blue-200';
+  };
+
+  // Helper to check if a soldier has a long shift assignment
+  const isLongShift = (soldierId, shiftKey, day) => {
+    const soldier = users[soldierId];
+    if (!soldier) {
+      console.log('⚠️ isLongShift: Soldier not found for ID:', soldierId);
+      return false;
+    }
+
+    const dayDate = format(addDays(new Date(weekStart), DAYS.indexOf(day)), 'yyyy-MM-dd');
+
+    // Try to find assignment by both soldier UID and Firestore ID
+    const assignment = assignments.find(a =>
+      (a.soldier_id === soldier.uid || a.soldier_id === soldierId) &&
+      a.shift_type === shiftKey &&
+      a.date === dayDate
+    );
+
+    console.log(`🔍 isLongShift check for ${soldier.hebrew_name}:`, {
+      soldierId,
+      soldierUid: soldier.uid,
+      day,
+      shiftKey,
+      dayDate,
+      foundAssignment: !!assignment,
+      isLongShift: assignment?.isLongShift,
+      totalAssignments: assignments.length
+    });
+
+    return assignment?.isLongShift || false;
   };
 
   if (loading) {
@@ -263,15 +304,25 @@ export default function WeeklyScheduleView({ soldierMission }) {
                               const soldier = users[soldierId];
                               if (!soldier) return null;
 
+                              const hasLongShift = isLongShift(soldierId, shiftKey, day);
+
                               return (
                                 <div
                                   key={`${soldierId}-${index}`}
-                                  className="p-1.5 bg-white rounded border text-xs flex items-center gap-1"
+                                  className={`p-1.5 rounded border text-xs flex items-center justify-between gap-1 ${hasLongShift ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'}`}
                                 >
-                                  <User className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                                  <span className="font-medium text-gray-900 truncate">
-                                    {soldier.hebrew_name || soldier.displayName}
-                                  </span>
+                                  <div className="flex items-center gap-1 flex-1 min-w-0">
+                                    <User className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                                    <span className="font-medium text-gray-900 truncate">
+                                      {soldier.hebrew_name || soldier.displayName}
+                                    </span>
+                                  </div>
+                                  {hasLongShift && (
+                                    <Badge className="bg-amber-100 text-amber-800 text-[10px] px-1 py-0 flex items-center gap-0.5">
+                                      <Clock3 className="w-2.5 h-2.5" />
+                                      15:30
+                                    </Badge>
+                                  )}
                                 </div>
                               );
                             })}
@@ -379,15 +430,25 @@ export default function WeeklyScheduleView({ soldierMission }) {
                                 const soldier = users[soldierId];
                                 if (!soldier) return null;
 
+                                const hasLongShift = isLongShift(soldierId, shiftKey, day);
+
                                 return (
                                   <div
                                     key={`${soldierId}-${index}`}
-                                    className="p-2 bg-white rounded border text-sm flex items-center gap-2"
+                                    className={`p-2 rounded border text-sm flex items-center justify-between gap-2 ${hasLongShift ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200'}`}
                                   >
-                                    <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
-                                    <span className="font-medium text-gray-900">
-                                      {soldier.hebrew_name || soldier.displayName}
-                                    </span>
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                      <span className="font-medium text-gray-900">
+                                        {soldier.hebrew_name || soldier.displayName}
+                                      </span>
+                                    </div>
+                                    {hasLongShift && (
+                                      <Badge className="bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 flex items-center gap-1">
+                                        <Clock3 className="w-3 h-3" />
+                                        עד 15:30
+                                      </Badge>
+                                    )}
                                   </div>
                                 );
                               })}

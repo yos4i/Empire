@@ -24,6 +24,7 @@ export default function ShiftSubmissionPage() {
   const [shifts, setShifts] = useState(
     DAYS.reduce((acc, day) => ({ ...acc, [day]: [] }), {})
   );
+  const [longShiftDays, setLongShiftDays] = useState({}); // Track which days have long shift preference
   const [existingSubmission, setExistingSubmission] = useState(null);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState([]);
@@ -102,6 +103,7 @@ export default function ShiftSubmissionPage() {
       if (submissions.length > 0) {
         setExistingSubmission(submissions[0]);
         setShifts(submissions[0].shifts);
+        setLongShiftDays(submissions[0].longShiftDays || {});
       }
     } catch (e) {
       console.error("Error loading data", e);
@@ -123,14 +125,53 @@ export default function ShiftSubmissionPage() {
   }, [validateShifts]);
 
   const toggleShift = (day, shiftType) => {
-    setShifts((prev) => {
-      const dayShifts = prev[day] || [];
-      const isSelected = dayShifts.includes(shiftType);
-      const newDayShifts = isSelected
-        ? dayShifts.filter((s) => s !== shiftType)
-        : [...dayShifts, shiftType];
-      return { ...prev, [day]: newDayShifts };
-    });
+    // Check if this is a "long shift" virtual type
+    const isLongShiftType = shiftType.includes('_ארוך');
+
+    if (isLongShiftType) {
+      // This is a long shift preference - toggle it
+      const baseShiftType = shiftType.replace('_ארוך', '');
+      setShifts((prev) => {
+        const dayShifts = prev[day] || [];
+        const hasBaseShift = dayShifts.includes(baseShiftType);
+
+        if (hasBaseShift) {
+          // Already have the base shift - just toggle long preference
+          setLongShiftDays(prevLong => ({
+            ...prevLong,
+            [day]: !prevLong[day]
+          }));
+          return prev;
+        } else {
+          // Add base shift and mark as long
+          setLongShiftDays(prevLong => ({
+            ...prevLong,
+            [day]: true
+          }));
+          return { ...prev, [day]: [...dayShifts, baseShiftType] };
+        }
+      });
+    } else {
+      // Regular shift toggle
+      setShifts((prev) => {
+        const dayShifts = prev[day] || [];
+        const isSelected = dayShifts.includes(shiftType);
+        const newDayShifts = isSelected
+          ? dayShifts.filter((s) => s !== shiftType)
+          : [...dayShifts, shiftType];
+
+        // If deselecting, also clear long shift preference
+        if (isSelected) {
+          setLongShiftDays(prevLong => {
+            const newLong = { ...prevLong };
+            delete newLong[day];
+            return newLong;
+          });
+        }
+
+        return { ...prev, [day]: newDayShifts };
+      });
+    }
   };
 
 
@@ -150,7 +191,8 @@ const handleSubmit = async () => {
       user.uid,
       user.displayName || user.username || user.hebrew_name,
       nextWeekStartStr,
-      shifts
+      shifts,
+      longShiftDays // Pass long shift preferences
     );
 
     // Method 2: Old way using ShiftSubmission entity (for backward compatibility)
@@ -161,7 +203,8 @@ const handleSubmit = async () => {
       userName: user.displayName || user.username || user.hebrew_name,
       week_start: nextWeekStartStr,
       shifts: shifts,
-      days: shifts
+      days: shifts,
+      longShiftDays: longShiftDays // Store which days have long shift preference
     };
 
     if (existingSubmission) {
@@ -191,23 +234,20 @@ const handleSubmit = async () => {
     <div className="p-4 md:p-6 bg-gray-50 min-h-screen" dir="rtl">
       <div className="max-w-7xl mx-auto">
         <div className="mb-6 md:mb-8">
-          <div className="flex items-center justify-between mb-6">
+          <div className="relative flex items-center justify-center mb-6">
             <Button
               variant="outline"
+              size="icon"
               onClick={() => navigate(`/soldier/${user?.uid}`)}
-              className="flex items-center gap-2"
+              className="absolute left-0"
             >
-              <Home className="w-4 h-4" />
-              <span className="hidden sm:inline">חזרה לדשבורד</span>
-              <span className="sm:hidden">חזור</span>
+              <Home className="w-5 h-5" />
             </Button>
 
-            <div className="flex-1 flex flex-col items-center justify-center">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 text-center mb-1">העדפות משמרות</h1>
-              <p className="text-sm md:text-base text-gray-600 text-center">שבוע {format(nextWeekStart, 'dd/MM/yyyy')} - {format(addDays(nextWeekStart, 6), 'dd/MM/yyyy')}</p>
+            <div className="text-center">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">העדפות משמרות</h1>
+              <p className="text-sm md:text-base text-gray-600">שבוע {format(nextWeekStart, 'dd/MM/yyyy')} - {format(addDays(nextWeekStart, 6), 'dd/MM/yyyy')}</p>
             </div>
-
-            <div className="w-20 sm:w-32"></div>
           </div>
 
           {/* Week Status Banner */}
@@ -256,6 +296,7 @@ const handleSubmit = async () => {
                   isSubmissionOpen={isWeekOpen}
                   weeklySchedule={weeklySchedule}
                   soldierMission={soldierMission}
+                  longShiftDays={longShiftDays}
                 />
 
                 <div className="mt-6 flex justify-end gap-3">

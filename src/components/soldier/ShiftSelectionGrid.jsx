@@ -44,8 +44,8 @@ const SHIFTS_CONFIG = {
   ]
 };
 
-export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmissionOpen = true, weeklySchedule, soldierMission }) {
-  const nextWeekStart = addDays(startOfWeek(new Date(), { weekStartsOn: 0 }), 7);
+export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmissionOpen = true, weeklySchedule, soldierMission, longShiftDays = {} }) {
+  const nextWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
   const [dynamicShiftsConfig, setDynamicShiftsConfig] = useState(SHIFTS_CONFIG);
   const [loading, setLoading] = useState(true);
 
@@ -132,6 +132,19 @@ export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmission
                 isLong: shiftData.isLong || false,
                 fullKey: shiftKey
               });
+
+              // Add "long shift" option for morning shifts
+              if (shiftData.type === 'בוקר' && !shiftData.isLong) {
+                newConfig[dayKey].push({
+                  type: shiftTypePart + '_ארוך',
+                  label: `${displayShiftType} ארוך 07:00-15:30`,
+                  icon: icon,
+                  isLong: true,
+                  fullKey: shiftKey + '_ארוך',
+                  isVirtual: true, // Mark as virtual - not a real shift type
+                  baseShiftKey: shiftKey
+                });
+              }
             });
           });
 
@@ -187,18 +200,24 @@ export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmission
             <CardContent className="p-4">
               <div className="grid gap-2">
                 {dayShiftsConfig.map((shift) => {
-                  const isSelected = dayShifts.includes(shift.type);
+                  // Check if this is selected - for virtual long shifts, check both the base shift and long preference
+                  const isLongShiftType = shift.isVirtual && shift.type.includes('_ארוך');
+                  const baseType = isLongShiftType ? shift.type.replace('_ארוך', '') : shift.type;
+                  const isBaseSelected = dayShifts.includes(baseType);
+                  const hasLongPref = longShiftDays[dayKey];
+                  const isSelected = isLongShiftType ? (isBaseSelected && hasLongPref) : isBaseSelected;
+
                   const Icon = shift.icon;
-                  const isEvening = shift.type === "ערב_1530_1930";
-                  const isLong = shift.type === "בוקר_07_1530" || isEvening;
+                  const isEvening = shift.type === "ערב_1530_1930" || shift.type.includes("ערב");
+
                   return (
                     <div key={shift.type} onClick={() => canSubmit && onToggleShift(dayKey, shift.type)} className={`flex items-center justify-between p-3 rounded-lg border-2 ${canSubmit ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'} transition-all duration-200 hover:shadow-md ${isSelected ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}>
                       <div className="flex items-center gap-3">
                         <Icon className={`w-5 h-5 ${isSelected ? "text-blue-600" : "text-gray-400"}`} />
                         <div>
                           <span className={`font-medium ${isSelected ? "text-blue-900" : "text-gray-900"}`}>{shift.label}</span>
-                          {isLong && (
-                            <Badge variant="outline" className="mr-2 text-xs bg-purple-50 text-purple-700 border-purple-200">{isEvening ? "דורש אישור" : "משמרת ארוכה"}</Badge>
+                          {isEvening && (
+                            <Badge variant="outline" className="mr-2 text-xs bg-purple-50 text-purple-700 border-purple-200">ערב</Badge>
                           )}
                         </div>
                       </div>

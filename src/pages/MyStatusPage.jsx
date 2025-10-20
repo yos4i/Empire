@@ -94,24 +94,16 @@ export default function MyStatusPage() {
     <div className="p-6 bg-gray-50 min-h-screen" dir="rtl">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
-          <div className="flex flex-col sm:flex-row items-center gap-4 mb-2">
+          <div className="relative flex items-center justify-center">
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={() => navigate(`/soldier/${user?.uid}`)}
-              className="flex items-center gap-2 shrink-0 self-start sm:self-center"
+              className="absolute left-0"
             >
-              <ArrowRight className="w-4 h-4" />
-              <span className="hidden sm:inline">חזרה לדשבורד</span>
-              <span className="sm:hidden">חזור</span>
+              <ArrowRight className="w-5 h-5" />
             </Button>
-            <div className="flex items-center gap-3 flex-1">
-              <UserIcon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
-              <div className="text-center sm:text-right">
-                <h1 className="text-xl sm:text-3xl font-bold text-gray-900">הפרופיל שלי</h1>
-                <p className="text-sm sm:text-base text-gray-600">עדכן את הפרטים והציוד שלך</p>
-              </div>
-            </div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{formData.hebrew_name || 'שלומי ממן'}</h1>
           </div>
         </div>
 

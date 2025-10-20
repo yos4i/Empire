@@ -14,31 +14,33 @@ import { db } from '../config/firebase';
 export class ShiftSubmissionService {
   
   // Submit shift preferences for a soldier
-  static async submitPreferences(userId, userName, weekStart, preferences) {
+  static async submitPreferences(userId, userName, weekStart, preferences, longShiftDays = {}) {
     try {
       console.log('ShiftSubmissionService: Submitting preferences for user:', userId);
       console.log('ShiftSubmissionService: Week:', weekStart);
       console.log('ShiftSubmissionService: Preferences:', preferences);
-      
+      console.log('ShiftSubmissionService: Long shift days:', longShiftDays);
+
       // Create a unique document ID based on user and week
       const docId = `${userId}_${weekStart}`;
-      
+
       const submissionData = {
         userId: userId,
         weekStart: weekStart,
         days: preferences, // Object with days as keys and shift arrays as values
+        longShiftDays: longShiftDays, // Store which days have long shift preference
         updatedAt: Timestamp.now(),
         createdAt: Timestamp.now(),
         // Only include userName if it's defined
         ...(userName && { userName: userName })
       };
-      
+
       // Use setDoc to create or update the document
       await setDoc(doc(db, 'shift_preferences', docId), submissionData);
-      
-      console.log('ShiftSubmissionService: Preferences saved successfully');
+
+      console.log('ShiftSubmissionService: Preferences saved successfully with long shift days');
       return { success: true, id: docId };
-      
+
     } catch (error) {
       console.error('ShiftSubmissionService: Error submitting preferences:', error);
       throw error;

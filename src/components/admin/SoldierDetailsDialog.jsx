@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Shield, MapPin, Award, Car, Package, Calendar, Trash2, Edit, Save } from 'lucide-react';
+import { X, User, Shield, MapPin, Award, Package, Calendar, Trash2, Edit, Save } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';

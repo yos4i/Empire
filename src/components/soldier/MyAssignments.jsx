@@ -3,6 +3,7 @@ import { format, addDays, startOfWeek } from 'date-fns';
 import {
   Calendar,
   Clock,
+  Clock3,
   User,
   AlertCircle,
   RefreshCw,
@@ -343,7 +344,9 @@ export default function MyAssignments() {
                         <div
                           key={assignment.id}
                           className={`p-2.5 md:p-3 rounded-lg border-r-4 ${
-                            assignment.status === 'confirmed'
+                            assignment.isLongShift
+                              ? 'bg-amber-50 border-amber-500'
+                              : assignment.status === 'confirmed'
                               ? 'bg-green-50 border-green-500'
                               : assignment.status === 'assigned'
                               ? 'bg-blue-50 border-blue-500'
@@ -351,16 +354,24 @@ export default function MyAssignments() {
                           }`}
                         >
                           <div className="space-y-1.5 md:space-y-2">
-                            <div className="font-semibold text-xs md:text-sm text-gray-900 leading-tight">
-                              {assignment.shift_name?.replace(/_/g, ' ') ||
-                               assignment.shift_type?.replace(/_/g, ' ') ||
-                               'משמרת'}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="font-semibold text-xs md:text-sm text-gray-900 leading-tight">
+                                {assignment.shift_name?.replace(/_/g, ' ') ||
+                                 assignment.shift_type?.replace(/_/g, ' ') ||
+                                 'משמרת'}
+                              </div>
+                              {assignment.isLongShift && (
+                                <Badge className="bg-amber-100 text-amber-800 text-[10px] md:text-xs px-1.5 py-0.5 flex items-center gap-1">
+                                  <Clock3 className="w-3 h-3" />
+                                  עד 15:30
+                                </Badge>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-1 text-xs font-semibold text-gray-700">
                               <Clock className="w-3 h-3 md:w-3.5 md:h-3.5" />
                               <span className="text-[11px] md:text-xs">
-                                {assignment.start_time} - {assignment.end_time}
+                                {assignment.start_time} - {assignment.isLongShift ? '15:30' : assignment.end_time}
                               </span>
                             </div>
 
@@ -409,7 +420,7 @@ export default function MyAssignments() {
                 {Object.entries(stats.shift_breakdown).map(([shiftType, count]) => (
                   <div key={shiftType} className="text-center p-4 bg-gray-50 rounded-lg">
                     <p className="text-2xl font-bold text-blue-600">{count}</p>
-                    <p className="text-sm text-gray-600">{shiftType}</p>
+                    <p className="text-sm text-gray-600">{shiftType.replace(/_/g, ' ')}</p>
                   </div>
                 ))}
               </div>

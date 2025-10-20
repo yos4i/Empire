@@ -238,6 +238,7 @@ export default function ScheduleManagementPage() {
             userName: d.userName,
             userId: d.userId,  // Note: userId not user_id
             days: d.days || {},
+            longShiftDays: d.longShiftDays || {}, // Include long shift preferences
             updatedAt: d.updatedAt?.toDate ? d.updatedAt.toDate() : (d.updatedAt || null),
             createdAt: d.createdAt?.toDate ? d.createdAt.toDate() : (d.createdAt || null),
             weekStart: d.weekStart
@@ -368,6 +369,82 @@ export default function ScheduleManagementPage() {
     }
   };
 
+  const handleToggleLongShift = async (day, shiftKey, soldierId, isLong) => {
+    console.log('🎯 handleToggleLongShift CALLED:', {
+      day,
+      shiftKey,
+      soldierId,
+      isLong,
+      usersKeys: Object.keys(users).slice(0, 5)
+    });
+
+    try {
+      const soldier = users[soldierId];
+      if (!soldier) {
+        console.error('❌ Soldier not found:', soldierId);
+        console.error('Available user keys:', Object.keys(users));
+        return;
+      }
+
+      console.log('✅ Soldier found:', soldier.hebrew_name);
+
+      // Calculate the date for this day
+      const dayDate = addDays(selectedWeekStart, DAYS.indexOf(day));
+      const dateStr = format(dayDate, 'yyyy-MM-dd');
+
+      console.log('⏰ Toggling long shift:', {
+        soldier_uid: soldier.uid,
+        date: dateStr,
+        shift: shiftKey,
+        isLong
+      });
+
+      // Find and update the assignment
+      console.log('🔍 Searching for assignment with:', {
+        soldier_id: soldier.uid,
+        date: dateStr,
+        shift_type: shiftKey
+      });
+
+      const assignments = await ShiftAssignment.filter({
+        soldier_id: soldier.uid,
+        date: dateStr,
+        shift_type: shiftKey
+      });
+
+      console.log('📋 Found assignments:', assignments.length, assignments);
+
+      if (assignments.length > 0) {
+        for (const assignment of assignments) {
+          console.log('🔄 Updating assignment:', assignment.id, 'with isLongShift:', isLong);
+          await ShiftAssignment.update(assignment.id, {
+            isLongShift: isLong
+          });
+          console.log('✅ Updated assignment long shift status:', assignment.id, isLong);
+        }
+
+        // Reload assignments to update the UI
+        const weekEndDate = format(addDays(selectedWeekStart, 6), 'yyyy-MM-dd');
+        console.log('🔄 Reloading assignments for week:', nextWeekStartStr, 'to', weekEndDate);
+        const updatedAssignments = await ShiftAssignment.filter({
+          start_date: nextWeekStartStr,
+          end_date: weekEndDate
+        });
+        console.log('📋 Reloaded assignments:', updatedAssignments.length);
+        setShiftAssignments(updatedAssignments);
+
+        console.log('✅ Long shift status updated successfully');
+      } else {
+        console.warn('⚠️ No assignment found to update');
+        console.warn('💡 This might mean the soldier was not published yet or assignment was deleted');
+        alert('לא נמצא שיבוץ לעדכון. אנא וודא שהחייל משובץ למשמרת.');
+      }
+    } catch (error) {
+      console.error('❌ Error toggling long shift:', error);
+      alert('שגיאה בעדכון סטטוס משמרת ארוכה: ' + error.message);
+    }
+  };
+
   const handleManualSave = async () => {
     setSaving(true);
     setSaveStatus('שומר...');
@@ -406,6 +483,24 @@ export default function ScheduleManagementPage() {
     setSaving(true);
     try {
       console.log('Publishing schedule to soldiers...');
+
+      // Load existing assignments to preserve manual isLongShift toggles
+      const existingAssignments = await ShiftAssignment.filter({
+        start_date: nextWeekStartStr,
+        end_date: format(addDays(nextWeekStart, 6), 'yyyy-MM-dd')
+      });
+
+      // Create a map of existing long shift statuses (manually toggled by admin)
+      const existingLongShifts = {};
+      existingAssignments.forEach(assignment => {
+        if (assignment.isLongShift) {
+          const key = `${assignment.soldier_id}_${assignment.date}_${assignment.shift_type}`;
+          existingLongShifts[key] = true;
+        }
+      });
+
+      console.log('📋 Preserving', Object.keys(existingLongShifts).length, 'manually toggled long shifts');
+
       const assignments = [];
 
       // Iterate through the schedule and create assignments
@@ -450,6 +545,27 @@ export default function ScheduleManagementPage() {
                   }
                 }
 
+                // Check if soldier has long shift preference for this day
+                const soldierSubmission = normalizedSubmissions.find(sub =>
+                  sub.userId === soldierId || sub.userId === soldier.uid
+                );
+                const hasLongShiftPref = soldierSubmission?.longShiftDays?.[day] || false;
+
+                // For morning shifts, check if soldier preferred long shift OR if admin manually toggled it
+                const isMorningShift = shiftKey.includes('בוקר');
+                const manualToggleKey = `${soldier.uid}_${dateStr}_${shiftKey}`;
+                const wasManuallyToggled = existingLongShifts[manualToggleKey] || false;
+
+                // Preserve manual toggle if it exists, otherwise use preference
+                const isLongShift = isMorningShift && (wasManuallyToggled || hasLongShiftPref);
+
+                console.log(`📋 Publishing ${soldier.hebrew_name} for ${day} ${shiftKey}:`, {
+                  hasLongShiftPref,
+                  isMorningShift,
+                  wasManuallyToggled,
+                  isLongShift
+                });
+
                 assignments.push({
                   soldier_id: soldier.uid,  // ✅ FIXED: Use Auth UID, not Firestore doc ID
                   soldier_name: soldier.hebrew_name || soldier.displayName || soldier.full_name,
@@ -458,9 +574,10 @@ export default function ScheduleManagementPage() {
                   shift_type: shiftKey,
                   shift_name: SHIFT_NAMES[shiftKey],
                   start_time: startTime,
-                  end_time: endTime,
+                  end_time: isLongShift ? '15:30' : endTime, // Override end time for long shifts
                   week_start: nextWeekStartStr,
-                  status: 'assigned'
+                  status: 'assigned',
+                  isLongShift: isLongShift // Add isLongShift field
                 });
               }
             }
@@ -661,8 +778,89 @@ export default function ScheduleManagementPage() {
       return newSchedule;
     });
 
+    // Auto-save: Create or delete ShiftAssignment immediately
+    try {
+      const dayDate = addDays(selectedWeekStart, DAYS.indexOf(day));
+      const dateStr = format(dayDate, 'yyyy-MM-dd');
+
+      if (actionType === 'add') {
+        // Extract shift times
+        const shiftData = schedule[day][shiftKey];
+        let startTime = '00:00';
+        let endTime = '23:59';
+
+        if (shiftData.customStartTime && shiftData.customEndTime) {
+          startTime = shiftData.customStartTime;
+          endTime = shiftData.customEndTime;
+        } else {
+          const shiftDisplayName = dynamicShiftNames[shiftKey] || SHIFT_NAMES[shiftKey] || '';
+          const timeMatch = shiftDisplayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
+          if (timeMatch) {
+            startTime = timeMatch[1];
+            endTime = timeMatch[2];
+          }
+        }
+
+        // Check if soldier has long shift preference for this day
+        const soldierSubmission = normalizedSubmissions.find(sub =>
+          sub.userId === selectedSoldierId || sub.userId === soldier.uid
+        );
+        const hasLongShiftPref = soldierSubmission?.longShiftDays?.[day] || false;
+
+        // For morning shifts, check if soldier preferred long shift
+        const isMorningShift = shiftKey.includes('בוקר');
+        const isLongShift = isMorningShift && hasLongShiftPref;
+
+        console.log(`📋 Manual assignment for ${soldier.hebrew_name} on ${day}:`, {
+          hasLongShiftPref,
+          isMorningShift,
+          isLongShift
+        });
+
+        // Create assignment
+        await ShiftAssignment.create({
+          soldier_id: soldier.uid,
+          soldier_name: soldier.hebrew_name || soldier.displayName || soldier.full_name,
+          date: dateStr,
+          day_name: day,
+          shift_type: shiftKey,
+          shift_name: dynamicShiftNames[shiftKey] || SHIFT_NAMES[shiftKey],
+          start_time: startTime,
+          end_time: isLongShift ? '15:30' : endTime,
+          week_start: nextWeekStartStr,
+          status: 'assigned',
+          isLongShift: isLongShift // Add isLongShift based on soldier's preference
+        });
+
+        console.log('✅ ShiftAssignment created immediately with isLongShift:', isLongShift);
+      } else if (actionType === 'remove') {
+        // Delete assignment
+        const assignments = await ShiftAssignment.filter({
+          soldier_id: soldier.uid,
+          date: dateStr,
+          shift_type: shiftKey
+        });
+
+        for (const assignment of assignments) {
+          await ShiftAssignment.delete(assignment.id);
+          console.log('✅ ShiftAssignment deleted:', assignment.id);
+        }
+      }
+
+      // Reload assignments to update the UI
+      const weekEndDate = format(addDays(selectedWeekStart, 6), 'yyyy-MM-dd');
+      const updatedAssignments = await ShiftAssignment.filter({
+        start_date: nextWeekStartStr,
+        end_date: weekEndDate
+      });
+      setShiftAssignments(updatedAssignments);
+
+    } catch (error) {
+      console.error('❌ Error auto-saving assignment:', error);
+    }
+
     console.log('📊 After setSchedule:', { hasSchedule: !!updatedSchedule, actionType });
-    console.log('✅ Soldier assignment updated in UI. Click SAVE button to persist changes.');
+    console.log('✅ Soldier assignment updated and saved.');
   };
 
   const normalizedSubmissions = useMemo(() => {
@@ -696,7 +894,8 @@ export default function ScheduleManagementPage() {
         userName: sub.userName || 'ללא שם',
         updatedAt: sub.updatedAt || new Date(),
         days: normalizedDays,
-        weekStart: sub.weekStart
+        weekStart: sub.weekStart,
+        longShiftDays: sub.longShiftDays || {} // Include long shift preferences
       };
 
       console.log('Normalized submission with days:', normalized);
@@ -791,20 +990,20 @@ export default function ScheduleManagementPage() {
                 selectedSoldierId={selectedSoldierId}
             />
             <div className="flex-grow p-4 md:p-6 flex flex-col overflow-hidden">
-                <div className="flex justify-between items-center mb-4 flex-wrap gap-2 flex-shrink-0">
+                <div className="relative flex items-center justify-center mb-4 flex-shrink-0">
                     <Button
                         variant="outline"
+                        size="icon"
                         onClick={() => navigate('/admin')}
-                        className="flex items-center gap-2"
+                        className="absolute left-0"
                     >
-                        <Home className="w-4 h-4"/>
-                        חזרה לדף הבית
+                        <Home className="w-5 h-5"/>
                     </Button>
 
-                    <div className="flex-1 flex flex-col items-center justify-center min-w-0">
-                        <div className="flex items-center gap-3">
+                    <div className="text-center">
+                        <div className="flex items-center gap-3 justify-center">
                             <Calendar className="w-8 h-8 text-blue-600"/>
-                            <div className="text-center">
+                            <div>
                                 <h1 className="text-2xl md:text-3xl font-bold text-black">ניהול סידור עבודה</h1>
                                 <div className="flex items-center gap-2 justify-center">
                                     <Button
@@ -900,6 +1099,7 @@ export default function ScheduleManagementPage() {
                         dynamicShiftNames={dynamicShiftNames}
                         missionFilter={missionFilter}
                         shiftAssignments={shiftAssignments}
+                        onToggleLongShift={handleToggleLongShift}
                     />
                  </div>
             </div>
