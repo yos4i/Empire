@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
-import { User, Clock, AlertTriangle, X, Users as UsersIcon } from 'lucide-react';
+import { User, Clock, AlertTriangle, X, Users as UsersIcon, ArrowLeftRight } from 'lucide-react';
 import { DAYS, SHIFT_NAMES, SHIFT_TYPES_HE } from '../../../config/shifts';
 
 const DAYS_HE = {
@@ -14,7 +14,7 @@ const DAYS_HE = {
   friday: 'שישי'
 };
 
-export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId, onEditShiftHours, dynamicShiftNames, missionFilter }) {
+export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId, onEditShiftHours, dynamicShiftNames, missionFilter, shiftAssignments = [] }) {
   // Use dynamic shift names from Firestore if available, otherwise fall back to static
   const shiftNames = dynamicShiftNames || SHIFT_NAMES;
 
@@ -60,6 +60,15 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
     return 'bg-blue-100 text-blue-800';
   };
 
+  // Helper to get assignment info for a specific soldier/shift/day
+  const getAssignmentInfo = (soldierId, shiftKey, day) => {
+    return shiftAssignments.find(assignment =>
+      assignment.soldier_id === soldierId &&
+      assignment.shift_type === shiftKey &&
+      assignment.day_name === day
+    );
+  };
+
   const renderSoldierCard = (soldierId, shiftKey, day, index) => {
     const soldier = users[soldierId];
     if (!soldier) return null;
@@ -67,12 +76,17 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
     const soldierShiftCount = soldierShiftCounts[soldierId] || 0;
     const isOverworked = soldierShiftCount > 6;
 
+    // Get assignment info to check for swap requests
+    const assignmentInfo = getAssignmentInfo(soldierId, shiftKey, day);
+    const hasSwapRequest = assignmentInfo?.status === 'swap_requested';
+    const swapReason = assignmentInfo?.swap_reason;
+
     return (
       <div
         key={`${soldierId}-${day}-${shiftKey}`}
         className={`
           p-2 mb-2 rounded border text-sm transition-all shadow-sm
-          ${isOverworked ? 'bg-red-100 border-red-300' : 'bg-white border-gray-200'}
+          ${hasSwapRequest ? 'bg-orange-50 border-orange-300' : isOverworked ? 'bg-red-100 border-red-300' : 'bg-white border-gray-200'}
           ${!isPublished ? 'hover:shadow-md' : ''}
         `}
       >
@@ -81,25 +95,39 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                 <User className="w-3 h-3 text-gray-500" />
                 <span className="font-medium text-gray-900">{soldier.hebrew_name}</span>
               </div>
-              {!isPublished && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-4 w-4 p-0 hover:bg-red-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCancelShift && onCancelShift(day, shiftKey, soldierId);
-                  }}
-                >
-                  <X className="w-3 h-3 text-red-500" />
-                </Button>
-              )}
+              <div className="flex items-center gap-1">
+                {hasSwapRequest && (
+                  <Badge className="bg-orange-100 text-orange-800 text-xs px-1.5 py-0.5 flex items-center gap-1">
+                    <ArrowLeftRight className="w-3 h-3" />
+                    החלפה
+                  </Badge>
+                )}
+                {!isPublished && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-4 w-4 p-0 hover:bg-red-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCancelShift && onCancelShift(day, shiftKey, soldierId);
+                    }}
+                  >
+                    <X className="w-3 h-3 text-red-500" />
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2 mt-1">
               {isOverworked && (
                 <AlertTriangle className="w-3 h-3 text-red-500" />
               )}
             </div>
+            {hasSwapRequest && swapReason && (
+              <div className="mt-2 p-2 bg-orange-100 rounded text-xs border border-orange-200">
+                <div className="font-semibold text-orange-900 mb-1">סיבת בקשת החלפה:</div>
+                <div className="text-orange-800">{swapReason}</div>
+              </div>
+            )}
           </div>
     );
   };

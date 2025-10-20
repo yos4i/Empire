@@ -94,27 +94,29 @@ export default function WeeklyScheduleView({ soldierMission }) {
     <div className="space-y-4">
       {/* Header with week navigation - Always visible */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
+        <CardHeader className="p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="flex items-center justify-center sm:justify-start gap-2 text-lg">
               <Calendar className="w-5 h-5 text-blue-600" />
               הסידור השבועי
             </CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 justify-center">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => navigateWeek(-1)}
+                className="h-9 w-9 p-0"
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
-              <span className="text-sm text-gray-600 min-w-[200px] text-center">
+              <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap px-2">
                 {format(selectedDate, 'dd/MM/yyyy')} - {format(addDays(selectedDate, 6), 'dd/MM/yyyy')}
               </span>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => navigateWeek(1)}
+                className="h-9 w-9 p-0"
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
@@ -149,92 +151,210 @@ export default function WeeklyScheduleView({ soldierMission }) {
 
       {/* Schedule Grid - Only show if schedule exists AND soldier has a mission */}
       {soldierMission && schedule && (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <div className="min-w-[1000px]">
-                {/* Header Row - Days */}
-                <div className="grid gap-2 p-4 bg-gray-50 border-b sticky top-0 z-10" style={{ gridTemplateColumns: '150px repeat(6, 1fr)' }}>
-                  <div className="font-semibold text-center text-gray-700">סוג משמרת</div>
-                  {DAYS.map(day => (
-                    <div key={day} className="font-semibold text-center text-gray-700">
-                      {DAYS_HE[day]}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Schedule Rows - Each shift type */}
-                {Object.keys(SHIFT_NAMES).filter(shiftKey => {
-                  // Filter by soldier's mission
-                  console.log('🔍 WeeklyScheduleView - Checking shift:', shiftKey, 'soldierMission:', soldierMission);
-                  if (soldierMission) {
-                    if (soldierMission === 'קריית_חינוך' && !shiftKey.includes('קריית_חינוך')) {
-                      console.log('❌ WeeklyScheduleView - Skipping', shiftKey, '(not קריית_חינוך)');
-                      return false; // Skip non-kiryat shifts
-                    }
-                    if (soldierMission === 'גבולות' && !shiftKey.includes('גבולות')) {
-                      console.log('❌ WeeklyScheduleView - Skipping', shiftKey, '(not גבולות)');
-                      return false; // Skip non-borders shifts
-                    }
-                  }
-                  console.log('✅ WeeklyScheduleView - Including shift:', shiftKey);
-                  return true;
-                }).map(shiftKey => (
-                <div key={shiftKey} className="grid gap-2 p-4 border-b" style={{ gridTemplateColumns: '150px repeat(6, 1fr)' }}>
-                  {/* Shift Type Header */}
-                  <div className="flex items-center justify-center bg-purple-50 rounded-lg p-3">
-                    <div className="text-center">
-                      <span className="font-medium text-purple-900 block text-sm">
-                        {(SHIFT_TYPES_HE[shiftKey]?.name || shiftKey).replace('ק.חינוך ', '').replace('חינוך_', '')}
-                      </span>
-                    </div>
+        <>
+          {/* Desktop Table View - Hidden on mobile */}
+          <Card className="hidden lg:block">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <div className="min-w-[1000px]">
+                  {/* Header Row - Days */}
+                  <div className="grid gap-2 p-4 bg-gray-50 border-b sticky top-0 z-10" style={{ gridTemplateColumns: '150px repeat(6, 1fr)' }}>
+                    <div className="font-semibold text-center text-gray-700">סוג משמרת</div>
+                    {DAYS.map(day => (
+                      <div key={day} className="font-semibold text-center text-gray-700">
+                        {DAYS_HE[day]}
+                      </div>
+                    ))}
                   </div>
 
-                  {/* Day Cells */}
-                  {DAYS.map(day => {
-                    const shift = schedule[day]?.[shiftKey];
+                  {/* Schedule Rows - Each shift type */}
+                  {Object.keys(SHIFT_NAMES).filter(shiftKey => {
+                    // Filter by soldier's mission
+                    console.log('🔍 WeeklyScheduleView - Checking shift:', shiftKey, 'soldierMission:', soldierMission);
+                    if (soldierMission) {
+                      if (soldierMission === 'קריית_חינוך' && !shiftKey.includes('קריית_חינוך')) {
+                        console.log('❌ WeeklyScheduleView - Skipping', shiftKey, '(not קריית_חינוך)');
+                        return false; // Skip non-kiryat shifts
+                      }
+                      if (soldierMission === 'גבולות' && !shiftKey.includes('גבולות')) {
+                        console.log('❌ WeeklyScheduleView - Skipping', shiftKey, '(not גבולות)');
+                        return false; // Skip non-borders shifts
+                      }
+                    }
+                    console.log('✅ WeeklyScheduleView - Including shift:', shiftKey);
+                    return true;
+                  }).map(shiftKey => (
+                  <div key={shiftKey} className="grid gap-2 p-4 border-b" style={{ gridTemplateColumns: '150px repeat(6, 1fr)' }}>
+                    {/* Shift Type Header */}
+                    <div className="flex items-center justify-center bg-purple-50 rounded-lg p-3">
+                      <div className="text-center">
+                        <span className="font-medium text-purple-900 block text-sm">
+                          {(SHIFT_TYPES_HE[shiftKey]?.name || shiftKey).replace('ק.חינוך ', '').replace('חינוך_', '')}
+                        </span>
+                      </div>
+                    </div>
 
-                    if (!shift) {
+                    {/* Day Cells */}
+                    {DAYS.map(day => {
+                      const shift = schedule[day]?.[shiftKey];
+
+                      if (!shift) {
+                        return (
+                          <div key={`${day}-${shiftKey}`} className="min-h-[120px] bg-gray-100 rounded-lg flex items-center justify-center">
+                            <span className="text-gray-400 text-sm">לא זמין</span>
+                          </div>
+                        );
+                      }
+
+                      const assigned = shift.soldiers?.length || 0;
+                      const required = shift.required || 0;
+
+                      // Get custom hours if available
+                      let timeString = '';
+                      if (shift.customStartTime && shift.customEndTime) {
+                        timeString = `${shift.customStartTime}-${shift.customEndTime}`;
+                      } else {
+                        // Extract default times from shift name
+                        const shiftDisplayName = SHIFT_NAMES[shiftKey] || '';
+                        const timeMatch = shiftDisplayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
+                        timeString = timeMatch ? `${timeMatch[1]}-${timeMatch[2]}` : '';
+                      }
+
                       return (
-                        <div key={`${day}-${shiftKey}`} className="min-h-[120px] bg-gray-100 rounded-lg flex items-center justify-center">
-                          <span className="text-gray-400 text-sm">לא זמין</span>
-                        </div>
-                      );
-                    }
+                        <div
+                          key={`${day}-${shiftKey}`}
+                          className={`
+                            min-h-[120px] p-2 rounded-lg border-2
+                            ${getShiftStatusColor(shift)}
+                            ${shift.cancelled ? 'opacity-50' : ''}
+                          `}
+                        >
+                          {/* Shift Header */}
+                          <div className="flex flex-col gap-1 mb-2">
+                            {timeString && (
+                              <div className="text-xs font-semibold text-gray-700 text-center">
+                                {timeString}
+                              </div>
+                            )}
+                            <div className="flex items-center justify-center">
+                              <Badge
+                                className={`text-xs ${
+                                  assigned === 0 ? 'bg-red-100 text-red-800' :
+                                  assigned < required ? 'bg-yellow-100 text-yellow-800' :
+                                  assigned === required ? 'bg-green-100 text-green-800' :
+                                  'bg-blue-100 text-blue-800'
+                                }`}
+                              >
+                                {assigned}/{required}
+                              </Badge>
+                            </div>
+                          </div>
 
-                    const assigned = shift.soldiers?.length || 0;
-                    const required = shift.required || 0;
-
-                    // Get custom hours if available
-                    let timeString = '';
-                    if (shift.customStartTime && shift.customEndTime) {
-                      timeString = `${shift.customStartTime}-${shift.customEndTime}`;
-                    } else {
-                      // Extract default times from shift name
-                      const shiftDisplayName = SHIFT_NAMES[shiftKey] || '';
-                      const timeMatch = shiftDisplayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
-                      timeString = timeMatch ? `${timeMatch[1]}-${timeMatch[2]}` : '';
-                    }
-
-                    return (
-                      <div
-                        key={`${day}-${shiftKey}`}
-                        className={`
-                          min-h-[120px] p-2 rounded-lg border-2
-                          ${getShiftStatusColor(shift)}
-                          ${shift.cancelled ? 'opacity-50' : ''}
-                        `}
-                      >
-                        {/* Shift Header */}
-                        <div className="flex flex-col gap-1 mb-2">
-                          {timeString && (
-                            <div className="text-xs font-semibold text-gray-700 text-center">
-                              {timeString}
+                          {/* Cancelled Notice */}
+                          {shift.cancelled && (
+                            <div className="bg-gray-200 text-gray-600 text-center py-2 rounded text-xs mb-2">
+                              מבוטלת
                             </div>
                           )}
-                          <div className="flex items-center justify-center">
+
+                          {/* Assigned Soldiers */}
+                          <div className="space-y-1">
+                            {shift.soldiers?.slice(0, 3).map((soldierId, index) => {
+                              const soldier = users[soldierId];
+                              if (!soldier) return null;
+
+                              return (
+                                <div
+                                  key={`${soldierId}-${index}`}
+                                  className="p-1.5 bg-white rounded border text-xs flex items-center gap-1"
+                                >
+                                  <User className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                                  <span className="font-medium text-gray-900 truncate">
+                                    {soldier.hebrew_name || soldier.displayName}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {shift.soldiers?.length > 3 && (
+                              <div className="text-xs text-gray-500 text-center">
+                                +{shift.soldiers.length - 3} נוספים
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Mobile Card View - Visible only on mobile/tablet */}
+          <div className="lg:hidden space-y-3">
+            {DAYS.map(day => {
+              const dayShifts = Object.keys(SHIFT_NAMES).filter(shiftKey => {
+                // Filter by soldier's mission
+                if (soldierMission) {
+                  if (soldierMission === 'קריית_חינוך' && !shiftKey.includes('קריית_חינוך')) {
+                    return false;
+                  }
+                  if (soldierMission === 'גבולות' && !shiftKey.includes('גבולות')) {
+                    return false;
+                  }
+                }
+                return schedule[day]?.[shiftKey]; // Only show days with shifts
+              });
+
+              if (dayShifts.length === 0) return null;
+
+              return (
+                <Card key={day}>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base font-bold text-gray-800">
+                      {DAYS_HE[day]}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 pt-0">
+                    {dayShifts.map(shiftKey => {
+                      const shift = schedule[day][shiftKey];
+                      const assigned = shift.soldiers?.length || 0;
+                      const required = shift.required || 0;
+
+                      // Get custom hours if available
+                      let timeString = '';
+                      if (shift.customStartTime && shift.customEndTime) {
+                        timeString = `${shift.customStartTime}-${shift.customEndTime}`;
+                      } else {
+                        const shiftDisplayName = SHIFT_NAMES[shiftKey] || '';
+                        const timeMatch = shiftDisplayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
+                        timeString = timeMatch ? `${timeMatch[1]}-${timeMatch[2]}` : '';
+                      }
+
+                      return (
+                        <div
+                          key={shiftKey}
+                          className={`
+                            p-3 rounded-lg border-2
+                            ${getShiftStatusColor(shift)}
+                            ${shift.cancelled ? 'opacity-50' : ''}
+                          `}
+                        >
+                          {/* Shift Header */}
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex flex-col gap-1">
+                              <span className="font-semibold text-sm text-gray-900">
+                                {(SHIFT_TYPES_HE[shiftKey]?.name || shiftKey).replace('ק.חינוך ', '').replace('חינוך_', '')}
+                              </span>
+                              {timeString && (
+                                <span className="text-xs text-gray-600">
+                                  {timeString}
+                                </span>
+                              )}
+                            </div>
                             <Badge
-                              className={`text-xs ${
+                              className={`text-sm ${
                                 assigned === 0 ? 'bg-red-100 text-red-800' :
                                 assigned < required ? 'bg-yellow-100 text-yellow-800' :
                                 assigned === required ? 'bg-green-100 text-green-800' :
@@ -244,48 +364,48 @@ export default function WeeklyScheduleView({ soldierMission }) {
                               {assigned}/{required}
                             </Badge>
                           </div>
-                        </div>
 
-                        {/* Cancelled Notice */}
-                        {shift.cancelled && (
-                          <div className="bg-gray-200 text-gray-600 text-center py-2 rounded text-xs mb-2">
-                            מבוטלת
-                          </div>
-                        )}
+                          {/* Cancelled Notice */}
+                          {shift.cancelled && (
+                            <div className="bg-gray-200 text-gray-600 text-center py-2 rounded text-sm mb-3">
+                              מבוטלת
+                            </div>
+                          )}
 
-                        {/* Assigned Soldiers */}
-                        <div className="space-y-1">
-                          {shift.soldiers?.slice(0, 3).map((soldierId, index) => {
-                            const soldier = users[soldierId];
-                            if (!soldier) return null;
+                          {/* Assigned Soldiers */}
+                          {shift.soldiers && shift.soldiers.length > 0 ? (
+                            <div className="space-y-2">
+                              {shift.soldiers.map((soldierId, index) => {
+                                const soldier = users[soldierId];
+                                if (!soldier) return null;
 
-                            return (
-                              <div
-                                key={`${soldierId}-${index}`}
-                                className="p-1.5 bg-white rounded border text-xs flex items-center gap-1"
-                              >
-                                <User className="w-3 h-3 text-gray-500 flex-shrink-0" />
-                                <span className="font-medium text-gray-900 truncate">
-                                  {soldier.hebrew_name || soldier.displayName}
-                                </span>
-                              </div>
-                            );
-                          })}
-                          {shift.soldiers?.length > 3 && (
-                            <div className="text-xs text-gray-500 text-center">
-                              +{shift.soldiers.length - 3} נוספים
+                                return (
+                                  <div
+                                    key={`${soldierId}-${index}`}
+                                    className="p-2 bg-white rounded border text-sm flex items-center gap-2"
+                                  >
+                                    <User className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                    <span className="font-medium text-gray-900">
+                                      {soldier.hebrew_name || soldier.displayName}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="text-center text-sm text-gray-500 py-2">
+                              אין חיילים משובצים
                             </div>
                           )}
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </>
       )}
 
     </div>

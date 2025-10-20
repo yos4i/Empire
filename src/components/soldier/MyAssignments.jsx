@@ -4,17 +4,20 @@ import {
   Calendar,
   Clock,
   User,
-  CheckCircle,
   AlertCircle,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
-  Loader2
+  Loader2,
+  ArrowLeftRight,
+  X
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
+import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
 import { SoldierApiService } from '../../services/soldierApi';
 import { useAuth } from '../../contexts/AuthContext';
 import { toWeekStartISO } from '../../utils/weekKey';
@@ -32,6 +35,11 @@ export default function MyAssignments() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [actionLoading, setActionLoading] = useState({});
+
+  // Exchange dialog state
+  const [exchangeDialogOpen, setExchangeDialogOpen] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
+  const [exchangeReason, setExchangeReason] = useState('');
 
   const weekStart = toWeekStartISO(selectedDate);
 
@@ -122,40 +130,41 @@ export default function MyAssignments() {
     setSelectedDate(prev => addDays(prev, direction * 7));
   };
 
-  // Confirm assignment
-  const handleConfirmAssignment = async (assignmentId) => {
-    try {
-      setActionLoading(prev => ({ ...prev, [assignmentId]: true }));
-      
-      await SoldierApiService.confirmAssignment(assignmentId);
-      await fetchAssignments(); // Refresh
-      
-    } catch (error) {
-      console.error('MyAssignments: Error confirming assignment:', error);
-      setError(error.message);
-    } finally {
-      setActionLoading(prev => ({ ...prev, [assignmentId]: false }));
-    }
+  // Open exchange dialog
+  const openExchangeDialog = (assignment) => {
+    setSelectedAssignment(assignment);
+    setExchangeReason('');
+    setExchangeDialogOpen(true);
   };
 
-  // Request swap
-  const handleRequestSwap = async (assignmentId) => {
-    const reason = prompt('אנא הכנס סיבה לבקשת החלפה:');
-    if (!reason) return;
-    
+  // Close exchange dialog
+  const closeExchangeDialog = () => {
+    setExchangeDialogOpen(false);
+    setSelectedAssignment(null);
+    setExchangeReason('');
+  };
+
+  // Submit exchange request
+  const handleSubmitExchange = async () => {
+    if (!exchangeReason.trim()) {
+      alert('אנא הזן סיבה לבקשת החלפה');
+      return;
+    }
+
     try {
-      setActionLoading(prev => ({ ...prev, [assignmentId]: true }));
-      
-      await SoldierApiService.requestSwap(assignmentId, reason);
+      setActionLoading(prev => ({ ...prev, [selectedAssignment.id]: true }));
+
+      await SoldierApiService.requestSwap(selectedAssignment.id, exchangeReason);
       await fetchAssignments(); // Refresh
-      
+
+      closeExchangeDialog();
       alert('בקשת החלפה נשלחה בהצלחה');
-      
+
     } catch (error) {
       console.error('MyAssignments: Error requesting swap:', error);
       setError(error.message);
     } finally {
-      setActionLoading(prev => ({ ...prev, [assignmentId]: false }));
+      setActionLoading(prev => ({ ...prev, [selectedAssignment.id]: false }));
     }
   };
 
@@ -163,11 +172,10 @@ export default function MyAssignments() {
   const getStatusBadge = (status) => {
     switch (status) {
       case 'assigned':
-        return <Badge variant="outline" className="bg-blue-50 text-blue-800 text-xs px-2 py-0.5">ממתין</Badge>;
       case 'confirmed':
-        return <Badge className="bg-green-100 text-green-800 text-xs px-2 py-0.5">אושר</Badge>;
+        return <Badge className="bg-green-100 text-green-800 text-xs px-2 py-0.5">משובץ</Badge>;
       case 'swap_requested':
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-800 text-xs px-2 py-0.5">החלפה</Badge>;
+        return <Badge variant="outline" className="bg-yellow-50 text-yellow-800 text-xs px-2 py-0.5">בקשת החלפה</Badge>;
       case 'completed':
         return <Badge className="bg-gray-100 text-gray-800 text-xs px-2 py-0.5">הושלם</Badge>;
       default:
@@ -257,7 +265,7 @@ export default function MyAssignments() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 mb-4">
             <Card className="p-3 md:p-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -271,20 +279,10 @@ export default function MyAssignments() {
             <Card className="p-3 md:p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs md:text-sm text-gray-600">אושרו</p>
-                  <p className="text-xl md:text-2xl font-bold text-green-600">{stats.confirmed_shifts || 0}</p>
+                  <p className="text-xs md:text-sm text-gray-600">בקשות החלפה</p>
+                  <p className="text-xl md:text-2xl font-bold text-yellow-600">{assignments.filter(a => a.status === 'swap_requested').length}</p>
                 </div>
-                <CheckCircle className="w-6 h-6 md:w-8 md:h-8 text-green-500" />
-              </div>
-            </Card>
-
-            <Card className="p-3 md:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs md:text-sm text-gray-600">ממתינים</p>
-                  <p className="text-xl md:text-2xl font-bold text-yellow-600">{stats.pending_shifts || 0}</p>
-                </div>
-                <AlertCircle className="w-6 h-6 md:w-8 md:h-8 text-yellow-500" />
+                <ArrowLeftRight className="w-6 h-6 md:w-8 md:h-8 text-yellow-500" />
               </div>
             </Card>
 
@@ -370,29 +368,17 @@ export default function MyAssignments() {
                             <div className="flex items-center justify-between gap-2">
                               {getStatusBadge(assignment.status)}
 
-                              <div className="flex gap-1">
-                                {assignment.status === 'assigned' && (
-                                  <button
-                                    onClick={() => handleConfirmAssignment(assignment.id)}
-                                    disabled={actionLoading[assignment.id]}
-                                    className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 transition-colors"
-                                    title="אשר משמרת"
-                                  >
-                                    {actionLoading[assignment.id] ? '...' : '✓'}
-                                  </button>
-                                )}
-
-                                {(assignment.status === 'assigned' || assignment.status === 'confirmed') && (
-                                  <button
-                                    onClick={() => handleRequestSwap(assignment.id)}
-                                    disabled={actionLoading[assignment.id]}
-                                    className="px-2 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 transition-colors"
-                                    title="בקש החלפה"
-                                  >
-                                    {actionLoading[assignment.id] ? '...' : '↻'}
-                                  </button>
-                                )}
-                              </div>
+                              {assignment.status !== 'swap_requested' && assignment.status !== 'completed' && (
+                                <button
+                                  onClick={() => openExchangeDialog(assignment)}
+                                  disabled={actionLoading[assignment.id]}
+                                  className="px-2.5 py-1.5 text-xs bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:opacity-50 transition-colors flex items-center gap-1"
+                                  title="בקש החלפה"
+                                >
+                                  <ArrowLeftRight className="w-3 h-3" />
+                                  <span className="hidden sm:inline">החלפה</span>
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -432,120 +418,97 @@ export default function MyAssignments() {
           </Card>
         )}
 
-        {/* Assignments Table View */}
-        {assignments.length > 0 && (
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="w-5 h-5" />
-                רשימת שיבוצים - תצוגת טבלה
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="border-b-2 border-gray-200 bg-gray-50">
-                      <th className="text-right p-3 font-semibold text-gray-700">תאריך</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">יום</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">סוג משמרת</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">שעות</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">סטטוס</th>
-                      <th className="text-right p-3 font-semibold text-gray-700">פעולות</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {assignments.map((assignment, index) => {
-                      const assignmentDate = new Date(assignment.date);
-                      const dayIndex = WEEKDAYS.indexOf(assignment.day_name);
-                      const dayNameHe = dayIndex >= 0 ? WEEKDAYS_HE[dayIndex] : assignment.day_name;
-
-                      return (
-                        <tr
-                          key={assignment.id}
-                          className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${
-                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'
-                          }`}
-                        >
-                          <td className="p-3 text-gray-900">
-                            {format(assignmentDate, 'dd/MM/yyyy')}
-                          </td>
-                          <td className="p-3 text-gray-900 font-medium">
-                            {dayNameHe}
-                          </td>
-                          <td className="p-3 text-gray-900">
-                            {assignment.shift_name || assignment.shift_type}
-                          </td>
-                          <td className="p-3 text-gray-700">
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-4 h-4 text-gray-400" />
-                              <span>{assignment.start_time} - {assignment.end_time}</span>
-                            </div>
-                          </td>
-                          <td className="p-3">
-                            {getStatusBadge(assignment.status)}
-                          </td>
-                          <td className="p-3">
-                            <div className="flex gap-2">
-                              {assignment.status === 'assigned' && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleConfirmAssignment(assignment.id)}
-                                  disabled={actionLoading[assignment.id]}
-                                  className="text-xs"
-                                >
-                                  {actionLoading[assignment.id] ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <CheckCircle className="w-3 h-3 ml-1" />
-                                      אשר
-                                    </>
-                                  )}
-                                </Button>
-                              )}
-
-                              {(assignment.status === 'assigned' || assignment.status === 'confirmed') && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleRequestSwap(assignment.id)}
-                                  disabled={actionLoading[assignment.id]}
-                                  className="text-xs"
-                                >
-                                  {actionLoading[assignment.id] ? (
-                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <RefreshCw className="w-3 h-3 ml-1" />
-                                      החלפה
-                                    </>
-                                  )}
-                                </Button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Table Summary */}
-              <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center text-sm text-gray-600">
-                <div>
-                  <strong>סה״כ:</strong> {assignments.length} משמרות
+        {/* Exchange Request Dialog */}
+        {exchangeDialogOpen && selectedAssignment && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={closeExchangeDialog}>
+            <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <ArrowLeftRight className="w-5 h-5 text-orange-600" />
+                    בקשת החלפת משמרת
+                  </CardTitle>
+                  <button
+                    onClick={closeExchangeDialog}
+                    className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <div className="flex gap-4">
-                  <span><strong>ממתינים לאישור:</strong> {assignments.filter(a => a.status === 'assigned').length}</span>
-                  <span><strong>אושרו:</strong> {assignments.filter(a => a.status === 'confirmed').length}</span>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Assignment Details */}
+                <div className="bg-gray-50 p-3 rounded-lg space-y-2">
+                  <div className="flex justify-between items-start">
+                    <span className="text-sm font-semibold text-gray-700">משמרת:</span>
+                    <span className="text-sm text-gray-900 text-left">
+                      {selectedAssignment.shift_name?.replace(/_/g, ' ') || selectedAssignment.shift_type?.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-start">
+                    <span className="text-sm font-semibold text-gray-700">תאריך:</span>
+                    <span className="text-sm text-gray-900">
+                      {format(new Date(selectedAssignment.date), 'dd/MM/yyyy')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-start">
+                    <span className="text-sm font-semibold text-gray-700">שעות:</span>
+                    <span className="text-sm text-gray-900">
+                      {selectedAssignment.start_time} - {selectedAssignment.end_time}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+
+                {/* Reason Input */}
+                <div className="space-y-2">
+                  <Label htmlFor="exchange-reason" className="text-sm font-semibold">
+                    סיבת בקשת ההחלפה <span className="text-red-500">*</span>
+                  </Label>
+                  <Textarea
+                    id="exchange-reason"
+                    value={exchangeReason}
+                    onChange={(e) => setExchangeReason(e.target.value)}
+                    placeholder="אנא הסבר מדוע אתה מבקש להחליף משמרת זו..."
+                    rows={4}
+                    className="resize-none"
+                  />
+                  <p className="text-xs text-gray-500">
+                    הסיבה תועבר למנהל לעיון ואישור
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    onClick={handleSubmitExchange}
+                    disabled={!exchangeReason.trim() || actionLoading[selectedAssignment.id]}
+                    className="flex-1 bg-orange-600 hover:bg-orange-700"
+                  >
+                    {actionLoading[selectedAssignment.id] ? (
+                      <>
+                        <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                        שולח...
+                      </>
+                    ) : (
+                      <>
+                        <ArrowLeftRight className="w-4 h-4 ml-2" />
+                        שלח בקשה
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    onClick={closeExchangeDialog}
+                    variant="outline"
+                    disabled={actionLoading[selectedAssignment.id]}
+                  >
+                    ביטול
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         )}
+
       </div>
     </div>
   );

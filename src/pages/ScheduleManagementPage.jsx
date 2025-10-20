@@ -29,6 +29,7 @@ export default function ScheduleManagementPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(''); // For showing save feedback
+  const [shiftAssignments, setShiftAssignments] = useState([]); // Store all shift assignments with their statuses
 
   // Preferences panel state
   const [rawSubmissions, setRawSubmissions] = useState([]);
@@ -95,10 +96,16 @@ export default function ScheduleManagementPage() {
         allUsers = []; // Empty array if loading fails
       }
 
-      const [allSubmissions, schedules] = await Promise.all([
+      const weekEndDate = format(addDays(nextWeekStart, 6), 'yyyy-MM-dd');
+      const [allSubmissions, schedules, assignments] = await Promise.all([
         ShiftSubmission.filter({ week_start: nextWeekStartStr }),
-        WeeklySchedule.filter({ week_start: nextWeekStartStr })
+        WeeklySchedule.filter({ week_start: nextWeekStartStr }),
+        ShiftAssignment.filter({ start_date: nextWeekStartStr, end_date: weekEndDate })
       ]);
+
+      // Store shift assignments
+      setShiftAssignments(assignments);
+      console.log('ScheduleManagement: Loaded shift assignments:', assignments);
 
       // Create usersMap with BOTH id and uid as keys for compatibility
       const usersMap = {};
@@ -175,6 +182,8 @@ export default function ScheduleManagementPage() {
       console.error("Error loading schedule data:", error);
     }
     setLoading(false);
+    // nextWeekStart is derived from nextWeekStartStr, so we don't need it in dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nextWeekStartStr, initializeSchedule]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -287,7 +296,7 @@ export default function ScheduleManagementPage() {
     });
   };
 
-  const handleCancelShift = (day, shiftKey, soldierId = null) => {
+  const handleCancelShift = async (day, shiftKey, soldierId = null) => {
     if (soldierId) {
       // Remove specific soldier from shift
       setSchedule(prev => {
@@ -297,6 +306,52 @@ export default function ScheduleManagementPage() {
         }
         return newSchedule;
       });
+
+      // Also delete the assignment from the database
+      try {
+        const soldier = users[soldierId];
+        if (!soldier) {
+          console.error('Soldier not found:', soldierId);
+          return;
+        }
+
+        // Calculate the date for this day
+        const dayDate = addDays(nextWeekStart, DAYS.indexOf(day));
+        const dateStr = format(dayDate, 'yyyy-MM-dd');
+
+        console.log('🗑️ Deleting assignment:', {
+          soldier_uid: soldier.uid,
+          date: dateStr,
+          shift: shiftKey
+        });
+
+        // Find and delete the assignment
+        const assignments = await ShiftAssignment.filter({
+          soldier_id: soldier.uid,
+          date: dateStr,
+          shift_type: shiftKey
+        });
+
+        console.log('Found assignments to delete:', assignments);
+
+        for (const assignment of assignments) {
+          await ShiftAssignment.delete(assignment.id);
+          console.log('✅ Deleted assignment:', assignment.id);
+        }
+
+        // Reload assignments to update the UI
+        const weekEndDate = format(addDays(nextWeekStart, 6), 'yyyy-MM-dd');
+        const updatedAssignments = await ShiftAssignment.filter({
+          start_date: nextWeekStartStr,
+          end_date: weekEndDate
+        });
+        setShiftAssignments(updatedAssignments);
+
+        console.log('✅ Assignment deleted and UI updated');
+      } catch (error) {
+        console.error('❌ Error deleting assignment:', error);
+        alert('שגיאה במחיקת השיבוץ מהמסד נתונים: ' + error.message);
+      }
     } else {
       // Cancel/uncanel entire shift
       if (!window.confirm("האם אתה בטוח שברצונך לבטל את המשמרת הזו?")) return;
@@ -376,6 +431,25 @@ export default function ScheduleManagementPage() {
                   'Are they same?': soldier.uid === soldierId ? 'YES' : 'NO'
                 });
 
+                // Extract shift times from the shift data
+                const shiftData = schedule[day][shiftKey];
+                let startTime = '00:00';
+                let endTime = '23:59';
+
+                // Check for custom hours first
+                if (shiftData.customStartTime && shiftData.customEndTime) {
+                  startTime = shiftData.customStartTime;
+                  endTime = shiftData.customEndTime;
+                } else {
+                  // Extract from shift name
+                  const shiftDisplayName = SHIFT_NAMES[shiftKey] || '';
+                  const timeMatch = shiftDisplayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
+                  if (timeMatch) {
+                    startTime = timeMatch[1];
+                    endTime = timeMatch[2];
+                  }
+                }
+
                 assignments.push({
                   soldier_id: soldier.uid,  // ✅ FIXED: Use Auth UID, not Firestore doc ID
                   soldier_name: soldier.hebrew_name || soldier.displayName || soldier.full_name,
@@ -383,6 +457,8 @@ export default function ScheduleManagementPage() {
                   day_name: day,
                   shift_type: shiftKey,
                   shift_name: SHIFT_NAMES[shiftKey],
+                  start_time: startTime,
+                  end_time: endTime,
                   week_start: nextWeekStartStr,
                   status: 'assigned'
                 });
@@ -765,7 +841,7 @@ export default function ScheduleManagementPage() {
                             disabled={saving}
                             className={isEditMode ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}
                         >
-                            <Edit2 className="w-4 h-4 ml-2"/>ערוך
+                            <Edit2 className="w-4 h-4 ml-2"/>{isEditMode ? "סיום עריכה" : "ערוך"}
                         </Button>
                         <Button
                             variant="default"
@@ -823,6 +899,7 @@ export default function ScheduleManagementPage() {
                         onEditShiftHours={handleEditShiftHours}
                         dynamicShiftNames={dynamicShiftNames}
                         missionFilter={missionFilter}
+                        shiftAssignments={shiftAssignments}
                     />
                  </div>
             </div>

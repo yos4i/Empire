@@ -86,6 +86,13 @@ export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmission
                   return; // Skip non-borders shifts
                 }
               }
+
+              // Check if this shift is cancelled in the weekly schedule for this day
+              if (weeklySchedule?.schedule?.[dayKey]?.[shiftKey]?.cancelled) {
+                console.log('❌ ShiftSelectionGrid: Skipping', shiftKey, 'on', dayKey, '(shift cancelled by admin)');
+                return; // Skip cancelled shifts
+              }
+
               console.log('✅ ShiftSelectionGrid: Including shift:', shiftKey);
 
               // Extract just the shift type part (without mission prefix)

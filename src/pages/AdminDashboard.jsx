@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Shield, FileText, Search, LogOut, Plus, Eye } from "lucide-react";
+import { Users, Shield, FileText, Search, LogOut, Plus, Eye, ArrowLeftRight, Calendar } from "lucide-react";
 import { Card } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { useAuth } from "../contexts/AuthContext";
 import AddSoldierDialog from "../components/admin/AddSoldierDialog";
 import SoldierDetailsDialog from "../components/admin/SoldierDetailsDialog";
+import ExchangeRequestsDialog from "../components/admin/ExchangeRequestsDialog";
+import SubmissionWindowsDialog from "../components/admin/SubmissionWindowsDialog";
 import { db } from "../config/firebase";
 import { collection, getDocs } from "firebase/firestore";
+import { ShiftAssignment } from "../entities/ShiftAssignment";
 
 export default function AdminDashboard() {
   const { signOut, addSoldier, deleteSoldier } = useAuth();
@@ -24,8 +27,15 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedSoldier, setSelectedSoldier] = useState(null);
-  const [showDetailsDialog, setShowDetailsDialog] = useState(false); 
-  useEffect(() => { loadSoldiers(); }, []);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showExchangeRequestsDialog, setShowExchangeRequestsDialog] = useState(false);
+  const [showSubmissionWindowsDialog, setShowSubmissionWindowsDialog] = useState(false);
+  const [exchangeRequests, setExchangeRequests] = useState([]);
+
+  useEffect(() => {
+    loadSoldiers();
+    loadExchangeRequests();
+  }, []);
 
   const loadSoldiers = async () => {
     setLoading(true);
@@ -80,6 +90,22 @@ export default function AdminDashboard() {
       setSoldiers([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadExchangeRequests = async () => {
+    try {
+      console.log('AdminDashboard: Loading exchange requests...');
+
+      // Get all assignments with swap_requested status
+      const allAssignments = await ShiftAssignment.list();
+      const swapRequests = allAssignments.filter(a => a.status === 'swap_requested');
+
+      console.log('AdminDashboard: Found exchange requests:', swapRequests);
+      setExchangeRequests(swapRequests);
+    } catch (error) {
+      console.error('AdminDashboard: Error loading exchange requests:', error);
+      setExchangeRequests([]);
     }
   };
 
@@ -150,7 +176,7 @@ export default function AdminDashboard() {
         </div>
 
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-6 mb-6">
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -178,7 +204,31 @@ export default function AdminDashboard() {
               <Shield className="w-8 h-8 text-red-500" />
             </div>
           </Card>
-          <Card 
+          <Card
+            className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 border-orange-300 bg-gradient-to-r from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-150"
+            onClick={() => setShowExchangeRequestsDialog(true)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">בקשות החלפה</p>
+                <p className="text-2xl font-bold text-orange-600">{exchangeRequests.length}</p>
+              </div>
+              <ArrowLeftRight className="w-8 h-8 text-orange-500" />
+            </div>
+          </Card>
+          <Card
+            className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 border-purple-300 bg-gradient-to-r from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-150"
+            onClick={() => setShowSubmissionWindowsDialog(true)}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-lg font-bold text-purple-700">פתח/סגור הגשות</p>
+                <p className="text-sm text-purple-600">📅 ניהול שבועות להגשה</p>
+              </div>
+              <Calendar className="w-10 h-10 text-purple-600" />
+            </div>
+          </Card>
+          <Card
             className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 border-green-300 bg-gradient-to-r from-green-50 to-green-100 hover:from-green-100 hover:to-green-150"
             onClick={() => navigate('/shift-preferences')}
           >
@@ -321,6 +371,19 @@ export default function AdminDashboard() {
           }}
           soldier={selectedSoldier}
           onDelete={handleDeleteSoldier}
+        />
+
+        <ExchangeRequestsDialog
+          isOpen={showExchangeRequestsDialog}
+          onClose={() => setShowExchangeRequestsDialog(false)}
+          exchangeRequests={exchangeRequests}
+          soldiers={soldiers}
+          onRefresh={loadExchangeRequests}
+        />
+
+        <SubmissionWindowsDialog
+          isOpen={showSubmissionWindowsDialog}
+          onClose={() => setShowSubmissionWindowsDialog(false)}
         />
       </div>
     </div>

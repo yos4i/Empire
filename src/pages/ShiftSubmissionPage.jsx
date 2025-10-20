@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ShiftSubmission } from "../entities/ShiftSubmission";
 import { WeeklySchedule } from "../entities/WeeklySchedule";
-import { ClipboardList, AlertTriangle, Home } from "lucide-react";
+import { SubmissionWindow } from "../entities/SubmissionWindow";
+import { ClipboardList, AlertTriangle, Home, Lock } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import ShiftSelectionGrid from "../components/soldier/ShiftSelectionGrid";
 import SubmissionRules from "../components/soldier/SubmissionRules";
-import { startOfWeek, addDays } from "date-fns";
+import { startOfWeek, addDays, format } from "date-fns";
 import { toWeekStartISO } from '../utils/weekKey';
 import { DAYS } from "../config/shifts";
 import { useAuth } from "../contexts/AuthContext";
@@ -29,6 +30,8 @@ export default function ShiftSubmissionPage() {
   const [loading, setLoading] = useState(true);
   const [weeklySchedule, setWeeklySchedule] = useState(null);
   const [soldierMission, setSoldierMission] = useState(null);
+  const [isWeekOpen, setIsWeekOpen] = useState(false);
+  const [checkingWeekStatus, setCheckingWeekStatus] = useState(true);
 
   // Security check: Ensure the soldier can only access their own route
   useEffect(() => {
@@ -44,7 +47,14 @@ export default function ShiftSubmissionPage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setCheckingWeekStatus(true);
     try {
+      // Check if week is open for submissions
+      const weekOpen = await SubmissionWindow.isWeekOpen(nextWeekStartStr);
+      setIsWeekOpen(weekOpen);
+      console.log('📅 ShiftSubmissionPage: Week', nextWeekStartStr, 'is', weekOpen ? 'OPEN' : 'CLOSED', 'for submissions');
+      setCheckingWeekStatus(false);
+
       // Use authenticated user instead of User.me()
       if (!user) {
         console.error("No authenticated user found");
@@ -125,10 +135,16 @@ export default function ShiftSubmissionPage() {
 
 
 const handleSubmit = async () => {
+  // Check if week is open
+  if (!isWeekOpen) {
+    alert('השבוע סגור להגשת העדפות. אנא פנה למנהל.');
+    return;
+  }
+
   setSaving(true);
   try {
     // Save using BOTH methods for compatibility
-    
+
     // Method 1: New way using ShiftSubmissionService (for admin to see)
     await ShiftSubmissionService.submitPreferences(
       user.uid,
@@ -136,7 +152,7 @@ const handleSubmit = async () => {
       nextWeekStartStr,
       shifts
     );
-    
+
     // Method 2: Old way using ShiftSubmission entity (for backward compatibility)
     const submissionData = {
       uid: user.uid,
@@ -147,7 +163,7 @@ const handleSubmit = async () => {
       shifts: shifts,
       days: shifts
     };
-    
+
     if (existingSubmission) {
       await ShiftSubmission.update(existingSubmission.id, submissionData);
     } else {
@@ -190,10 +206,32 @@ const handleSubmit = async () => {
               <ClipboardList className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
               <div>
                 <h1 className="text-xl sm:text-3xl font-bold text-gray-900">העדפות משמרות</h1>
-                <p className="text-sm sm:text-base text-gray-600">בחר את המשמרות שאתה מעוניין לעבוד בהן לשבוע הבא</p>
+                <p className="text-sm sm:text-base text-gray-600">שבוע {format(nextWeekStart, 'dd/MM/yyyy')} - {format(addDays(nextWeekStart, 6), 'dd/MM/yyyy')}</p>
               </div>
             </div>
           </div>
+
+          {/* Week Status Banner */}
+          {checkingWeekStatus ? (
+            <div className="text-center py-2 text-sm text-gray-600">בודק סטטוס שבוע...</div>
+          ) : !isWeekOpen ? (
+            <Alert className="bg-red-50 border-red-200">
+              <Lock className="h-5 w-5 text-red-600" />
+              <AlertTitle className="text-red-900 font-semibold">השבוע סגור להגשת העדפות</AlertTitle>
+              <AlertDescription className="text-red-800">
+                <p>מנהל המערכת סגר את השבוע הזה להגשת העדפות.</p>
+                <p className="mt-2">לא ניתן לשלוח או לערוך העדפות משמרות לשבוע זה.</p>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert className="bg-green-50 border-green-200">
+              <ClipboardList className="h-5 w-5 text-green-600" />
+              <AlertTitle className="text-green-900 font-semibold">✓ השבוע פתוח להגשת העדפות</AlertTitle>
+              <AlertDescription className="text-green-800">
+                <p>אתה יכול לבחור ולשלוח את העדפות המשמרות שלך לשבוע זה.</p>
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -216,6 +254,7 @@ const handleSubmit = async () => {
                 <ShiftSelectionGrid
                   shifts={shifts}
                   onToggleShift={toggleShift}
+                  isSubmissionOpen={isWeekOpen}
                   weeklySchedule={weeklySchedule}
                   soldierMission={soldierMission}
                 />
@@ -223,11 +262,11 @@ const handleSubmit = async () => {
                 <div className="mt-6 flex justify-end gap-3">
                   <Button
                     onClick={handleSubmit}
-                    disabled={saving}
+                    disabled={saving || !isWeekOpen}
                     size="lg"
-                    className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto"
+                    className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {saving ? "שולח..." : existingSubmission ? "עדכן העדפות" : "שלח העדפות"}
+                    {saving ? "שולח..." : !isWeekOpen ? "השבוע סגור להגשות" : existingSubmission ? "עדכן העדפות" : "שלח העדפות"}
                   </Button>
                 </div>
               </>

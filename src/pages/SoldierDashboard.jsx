@@ -125,13 +125,13 @@ export default function SoldierDashboard() {
         <div className="grid md:grid-cols-3 gap-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center justify-center gap-2">
                 <ClipboardList className="w-5 h-5 text-green-600" />
                 הגשת משמרות
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 mb-3">בחר את המשמרות שאתה רוצה לעבוד לשבוע הבא</p>
+              <p className="text-gray-600 mb-3 text-center">בחר את המשמרות שאתה רוצה לעבוד לשבוע הבא</p>
               <Button
                 size="sm"
                 onClick={() => navigate(`/soldier/${user?.uid}/shifts`)}
@@ -144,13 +144,13 @@ export default function SoldierDashboard() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center justify-center gap-2">
                 <Calendar className="w-5 h-5 text-blue-600" />
                 המשמרות שלי
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 mb-3">צפה במשמרות שהוקצו לך ואשר אותן</p>
+              <p className="text-gray-600 mb-3 text-center">צפה במשמרות שהוקצו לך ואשר אותן</p>
               <Button
                 variant="outline"
                 size="sm"
@@ -164,13 +164,13 @@ export default function SoldierDashboard() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center justify-center gap-2">
                 <User className="w-5 h-5 text-purple-600" />
                 פרטים אישיים
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-600 mb-3">עדכן את הפרטים והציוד האישי שלך</p>
+              <p className="text-gray-600 mb-3 text-center">עדכן את הפרטים והציוד האישי שלך</p>
               <Button
                 variant="outline"
                 size="sm"
