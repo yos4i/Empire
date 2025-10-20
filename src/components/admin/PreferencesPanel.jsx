@@ -137,12 +137,17 @@ export default function PreferencesPanel({
                     </Badge>
                   </h3>
 
-                  <div className="space-y-1">
-                    {submissionsWithoutPrefs.map(submission => (
-                      <div key={submission.id} className="bg-red-50 border border-red-200 rounded p-1.5">
-                        <div className="text-xs font-medium text-gray-900 truncate">{submission.userName}</div>
-                        <div className="text-xs text-red-600">לא הגיש</div>
-                      </div>
+                  <div className="space-y-2">
+                    {submissionsWithoutPrefs.map((submission, index) => (
+                      <SubmissionCard
+                        key={submission.id}
+                        submission={submission}
+                        index={index}
+                        soldierShiftCounts={soldierShiftCounts}
+                        users={users}
+                        onSelectSoldier={onSelectSoldier}
+                        selectedSoldierId={selectedSoldierId}
+                      />
                     ))}
                   </div>
                 </div>
