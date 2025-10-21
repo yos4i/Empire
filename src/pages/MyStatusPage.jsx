@@ -169,31 +169,75 @@ export default function MyStatusPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-4">
-                {['vest','helmet','weapon'].map(key => (
-                  <div key={key} className="flex items-center justify-center space-x-2">
-                    <Checkbox id={key} checked={formData.equipment[key]} onCheckedChange={(checked) => handleEquipmentChange(key, checked)} />
-                    <Label htmlFor={key} className="mr-2">{key === 'vest' ? 'ווסט' : key === 'helmet' ? 'קסדה' : 'נשק'}</Label>
+                {['vest', 'helmet', 'weapon', 'magazines'].map((key) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-center space-x-2"
+                  >
+                    {key === 'magazines' ? (
+                      <>
+                        <Checkbox
+                          id={key}
+                          checked={formData.equipment[key] > 0}
+                          onCheckedChange={(checked) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              equipment: {
+                                ...prev.equipment,
+                                magazines: checked ? 1 : 0, // אם מסומן, ברירת מחדל 1
+                              },
+                            }))
+                          }
+                        />
+                        <Label htmlFor={key} className="mr-2">
+                          מחסניות
+                        </Label>
+                        {formData.equipment.magazines > 0 && (
+                          <Input
+                            id="magazines"
+                            type="number"
+                            min="1"
+                            max="7"
+                            value={formData.equipment.magazines}
+                            onChange={(e) => {
+                              const value = Math.min(
+                                7,
+                                Math.max(1, parseInt(e.target.value) || 0)
+                              );
+                              setFormData((prev) => ({
+                                ...prev,
+                                equipment: { ...prev.equipment, magazines: value },
+                              }));
+                            }}
+                            placeholder="1-7"
+                            className="w-16 text-center"
+                          />
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <Checkbox
+                          id={key}
+                          checked={formData.equipment[key]}
+                          onCheckedChange={(checked) =>
+                            handleEquipmentChange(key, checked)
+                          }
+                        />
+                        <Label htmlFor={key} className="mr-2">
+                          {key === 'vest'
+                            ? 'ווסט'
+                            : key === 'helmet'
+                            ? 'קסדה'
+                            : 'נשק'}
+                        </Label>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
-              <div>
-                <Label htmlFor="magazines" className="text-center block">מחסניות</Label>
-                <Input
-                  id="magazines"
-                  type="number"
-                  min="1"
-                  max="7"
-                  value={formData.magazines}
-                  onChange={(e) => {
-                    const value = Math.min(7, Math.max(1, parseInt(e.target.value) || 0));
-                    setFormData(prev => ({...prev, magazines: value}));
-                  }}
-                  placeholder="1-7"
-                  className="text-center"
-                />
-              </div>
             </CardContent>
           </Card>
+
         </div>
 
         <div className="mt-8 flex justify-end">
