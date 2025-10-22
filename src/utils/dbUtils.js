@@ -269,3 +269,70 @@ export async function clearAllShiftData() {
     throw new Error(`Failed to clear all shift data: ${error.message}`);
   }
 }
+
+/**
+ * Remove evening shifts from Tuesday and Friday in all weekly schedules
+ * This cleans up the database after the code change to skip these shifts
+ */
+export async function removeTuesdayFridayEveningShifts() {
+  try {
+    console.log('🗑️ Removing Tuesday and Friday evening shifts from all weekly schedules...');
+
+    const schedulesRef = collection(db, 'weekly_schedules');
+    const snapshot = await getDocs(schedulesRef);
+
+    console.log(`📊 Found ${snapshot.docs.length} weekly schedules to process`);
+
+    if (snapshot.docs.length === 0) {
+      console.log('✅ No schedules to process');
+      return { processed: 0, message: 'No schedules found' };
+    }
+
+    let processedCount = 0;
+    let modifiedCount = 0;
+
+    for (const document of snapshot.docs) {
+      const scheduleData = document.data();
+      let wasModified = false;
+
+      // Check if schedule has Tuesday or Friday data
+      if (scheduleData.schedule) {
+        // Remove evening shift from Tuesday
+        if (scheduleData.schedule.tuesday && scheduleData.schedule.tuesday['קריית_חינוך_ערב']) {
+          console.log(`🗑️ Removing Tuesday evening shift from schedule ${document.id}`);
+          delete scheduleData.schedule.tuesday['קריית_חינוך_ערב'];
+          wasModified = true;
+        }
+
+        // Remove evening shift from Friday
+        if (scheduleData.schedule.friday && scheduleData.schedule.friday['קריית_חינוך_ערב']) {
+          console.log(`🗑️ Removing Friday evening shift from schedule ${document.id}`);
+          delete scheduleData.schedule.friday['קריית_חינוך_ערב'];
+          wasModified = true;
+        }
+
+        if (wasModified) {
+          // Update the document with the modified schedule
+          const { updateDoc } = await import('firebase/firestore');
+          await updateDoc(doc(db, 'weekly_schedules', document.id), {
+            schedule: scheduleData.schedule
+          });
+          modifiedCount++;
+          console.log(`✅ Updated schedule ${document.id}`);
+        }
+      }
+
+      processedCount++;
+    }
+
+    console.log(`✅ Processed ${processedCount} schedules, modified ${modifiedCount}`);
+    return {
+      processed: processedCount,
+      modified: modifiedCount,
+      message: `Processed ${processedCount} schedules, removed evening shifts from ${modifiedCount}`
+    };
+  } catch (error) {
+    console.error('❌ Error removing Tuesday/Friday evening shifts:', error);
+    throw new Error(`Failed to remove evening shifts: ${error.message}`);
+  }
+}

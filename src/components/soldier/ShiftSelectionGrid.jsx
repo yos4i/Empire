@@ -134,7 +134,8 @@ export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmission
               });
 
               // Add "long shift" option for morning shifts
-              if (shiftData.type === 'בוקר' && !shiftData.isLong) {
+              // Skip long shifts for גבולות soldiers
+              if (shiftData.type === 'בוקר' && !shiftData.isLong && soldierMission !== 'גבולות') {
                 newConfig[dayKey].push({
                   type: shiftTypePart + '_ארוך',
                   label: `${displayShiftType} ארוך 07:00-15:30`,

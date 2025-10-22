@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
-import { User, Clock, AlertTriangle, X, Users as UsersIcon, ArrowLeftRight, Clock3 } from 'lucide-react';
+import { User, Clock, AlertTriangle, X, Users as UsersIcon, ArrowLeftRight, Clock3, MessageSquare } from 'lucide-react';
 import { DAYS, SHIFT_NAMES, SHIFT_TYPES_HE } from '../../../config/shifts';
 
 const DAYS_HE = {
@@ -14,9 +14,12 @@ const DAYS_HE = {
   friday: 'שישי'
 };
 
-export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId, onEditShiftHours, dynamicShiftNames, missionFilter, shiftAssignments = [], onToggleLongShift }) {
+export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, soldierNotes = {}, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId, onEditShiftHours, dynamicShiftNames, missionFilter, shiftAssignments = [], onToggleLongShift }) {
   // Use dynamic shift names from Firestore if available, otherwise fall back to static
   const shiftNames = dynamicShiftNames || SHIFT_NAMES;
+
+  // State for showing soldier notes tooltip
+  const [hoveredSoldier, setHoveredSoldier] = useState(null);
 
   // Filter shifts by mission if missionFilter is provided
   const getFilteredShiftKeys = () => {
@@ -98,6 +101,10 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
       });
     }
 
+    // Check if soldier has notes
+    const soldierNoteText = soldierNotes[soldier.uid] || soldierNotes[soldier.id];
+    const hasNotes = !!soldierNoteText;
+
     return (
       <div
         key={`${soldierId}-${day}-${shiftKey}`}
@@ -111,6 +118,18 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
               <div className="flex items-center gap-2">
                 <User className="w-3 h-3 text-gray-500" />
                 <span className="font-medium text-gray-900">{soldier.hebrew_name}</span>
+                {hasNotes && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      alert(`הערות של ${soldier.hebrew_name}:\n\n${soldierNoteText}`);
+                    }}
+                    className="hover:bg-blue-100 rounded p-0.5"
+                    title="צפה בהערות"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 {isLongShift && (
@@ -266,8 +285,8 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
             )}
 
             {/* Assigned Soldiers */}
-            <div className="space-y-1">
-              {shift.soldiers?.map((soldierId, index) => 
+            <div className="space-y-1 max-h-[400px] overflow-y-auto">
+              {shift.soldiers?.map((soldierId, index) =>
                 renderSoldierCard(soldierId, shiftKey, day, index)
               )}
             </div>

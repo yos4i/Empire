@@ -83,8 +83,8 @@ export default function SoldierDashboard() {
     navigate('/login');
   };
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 min-h-screen" dir="rtl">
-      <div className="max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 bg-gray-50 min-h-screen w-full overflow-x-hidden" dir="rtl">
+      <div className="max-w-6xl mx-auto w-full">
         {/* Header with Name and Logout */}
         <div className="mb-6 bg-white rounded-lg shadow-sm p-4">
           <div className="relative flex items-center justify-center mb-4 min-h-[40px]">

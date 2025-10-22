@@ -16,7 +16,7 @@ import { useMediaQuery } from '../components/hooks/useMediaQuery';
 import { DAYS, SHIFT_NAMES, SHIFT_REQUIREMENTS, DAY_END_TIMES } from '../config/shifts';
 import { db } from '../config/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { clearAllShiftAssignments, initializeShiftAssignmentsCollection, clearAllShiftData } from '../utils/dbUtils';
+import { clearAllShiftAssignments, initializeShiftAssignmentsCollection, clearAllShiftData, removeTuesdayFridayEveningShifts } from '../utils/dbUtils';
 import { shiftDefinitionsService } from '../services/shiftDefinitions';
 import * as shiftsConfig from '../config/shifts';
 
@@ -25,6 +25,7 @@ export default function ScheduleManagementPage() {
   const [users, setUsers] = useState({});
   const [schedule, setSchedule] = useState({});
   const [submissions, setSubmissions] = useState({});
+  const [soldierNotes, setSoldierNotes] = useState({}); // Store soldier notes by user ID/UID
   const [weeklyScheduleEntity, setWeeklyScheduleEntity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,6 +66,11 @@ export default function ScheduleManagementPage() {
       const dayEndTime = DAY_END_TIMES[day];
 
       for (const shiftKey in SHIFT_NAMES) {
+        // Skip evening shifts on Tuesday and Friday
+        if (shiftKey === 'קריית_חינוך_ערב' && (day === 'tuesday' || day === 'friday')) {
+          continue;
+        }
+
         const shiftData = {
           soldiers: [],
           cancelled: false,
@@ -152,6 +158,11 @@ export default function ScheduleManagementPage() {
         for (const day of DAYS) {
           updatedSchedule[day] = {};
           for (const shiftKey in SHIFT_NAMES) {
+            // Skip evening shifts on Tuesday and Friday
+            if (shiftKey === 'קריית_חינוך_ערב' && (day === 'tuesday' || day === 'friday')) {
+              continue;
+            }
+
             const existingShiftData = loadedSchedule[day]?.[shiftKey] || {};
             const latestRequirements = SHIFT_REQUIREMENTS[shiftKey];
 
@@ -239,12 +250,14 @@ export default function ScheduleManagementPage() {
             userId: d.userId,  // Note: userId not user_id
             days: d.days || {},
             longShiftDays: d.longShiftDays || {}, // Include long shift preferences
+            notes: d.notes || '', // Include soldier notes
             updatedAt: d.updatedAt?.toDate ? d.updatedAt.toDate() : (d.updatedAt || null),
             createdAt: d.createdAt?.toDate ? d.createdAt.toDate() : (d.createdAt || null),
             weekStart: d.weekStart
           };
         });
         console.log('Fetched shift preferences submissions:', submissions);
+
         setRawSubmissions(submissions);
       } catch (error) {
         console.error('Error fetching submissions:', error);
@@ -254,7 +267,38 @@ export default function ScheduleManagementPage() {
 
     fetchSubmissions();
   }, [nextWeekStartStr]);
-  
+
+  // Map soldier notes by all possible user identifiers after both users and submissions are loaded
+  useEffect(() => {
+    if (Object.keys(users).length === 0 || rawSubmissions.length === 0) return;
+
+    const notesMap = {};
+    rawSubmissions.forEach(sub => {
+      if (!sub.notes) return;
+
+      // Map by the original userId from the submission
+      notesMap[sub.userId] = sub.notes;
+
+      // Find the user and map by all their identifiers
+      const user = Object.values(users).find(u => u.uid === sub.userId || u.id === sub.userId);
+      if (user) {
+        if (user.id) notesMap[user.id] = sub.notes;
+        if (user.uid) notesMap[user.uid] = sub.notes;
+        console.log(`✅ Mapped notes for ${user.hebrew_name}:`, {
+          originalUserId: sub.userId,
+          userId: user.id,
+          userUid: user.uid,
+          notes: sub.notes
+        });
+      } else {
+        console.warn(`⚠️ Could not find user for userId: ${sub.userId}`);
+      }
+    });
+
+    console.log('📝 Final soldier notes map:', notesMap);
+    setSoldierNotes(notesMap);
+  }, [users, rawSubmissions]);
+
   const soldierShiftCounts = useMemo(() => {
     const counts = {};
     if (!schedule || Object.keys(schedule).length === 0) return counts;
@@ -566,6 +610,12 @@ export default function ScheduleManagementPage() {
                   isLongShift
                 });
 
+                // Determine end time for long shifts
+                let longShiftEndTime = '15:30';
+                if (isLongShift && day === 'tuesday') {
+                  longShiftEndTime = '16:15';
+                }
+
                 assignments.push({
                   soldier_id: soldier.uid,  // ✅ FIXED: Use Auth UID, not Firestore doc ID
                   soldier_name: soldier.hebrew_name || soldier.displayName || soldier.full_name,
@@ -574,7 +624,7 @@ export default function ScheduleManagementPage() {
                   shift_type: shiftKey,
                   shift_name: SHIFT_NAMES[shiftKey],
                   start_time: startTime,
-                  end_time: isLongShift ? '15:30' : endTime, // Override end time for long shifts
+                  end_time: isLongShift ? longShiftEndTime : endTime, // Override end time for long shifts (16:15 for Tuesday, 15:30 for others)
                   week_start: nextWeekStartStr,
                   status: 'assigned',
                   isLongShift: isLongShift // Add isLongShift field
@@ -627,6 +677,28 @@ export default function ScheduleManagementPage() {
     } catch (error) {
       console.error('❌ Error resetting shift data:', error);
       alert('שגיאה באיפוס הגדרות המשמרות: ' + error.message);
+    }
+    setSaving(false);
+  };
+
+  const handleRemoveTuesdayFridayEveningShifts = async () => {
+    if (!window.confirm("האם למחוק את משמרות הערב של יום שלישי ושישי מכל הסידורים? פעולה זו תעדכן את כל הסידורים הקיימים.")) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      console.log('🗑️ Removing Tuesday and Friday evening shifts...');
+
+      const result = await removeTuesdayFridayEveningShifts();
+
+      alert(`✅ הפעולה הושלמה!\n\nעובדו ${result.processed} סידורים\nעודכנו ${result.modified} סידורים\n\nהעמוד ייטען מחדש כעת...`);
+
+      // Reload the page to show updated schedule
+      window.location.reload();
+    } catch (error) {
+      console.error('❌ Error removing evening shifts:', error);
+      alert('שגיאה במחיקת משמרות הערב: ' + error.message);
     }
     setSaving(false);
   };
@@ -817,6 +889,12 @@ export default function ScheduleManagementPage() {
           isLongShift
         });
 
+        // Determine end time for long shifts
+        let longShiftEndTime = '15:30';
+        if (isLongShift && day === 'tuesday') {
+          longShiftEndTime = '16:15';
+        }
+
         // Create assignment
         await ShiftAssignment.create({
           soldier_id: soldier.uid,
@@ -826,7 +904,7 @@ export default function ScheduleManagementPage() {
           shift_type: shiftKey,
           shift_name: dynamicShiftNames[shiftKey] || SHIFT_NAMES[shiftKey],
           start_time: startTime,
-          end_time: isLongShift ? '15:30' : endTime,
+          end_time: isLongShift ? longShiftEndTime : endTime, // 16:15 for Tuesday, 15:30 for others
           week_start: nextWeekStartStr,
           status: 'assigned',
           isLongShift: isLongShift // Add isLongShift based on soldier's preference
@@ -895,7 +973,8 @@ export default function ScheduleManagementPage() {
         updatedAt: sub.updatedAt || new Date(),
         days: normalizedDays,
         weekStart: sub.weekStart,
-        longShiftDays: sub.longShiftDays || {} // Include long shift preferences
+        longShiftDays: sub.longShiftDays || {}, // Include long shift preferences
+        notes: sub.notes || '' // Include soldier notes
       };
 
       console.log('Normalized submission with days:', normalized);
@@ -1050,6 +1129,7 @@ export default function ScheduleManagementPage() {
                         >
                             <Save className="w-4 h-4 ml-2"/>שמור סידור
                         </Button>
+                        <Button variant="outline" onClick={handleRemoveTuesdayFridayEveningShifts} disabled={saving} className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"><Trash2 className="w-4 h-4 ml-2"/>מחק ערב שלישי/שישי</Button>
                         <Button variant="outline" onClick={handleClearAllAssignments} disabled={saving} className="border-red-300 text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4 ml-2"/>נקה שיבוצים</Button>
                         <Button variant="outline" onClick={handleResetShiftData} disabled={saving} className="border-orange-300 text-orange-600 hover:bg-orange-50"><Trash2 className="w-4 h-4 ml-2"/>אפס הגדרות משמרות</Button>
                         <Button onClick={handlePublishToSoldiers} disabled={saving} className="bg-purple-600 hover:bg-purple-700 text-white"><Users className="w-4 h-4 ml-2"/>פרסם לחיילים</Button>
@@ -1088,6 +1168,7 @@ export default function ScheduleManagementPage() {
                         users={users}
                         submissions={submissions}
                         soldierShiftCounts={soldierShiftCounts}
+                        soldierNotes={soldierNotes}
                         isPublished={isPublished}
                         isEditMode={isEditMode}
                         onCancelShift={handleCancelShift}

@@ -29,6 +29,7 @@ export default function WeeklyScheduleView({ soldierMission }) {
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedDays, setExpandedDays] = useState({});
+  const [expandedCells, setExpandedCells] = useState({});
 
   const weekStart = toWeekStartISO(selectedDate);
 
@@ -82,6 +83,14 @@ export default function WeeklyScheduleView({ soldierMission }) {
     setExpandedDays(prev => ({
       ...prev,
       [day]: !prev[day]
+    }));
+  };
+
+  const toggleCellExpansion = (day, shiftKey) => {
+    const cellId = `${day}-${shiftKey}`;
+    setExpandedCells(prev => ({
+      ...prev,
+      [cellId]: !prev[cellId]
     }));
   };
 
@@ -257,6 +266,8 @@ export default function WeeklyScheduleView({ soldierMission }) {
 
                       const assigned = shift.soldiers?.length || 0;
                       const required = shift.required || 0;
+                      const cellId = `${day}-${shiftKey}`;
+                      const isExpanded = expandedCells[cellId];
 
                       // Get custom hours if available
                       let timeString = '';
@@ -308,7 +319,7 @@ export default function WeeklyScheduleView({ soldierMission }) {
 
                           {/* Assigned Soldiers */}
                           <div className="space-y-1">
-                            {shift.soldiers?.slice(0, 3).map((soldierId, index) => {
+                            {(isExpanded ? shift.soldiers : shift.soldiers?.slice(0, 3))?.map((soldierId, index) => {
                               const soldier = users[soldierId];
                               if (!soldier) return null;
 
@@ -335,9 +346,12 @@ export default function WeeklyScheduleView({ soldierMission }) {
                               );
                             })}
                             {shift.soldiers?.length > 3 && (
-                              <div className="text-xs text-gray-500 text-center">
-                                +{shift.soldiers.length - 3} נוספים
-                              </div>
+                              <button
+                                onClick={() => toggleCellExpansion(day, shiftKey)}
+                                className="text-xs text-blue-600 hover:text-blue-800 font-medium text-center w-full py-1 hover:bg-blue-50 rounded transition-colors"
+                              >
+                                {isExpanded ? 'הצג פחות' : `+${shift.soldiers.length - 3} נוספים`}
+                              </button>
                             )}
                           </div>
                         </div>

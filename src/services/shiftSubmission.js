@@ -14,12 +14,13 @@ import { db } from '../config/firebase';
 export class ShiftSubmissionService {
   
   // Submit shift preferences for a soldier
-  static async submitPreferences(userId, userName, weekStart, preferences, longShiftDays = {}) {
+  static async submitPreferences(userId, userName, weekStart, preferences, longShiftDays = {}, notes = '') {
     try {
       console.log('ShiftSubmissionService: Submitting preferences for user:', userId);
       console.log('ShiftSubmissionService: Week:', weekStart);
       console.log('ShiftSubmissionService: Preferences:', preferences);
       console.log('ShiftSubmissionService: Long shift days:', longShiftDays);
+      console.log('ShiftSubmissionService: Notes:', notes);
 
       // Create a unique document ID based on user and week
       const docId = `${userId}_${weekStart}`;
@@ -29,6 +30,7 @@ export class ShiftSubmissionService {
         weekStart: weekStart,
         days: preferences, // Object with days as keys and shift arrays as values
         longShiftDays: longShiftDays, // Store which days have long shift preference
+        notes: notes || '', // Store soldier notes/comments
         updatedAt: Timestamp.now(),
         createdAt: Timestamp.now(),
         // Only include userName if it's defined

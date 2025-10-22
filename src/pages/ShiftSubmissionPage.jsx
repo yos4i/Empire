@@ -3,12 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ShiftSubmission } from "../entities/ShiftSubmission";
 import { WeeklySchedule } from "../entities/WeeklySchedule";
 import { SubmissionWindow } from "../entities/SubmissionWindow";
-import { ClipboardList, AlertTriangle, Home, Lock } from "lucide-react";
+import { ClipboardList, AlertTriangle, Lock, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import ShiftSelectionGrid from "../components/soldier/ShiftSelectionGrid";
 import SubmissionRules from "../components/soldier/SubmissionRules";
-import { startOfWeek, addDays, format } from "date-fns";
+import { startOfWeek, addDays, addWeeks, format } from "date-fns";
 import { toWeekStartISO } from '../utils/weekKey';
 import { DAYS } from "../config/shifts";
 import { useAuth } from "../contexts/AuthContext";
@@ -25,6 +26,7 @@ export default function ShiftSubmissionPage() {
     DAYS.reduce((acc, day) => ({ ...acc, [day]: [] }), {})
   );
   const [longShiftDays, setLongShiftDays] = useState({}); // Track which days have long shift preference
+  const [notes, setNotes] = useState(''); // Soldier notes/comments
   const [existingSubmission, setExistingSubmission] = useState(null);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState([]);
@@ -33,6 +35,7 @@ export default function ShiftSubmissionPage() {
   const [soldierMission, setSoldierMission] = useState(null);
   const [isWeekOpen, setIsWeekOpen] = useState(false);
   const [checkingWeekStatus, setCheckingWeekStatus] = useState(true);
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = this week, 1 = next week
 
   // Security check: Ensure the soldier can only access their own route
   useEffect(() => {
@@ -43,7 +46,7 @@ export default function ShiftSubmissionPage() {
     }
   }, [user, soldierId, navigate]);
 
-  const nextWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+  const nextWeekStart = addWeeks(startOfWeek(new Date(), { weekStartsOn: 0 }), weekOffset);
   const nextWeekStartStr = toWeekStartISO(nextWeekStart);
 
   const loadData = useCallback(async () => {
@@ -95,15 +98,36 @@ export default function ShiftSubmissionPage() {
         console.log('⚠️ ShiftSubmissionPage: No weekly schedule found for', nextWeekStartStr);
       }
 
-      const submissions = await ShiftSubmission.filter({
-        user_id: user.uid, // Use Firebase UID
-        week_start: nextWeekStartStr,
-      });
+      // Try to load from the new shift_preferences collection first (using the service)
+      const preferences = await ShiftSubmissionService.getPreferences(user.uid, nextWeekStartStr);
 
-      if (submissions.length > 0) {
-        setExistingSubmission(submissions[0]);
-        setShifts(submissions[0].shifts);
-        setLongShiftDays(submissions[0].longShiftDays || {});
+      if (preferences) {
+        console.log('✅ ShiftSubmissionPage: Loaded preferences from shift_preferences:', preferences);
+        setExistingSubmission(preferences);
+        setShifts(preferences.days || DAYS.reduce((acc, day) => ({ ...acc, [day]: [] }), {}));
+        setLongShiftDays(preferences.longShiftDays || {});
+        setNotes(preferences.notes || '');
+      } else {
+        // Fallback: try old shift_submissions collection for backward compatibility
+        const submissions = await ShiftSubmission.filter({
+          user_id: user.uid,
+          week_start: nextWeekStartStr,
+        });
+
+        if (submissions.length > 0) {
+          console.log('✅ ShiftSubmissionPage: Loaded from old shift_submissions:', submissions[0]);
+          setExistingSubmission(submissions[0]);
+          setShifts(submissions[0].shifts || DAYS.reduce((acc, day) => ({ ...acc, [day]: [] }), {}));
+          setLongShiftDays(submissions[0].longShiftDays || {});
+          setNotes(submissions[0].notes || '');
+        } else {
+          // Clear form if no submission exists for this week
+          console.log('🔄 ShiftSubmissionPage: No submission found for week', nextWeekStartStr, '- cleared form');
+          setExistingSubmission(null);
+          setShifts(DAYS.reduce((acc, day) => ({ ...acc, [day]: [] }), {}));
+          setLongShiftDays({});
+          setNotes('');
+        }
       }
     } catch (e) {
       console.error("Error loading data", e);
@@ -192,7 +216,8 @@ const handleSubmit = async () => {
       user.displayName || user.username || user.hebrew_name,
       nextWeekStartStr,
       shifts,
-      longShiftDays // Pass long shift preferences
+      longShiftDays, // Pass long shift preferences
+      notes // Pass soldier notes
     );
 
     // Method 2: Old way using ShiftSubmission entity (for backward compatibility)
@@ -204,7 +229,8 @@ const handleSubmit = async () => {
       week_start: nextWeekStartStr,
       shifts: shifts,
       days: shifts,
-      longShiftDays: longShiftDays // Store which days have long shift preference
+      longShiftDays: longShiftDays, // Store which days have long shift preference
+      notes: notes // Store soldier notes
     };
 
     if (existingSubmission) {
@@ -231,22 +257,33 @@ const handleSubmit = async () => {
   }
 
   return (
-    <div className="p-4 md:p-6 bg-gray-50 min-h-screen" dir="rtl">
-      <div className="max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 bg-gray-50 min-h-screen w-full overflow-x-hidden" dir="rtl">
+      <div className="max-w-7xl mx-auto w-full">
         <div className="mb-6 md:mb-8">
-          <div className="relative flex items-center justify-center mb-6">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate(`/soldier/${user?.uid}`)}
-              className="absolute left-0"
-            >
-              <Home className="w-5 h-5" />
-            </Button>
-
-            <div className="text-center">
+          <div className="flex items-center justify-center mb-6 w-full">
+            <div className="text-center flex-1 w-full">
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900">העדפות משמרות</h1>
-              <p className="text-sm md:text-base text-gray-600">שבוע {format(nextWeekStart, 'dd/MM/yyyy')} - {format(addDays(nextWeekStart, 6), 'dd/MM/yyyy')}</p>
+              <div className="flex items-center justify-center gap-3 mt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWeekOffset(prev => prev - 1)}
+                  disabled={weekOffset <= 0}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+                <p className="text-sm md:text-base text-gray-600 min-w-[200px]">
+                  שבוע {format(nextWeekStart, 'dd/MM/yyyy')} - {format(addDays(nextWeekStart, 6), 'dd/MM/yyyy')}
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWeekOffset(prev => prev + 1)}
+                  disabled={weekOffset >= 4}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -298,6 +335,31 @@ const handleSubmit = async () => {
                   soldierMission={soldierMission}
                   longShiftDays={longShiftDays}
                 />
+
+                {/* Soldier Notes Section */}
+                <div className="mt-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">הערות והעדפות נוספות</CardTitle>
+                      <p className="text-sm text-gray-600 mt-1">
+                        אפשר להשאיר הערות למנהל - למשל: בקשה למשמרת מסוימת, מגבלות, או כל מידע רלוונטי אחר
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        disabled={!isWeekOpen}
+                        placeholder="כתוב כאן הערות למנהל..."
+                        className="w-full min-h-[120px] p-3 border-2 border-gray-200 rounded-lg resize-y focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:opacity-50 disabled:bg-gray-100"
+                        maxLength={500}
+                      />
+                      <div className="text-xs text-gray-500 mt-2 text-left">
+                        {notes.length}/500 תווים
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
 
                 <div className="mt-6 flex justify-end gap-3">
                   <Button

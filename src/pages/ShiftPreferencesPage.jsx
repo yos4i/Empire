@@ -16,6 +16,7 @@ export default function ShiftPreferencesPage() {
   const navigate = useNavigate();
   const [users, setUsers] = useState({});
   const [submissions, setSubmissions] = useState({});
+  const [soldierNotes, setSoldierNotes] = useState({}); // Store soldier notes by user ID
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedWeek, setSelectedWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 0 }));
@@ -36,6 +37,7 @@ export default function ShiftPreferencesPage() {
 
       // Load submissions from shift_preferences collection (same as Schedule Management)
       const submissionsMap = {};
+      const notesMap = {};
 
       try {
         const { collection: firestoreCollection, query: firestoreQuery, where: firestoreWhere, getDocs: firestoreGetDocs } = await import('firebase/firestore');
@@ -59,6 +61,10 @@ export default function ShiftPreferencesPage() {
             const user = allUsers.find(u => u.uid === data.userId || u.id === data.userId);
             if (user) {
               submissionsMap[user.id] = data.days;
+              // Store notes if available
+              if (data.notes) {
+                notesMap[user.id] = data.notes;
+              }
               console.log(`Mapped preference for ${user.hebrew_name}:`, data.days);
             }
           }
@@ -86,7 +92,9 @@ export default function ShiftPreferencesPage() {
       });
 
       console.log('ShiftPreferencesPage: Final submissions map:', submissionsMap);
+      console.log('ShiftPreferencesPage: Final notes map:', notesMap);
       setSubmissions(submissionsMap);
+      setSoldierNotes(notesMap);
     } catch (error) {
       console.error("Error loading shift preferences data:", error);
     }
@@ -295,6 +303,7 @@ export default function ShiftPreferencesPage() {
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 sticky right-0 bg-gray-50 min-w-[120px]">חייל</th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 min-w-[100px]">מ.א</th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 min-w-[100px]">יחידה</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 min-w-[200px]">הערות</th>
                     {DAYS_HE.map((day, index) => (
                       <th key={day} className="px-4 py-3 text-center text-sm font-medium text-gray-900 min-w-[140px]">
                         <div>
@@ -312,6 +321,8 @@ export default function ShiftPreferencesPage() {
                     const userSubmissions = submissions[user.id] || {};
                     const hasSubmissions = Object.values(userSubmissions).some(dayShifts => dayShifts.length > 0);
                     
+                    const userNotes = soldierNotes[user.id];
+
                     return (
                       <tr key={user.id} className={!hasSubmissions ? 'bg-red-50' : ''}>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 sticky right-0 bg-white">
@@ -326,6 +337,15 @@ export default function ShiftPreferencesPage() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600">{user.personal_number}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{user.unit?.replace('_', ' ')}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600 max-w-[200px]">
+                          {userNotes ? (
+                            <div className="text-xs italic text-gray-700 truncate" title={userNotes}>
+                              {userNotes}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
+                        </td>
                         {DAYS.map((day) => {
                           const dayShifts = userSubmissions[day] || [];
                           return (

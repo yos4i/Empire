@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Calendar, User, Shield, Clock3 } from 'lucide-react';
+import { Search, Calendar, User, Clock3, MessageSquare } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { format } from 'date-fns';
@@ -230,37 +230,15 @@ function SubmissionCard({ submission, index, soldierShiftCounts, users, onSelect
       {isExpanded && (
         <div className="border-t border-gray-200 bg-gray-50">
           <div className="p-2">
-            {/* Equipment Section */}
-            {soldier?.equipment && (
+            {/* Notes Section */}
+            {submission.notes && (
               <div className="mb-2 pb-2 border-b border-gray-200">
                 <div className="flex items-center gap-1 mb-1">
-                  <Shield className="w-3 h-3 text-purple-600" />
-                  <span className="text-xs font-bold text-gray-700">ציוד:</span>
+                  <MessageSquare className="w-3 h-3 text-blue-600" />
+                  <span className="text-xs font-bold text-gray-700">הערות:</span>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {soldier.equipment.vest && (
-                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
-                      ווסט
-                    </Badge>
-                  )}
-                  {soldier.equipment.helmet && (
-                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
-                      קסדה
-                    </Badge>
-                  )}
-                  {soldier.equipment.radio && (
-                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
-                      קשר
-                    </Badge>
-                  )}
-                  {soldier.equipment.weapon && (
-                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
-                      נשק
-                    </Badge>
-                  )}
-                  {!soldier.equipment.vest && !soldier.equipment.helmet && !soldier.equipment.radio && !soldier.equipment.weapon && (
-                    <span className="text-xs text-gray-400">לא דווח</span>
-                  )}
+                <div className="text-xs text-gray-600 italic bg-blue-50 p-2 rounded">
+                  {submission.notes}
                 </div>
               </div>
             )}

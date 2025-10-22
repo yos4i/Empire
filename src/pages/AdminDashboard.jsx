@@ -223,7 +223,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-lg font-bold text-purple-700">פתח/סגור הגשות</p>
-                <p className="text-sm text-purple-600">📅 ניהול שבועות להגשה</p>
+                <p className="text-sm text-purple-600"> ניהול שבועות להגשה</p>
               </div>
               <Calendar className="w-10 h-10 text-purple-600" />
             </div>
@@ -235,7 +235,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-lg font-bold text-green-700">העדפות משמרות</p>
-                <p className="text-sm text-green-600">👁️ צפייה בהעדפות החיילים</p>
+                <p className="text-sm text-green-600"> צפייה בהעדפות החיילים</p>
               </div>
               <Eye className="w-10 h-10 text-green-600" />
             </div>
@@ -247,7 +247,7 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-lg font-bold text-blue-700">ניהול סידור</p>
-                <p className="text-sm text-blue-600">📝 יצירת וניהול סידור</p>
+                <p className="text-sm text-blue-600"> יצירת וניהול סידור</p>
               </div>
               <FileText className="w-10 h-10 text-blue-600" />
             </div>

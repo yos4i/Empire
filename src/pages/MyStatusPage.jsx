@@ -1,18 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { User } from "../entities/User";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
-import { User as UserIcon, Shield, Save, AlertCircle, ArrowRight } from "lucide-react";
+import { User as UserIcon, Shield, Save, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { useAuth } from "../contexts/AuthContext";
 
 export default function MyStatusPage() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
   const [formData, setFormData] = useState({
     hebrew_name: "",
     personal_number: "",
@@ -91,18 +87,10 @@ export default function MyStatusPage() {
   const isNewUser = !formData.hebrew_name || !formData.personal_number || !formData.rank;
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen" dir="rtl">
-      <div className="max-w-2xl mx-auto">
+    <div className="p-4 sm:p-6 bg-gray-50 min-h-screen w-full overflow-x-hidden" dir="rtl">
+      <div className="max-w-2xl mx-auto w-full">
         <div className="mb-8">
-          <div className="relative flex items-center justify-center">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate(`/soldier/${user?.uid}`)}
-              className="absolute left-0"
-            >
-              <ArrowRight className="w-5 h-5" />
-            </Button>
+          <div className="flex items-center justify-center w-full">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{formData.hebrew_name || 'שלומי ממן'}</h1>
           </div>
         </div>
