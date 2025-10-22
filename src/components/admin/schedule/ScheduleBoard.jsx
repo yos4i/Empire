@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
@@ -17,9 +17,6 @@ const DAYS_HE = {
 export default function ScheduleBoard({ schedule, users, submissions, soldierShiftCounts, soldierNotes = {}, isPublished, isEditMode, onCancelShift, onShiftClick, onDragEnd, isMobile, onShiftSlotClick, selectedSoldierId, onEditShiftHours, dynamicShiftNames, missionFilter, shiftAssignments = [], onToggleLongShift }) {
   // Use dynamic shift names from Firestore if available, otherwise fall back to static
   const shiftNames = dynamicShiftNames || SHIFT_NAMES;
-
-  // State for showing soldier notes tooltip
-  const [hoveredSoldier, setHoveredSoldier] = useState(null);
 
   // Filter shifts by mission if missionFilter is provided
   const getFilteredShiftKeys = () => {
