@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { format, addDays, startOfWeek } from 'date-fns';
-import { Calendar, User, Clock3, ChevronLeft, ChevronRight, Loader2, AlertTriangle } from 'lucide-react';
+import { Calendar, User, Clock3, ChevronLeft, ChevronRight, Loader2, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
@@ -28,6 +28,7 @@ export default function WeeklyScheduleView({ soldierMission }) {
   const [users, setUsers] = useState({});
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedDays, setExpandedDays] = useState({});
 
   const weekStart = toWeekStartISO(selectedDate);
 
@@ -75,6 +76,13 @@ export default function WeeklyScheduleView({ soldierMission }) {
 
   const navigateWeek = (direction) => {
     setSelectedDate(prev => addDays(prev, direction * 7));
+  };
+
+  const toggleDayExpansion = (day) => {
+    setExpandedDays(prev => ({
+      ...prev,
+      [day]: !prev[day]
+    }));
   };
 
   const getShiftStatusColor = (shift) => {
@@ -360,14 +368,27 @@ export default function WeeklyScheduleView({ soldierMission }) {
 
               if (dayShifts.length === 0) return null;
 
+              const isExpanded = expandedDays[day];
+
               return (
                 <Card key={day}>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base font-bold text-gray-800">
-                      {DAYS_HE[day]}
-                    </CardTitle>
+                  <CardHeader
+                    className="pb-3 cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => toggleDayExpansion(day)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base font-bold text-gray-800">
+                        {DAYS_HE[day]}
+                      </CardTitle>
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5 text-gray-600" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-gray-600" />
+                      )}
+                    </div>
                   </CardHeader>
-                  <CardContent className="space-y-3 pt-0">
+                  {isExpanded && (
+                    <CardContent className="space-y-3 pt-0">
                     {dayShifts.map(shiftKey => {
                       const shift = schedule[day][shiftKey];
                       const assigned = shift.soldiers?.length || 0;
@@ -426,7 +447,38 @@ export default function WeeklyScheduleView({ soldierMission }) {
                           {/* Assigned Soldiers */}
                           {shift.soldiers && shift.soldiers.length > 0 ? (
                             <div className="space-y-2">
-                              {shift.soldiers.map((soldierId, index) => {
+                              {[...shift.soldiers]
+                                .sort((a, b) => {
+                                  const soldierA = users[a];
+                                  const soldierB = users[b];
+
+                                  if (!soldierA || !soldierB) return 0;
+
+                                  const nameA = soldierA.hebrew_name || soldierA.displayName || '';
+                                  const nameB = soldierB.hebrew_name || soldierB.displayName || '';
+
+                                  // Priority names to appear at top
+                                  const isPriorityA = nameA === 'עידן איזיקסון' || nameA === 'שלומי ממן';
+                                  const isPriorityB = nameB === 'עידן איזיקסון' || nameB === 'שלומי ממן';
+
+                                  // Long shift status
+                                  const hasLongShiftA = isLongShift(a, shiftKey, day);
+                                  const hasLongShiftB = isLongShift(b, shiftKey, day);
+
+                                  // Priority users first
+                                  if (isPriorityA && !isPriorityB) return -1;
+                                  if (!isPriorityA && isPriorityB) return 1;
+
+                                  // Long shifts last (only among non-priority)
+                                  if (!isPriorityA && !isPriorityB) {
+                                    if (!hasLongShiftA && hasLongShiftB) return -1;
+                                    if (hasLongShiftA && !hasLongShiftB) return 1;
+                                  }
+
+                                  // Otherwise maintain original order
+                                  return 0;
+                                })
+                                .map((soldierId, index) => {
                                 const soldier = users[soldierId];
                                 if (!soldier) return null;
 
@@ -461,7 +513,8 @@ export default function WeeklyScheduleView({ soldierMission }) {
                         </div>
                       );
                     })}
-                  </CardContent>
+                    </CardContent>
+                  )}
                 </Card>
               );
             })}
