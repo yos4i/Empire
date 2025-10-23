@@ -44,8 +44,9 @@ const SHIFTS_CONFIG = {
   ]
 };
 
-export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmissionOpen = true, weeklySchedule, soldierMission, longShiftDays = {} }) {
-  const nextWeekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmissionOpen = true, weeklySchedule, soldierMission, longShiftDays = {}, weekStart }) {
+  // Use the weekStart prop if provided, otherwise fall back to current week (for backwards compatibility)
+  const nextWeekStart = weekStart || startOfWeek(new Date(), { weekStartsOn: 0 });
   const [dynamicShiftsConfig, setDynamicShiftsConfig] = useState(SHIFTS_CONFIG);
   const [loading, setLoading] = useState(true);
 

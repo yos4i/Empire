@@ -431,32 +431,65 @@ export default function ScheduleManagementPage() {
       }
 
       console.log('✅ Soldier found:', soldier.hebrew_name);
+      console.log('📊 Soldier details:', {
+        id: soldier.id,
+        uid: soldier.uid,
+        soldierId_param: soldierId
+      });
+
+      // Use soldier.uid if available, otherwise use soldierId
+      const searchId = soldier.uid || soldierId;
+      console.log('🔑 Using searchId for query:', searchId);
 
       // Calculate the date for this day
       const dayDate = addDays(selectedWeekStart, DAYS.indexOf(day));
       const dateStr = format(dayDate, 'yyyy-MM-dd');
 
       console.log('⏰ Toggling long shift:', {
-        soldier_uid: soldier.uid,
+        soldier_uid: searchId,
         date: dateStr,
         shift: shiftKey,
-        isLong
+        isLong,
+        selectedWeekStart: selectedWeekStart.toISOString(),
+        dayIndex: DAYS.indexOf(day)
       });
 
       // Find and update the assignment
       console.log('🔍 Searching for assignment with:', {
-        soldier_id: soldier.uid,
+        soldier_id: searchId,
         date: dateStr,
         shift_type: shiftKey
       });
 
       const assignments = await ShiftAssignment.filter({
-        soldier_id: soldier.uid,
+        soldier_id: searchId,
         date: dateStr,
         shift_type: shiftKey
       });
 
       console.log('📋 Found assignments:', assignments.length, assignments);
+
+      // DEBUG: Let's also check what assignments exist for this soldier regardless of date/shift
+      const allSoldierAssignments = await ShiftAssignment.filter({
+        soldier_id: searchId
+      });
+      console.log('🔍 ALL assignments for this soldier:', allSoldierAssignments.length, allSoldierAssignments.map(a => ({
+        date: a.date,
+        shift: a.shift_type,
+        day: a.day_name,
+        week_start: a.week_start
+      })));
+
+      console.log('📅 Week comparison:', {
+        currentlyViewingWeek: nextWeekStartStr,
+        assignmentsFoundForWeeks: [...new Set(allSoldierAssignments.map(a => a.week_start))],
+        searchingForDate: dateStr,
+        assignmentDates: allSoldierAssignments.map(a => a.date)
+      });
+
+      // Check if soldier has ANY assignments for this week
+      const weekAssignments = allSoldierAssignments.filter(a => a.week_start === nextWeekStartStr);
+      console.log(`📊 Soldier has ${weekAssignments.length} assignments in week ${nextWeekStartStr}`);
 
       if (assignments.length > 0) {
         for (const assignment of assignments) {
@@ -479,9 +512,106 @@ export default function ScheduleManagementPage() {
 
         console.log('✅ Long shift status updated successfully');
       } else {
-        console.warn('⚠️ No assignment found to update');
-        console.warn('💡 This might mean the soldier was not published yet or assignment was deleted');
-        alert('לא נמצא שיבוץ לעדכון. אנא וודא שהחייל משובץ למשמרת.');
+        console.warn('⚠️ No assignment found - will try to create it first');
+
+        // Check if soldier is in the in-memory schedule for this shift
+        const soldierInSchedule = schedule[day]?.[shiftKey]?.soldiers?.includes(soldierId);
+
+        if (soldierInSchedule) {
+          console.log('💡 Soldier is in the schedule but not saved to DB yet - creating assignment first');
+
+          try {
+            // Get shift times from the schedule
+            const shiftData = schedule[day][shiftKey];
+            let startTime = '07:00';
+            let endTime = '13:30';
+
+            if (shiftData.customStartTime && shiftData.customEndTime) {
+              startTime = shiftData.customStartTime;
+              endTime = shiftData.customEndTime;
+            } else {
+              const shiftDisplayName = dynamicShiftNames[shiftKey] || SHIFT_NAMES[shiftKey] || '';
+              const timeMatch = shiftDisplayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
+              if (timeMatch) {
+                startTime = timeMatch[1];
+                endTime = timeMatch[2];
+              }
+            }
+
+            // Determine end time for long shifts
+            let longShiftEndTime = '15:30';
+            if (day === 'tuesday') {
+              longShiftEndTime = '16:15';
+            }
+
+            console.log('💾 Creating assignment before toggling long shift:', {
+              soldier_id: searchId,
+              date: dateStr,
+              shift_type: shiftKey,
+              isLongShift: isLong
+            });
+
+            // Create the assignment
+            await ShiftAssignment.create({
+              soldier_id: searchId,
+              soldier_name: soldier.hebrew_name || soldier.displayName || soldier.full_name,
+              date: dateStr,
+              day_name: day,
+              shift_type: shiftKey,
+              shift_name: dynamicShiftNames[shiftKey] || SHIFT_NAMES[shiftKey],
+              start_time: startTime,
+              end_time: isLong ? longShiftEndTime : endTime,
+              week_start: nextWeekStartStr,
+              status: 'assigned',
+              isLongShift: isLong
+            });
+
+            console.log('✅ Assignment created with isLongShift:', isLong);
+
+            // Reload assignments to update the UI
+            const weekEndDate = format(addDays(selectedWeekStart, 6), 'yyyy-MM-dd');
+            const updatedAssignments = await ShiftAssignment.filter({
+              start_date: nextWeekStartStr,
+              end_date: weekEndDate
+            });
+            setShiftAssignments(updatedAssignments);
+
+            console.log('✅ Long shift status set successfully on new assignment');
+          } catch (createError) {
+            console.error('❌ Failed to create assignment:', createError);
+            alert(`שגיאה ביצירת השיבוץ: ${createError.message}`);
+          }
+        } else {
+          // Soldier is not in the schedule at all
+          console.error('❌ No assignment found to update');
+          console.error('💡 Debugging info:');
+          console.error('   - Expected soldier_id:', searchId);
+          console.error('   - Expected date:', dateStr);
+          console.error('   - Expected shift_type:', shiftKey);
+          console.error('   - Currently viewing week:', nextWeekStartStr);
+          console.error('   - Total assignments for this soldier:', allSoldierAssignments.length);
+          console.error('   - Available dates for this soldier:', [...new Set(allSoldierAssignments.map(a => a.date))]);
+          console.error('   - Available shifts for this soldier:', [...new Set(allSoldierAssignments.map(a => a.shift_type))]);
+          console.error('   - Weeks with assignments:', [...new Set(allSoldierAssignments.map(a => a.week_start))]);
+
+          const weeksWithAssignments = [...new Set(allSoldierAssignments.map(a => a.week_start))];
+          const isWrongWeek = weeksWithAssignments.length > 0 && !weeksWithAssignments.includes(nextWeekStartStr);
+
+          alert(`לא נמצא שיבוץ לעדכון.
+
+פרטי חיפוש:
+- חייל: ${soldier.hebrew_name}
+- תאריך: ${dateStr}
+- משמרת: ${shiftKey}
+- שבוע נוכחי: ${nextWeekStartStr}
+
+${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWithAssignments.join(', ')} ולא לשבוע ${nextWeekStartStr}
+
+הסיבה: אתה מנסה לעדכן משמרת בשבוע שהחייל לא משובץ בו.
+יש להקליק על החץ כדי לעבור לשבוע הנכון או לשבץ את החייל לשבוע זה תחילה.` : `סה"כ שיבוצים לחייל זה: ${allSoldierAssignments.length}`}
+
+בדוק בקונסול לפרטים נוספים.`);
+        }
       }
     } catch (error) {
       console.error('❌ Error toggling long shift:', error);
@@ -895,9 +1025,21 @@ export default function ScheduleManagementPage() {
           longShiftEndTime = '16:15';
         }
 
+        // Use soldier.uid if available, otherwise use selectedSoldierId
+        const soldierIdToSave = soldier.uid || selectedSoldierId;
+
+        console.log('💾 Creating assignment with:', {
+          soldier_id: soldierIdToSave,
+          soldier_name: soldier.hebrew_name,
+          date: dateStr,
+          day_name: day,
+          shift_type: shiftKey,
+          isLongShift: isLongShift
+        });
+
         // Create assignment
         await ShiftAssignment.create({
-          soldier_id: soldier.uid,
+          soldier_id: soldierIdToSave,
           soldier_name: soldier.hebrew_name || soldier.displayName || soldier.full_name,
           date: dateStr,
           day_name: day,
@@ -910,11 +1052,12 @@ export default function ScheduleManagementPage() {
           isLongShift: isLongShift // Add isLongShift based on soldier's preference
         });
 
-        console.log('✅ ShiftAssignment created immediately with isLongShift:', isLongShift);
+        console.log('✅ ShiftAssignment created immediately with soldier_id:', soldierIdToSave, 'isLongShift:', isLongShift);
       } else if (actionType === 'remove') {
         // Delete assignment
+        const soldierIdToSearch = soldier.uid || selectedSoldierId;
         const assignments = await ShiftAssignment.filter({
-          soldier_id: soldier.uid,
+          soldier_id: soldierIdToSearch,
           date: dateStr,
           shift_type: shiftKey
         });

@@ -334,6 +334,7 @@ const handleSubmit = async () => {
                   weeklySchedule={weeklySchedule}
                   soldierMission={soldierMission}
                   longShiftDays={longShiftDays}
+                  weekStart={nextWeekStart}
                 />
 
                 {/* Soldier Notes Section */}

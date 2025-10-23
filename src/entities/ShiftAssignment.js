@@ -27,22 +27,15 @@ export class ShiftAssignment {
         console.log("📌 ShiftAssignment.filter: Added soldier_id filter:", filters.soldier_id);
       }
 
-      // For single exact date match (no range)
-      if (filters.date && !filters.start_date && !filters.end_date) {
+      // IMPORTANT: Only add ONE additional where clause to Firestore query
+      // Multiple where clauses require composite indexes which may not exist
+      // We'll filter the rest in JavaScript to avoid index requirements
+
+      // For single exact date match (no range) - only add if no shift_type and no status
+      // This prevents composite index requirements
+      if (filters.date && !filters.start_date && !filters.end_date && !filters.shift_type && !filters.status) {
         q = query(q, where('date', '==', filters.date));
         console.log("📌 ShiftAssignment.filter: Added exact date filter:", filters.date);
-      }
-
-      // For shift_type filter (only if no date range)
-      if (filters.shift_type && !filters.start_date && !filters.end_date) {
-        q = query(q, where('shift_type', '==', filters.shift_type));
-        console.log("📌 ShiftAssignment.filter: Added shift_type filter:", filters.shift_type);
-      }
-
-      // For status filter (only if no date range)
-      if (filters.status && !filters.start_date && !filters.end_date) {
-        q = query(q, where('status', '==', filters.status));
-        console.log("📌 ShiftAssignment.filter: Added status filter:", filters.status);
       }
 
       console.log("🔎 ShiftAssignment.filter: Executing Firestore query...");
@@ -54,6 +47,13 @@ export class ShiftAssignment {
         ...doc.data()
       }));
 
+      // Filter exact date in JavaScript if we have shift_type or status (to avoid composite index)
+      if (filters.date && !filters.start_date && !filters.end_date && (filters.shift_type || filters.status)) {
+        console.log("📅 ShiftAssignment.filter: Filtering exact date in JavaScript:", filters.date);
+        results = results.filter(assignment => assignment.date === filters.date);
+        console.log("📅 ShiftAssignment.filter: After date filter:", results.length, "documents");
+      }
+
       // Filter date range in JavaScript (to avoid needing composite index)
       if (filters.start_date && filters.end_date) {
         console.log("📅 ShiftAssignment.filter: Filtering date range in JavaScript:", filters.start_date, "to", filters.end_date);
@@ -64,14 +64,16 @@ export class ShiftAssignment {
         console.log("📅 ShiftAssignment.filter: After date filter:", results.length, "documents");
       }
 
-      // Filter by shift_type in JavaScript if we have date range
-      if (filters.shift_type && (filters.start_date || filters.end_date)) {
+      // Filter by shift_type in JavaScript (to avoid composite index)
+      if (filters.shift_type) {
+        console.log("📅 ShiftAssignment.filter: Filtering shift_type in JavaScript:", filters.shift_type);
         results = results.filter(assignment => assignment.shift_type === filters.shift_type);
         console.log("📅 ShiftAssignment.filter: After shift_type filter:", results.length, "documents");
       }
 
-      // Filter by status in JavaScript if we have date range
-      if (filters.status && (filters.start_date || filters.end_date)) {
+      // Filter by status in JavaScript (to avoid composite index)
+      if (filters.status) {
+        console.log("📅 ShiftAssignment.filter: Filtering status in JavaScript:", filters.status);
         results = results.filter(assignment => assignment.status === filters.status);
         console.log("📅 ShiftAssignment.filter: After status filter:", results.length, "documents");
       }
