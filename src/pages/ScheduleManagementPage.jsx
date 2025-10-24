@@ -77,6 +77,14 @@ export default function ScheduleManagementPage() {
           ...SHIFT_REQUIREMENTS[shiftKey]
         };
 
+        // Override requirements based on the day
+        if (shiftKey === 'גבולות_בוקר') {
+          shiftData.required = day === 'friday' ? 3 : 4;
+        }
+        if (shiftKey === 'קריית_חינוך_בוקר' && day === 'friday') {
+          shiftData.required = 12;
+        }
+
         // Add custom end times for morning shifts based on the day
         if (shiftKey.includes('בוקר')) {
           shiftData.customStartTime = '07:00';
@@ -164,7 +172,15 @@ export default function ScheduleManagementPage() {
             }
 
             const existingShiftData = loadedSchedule[day]?.[shiftKey] || {};
-            const latestRequirements = SHIFT_REQUIREMENTS[shiftKey];
+            const latestRequirements = { ...SHIFT_REQUIREMENTS[shiftKey] };
+
+            // Override requirements based on the day
+            if (shiftKey === 'גבולות_בוקר') {
+              latestRequirements.required = day === 'friday' ? 3 : 4;
+            }
+            if (shiftKey === 'קריית_חינוך_בוקר' && day === 'friday') {
+              latestRequirements.required = 12;
+            }
 
             updatedSchedule[day][shiftKey] = {
               ...latestRequirements,

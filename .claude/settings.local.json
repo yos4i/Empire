@@ -6,7 +6,14 @@
       "Bash(npm run build:*)",
       "Bash(git add:*)",
       "Bash(npx eslint:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(pkill:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill -9)",
+      "Bash(fuser:*)",
+      "Bash(netstat:*)",
+      "Bash(ss:*)",
+      "Bash(npm start)"
     ],
     "deny": [],
     "ask": []
