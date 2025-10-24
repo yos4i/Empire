@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { format, addDays, startOfWeek } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import {
   Calendar,
   Clock,
@@ -21,16 +21,15 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { SoldierApiService } from '../../services/soldierApi';
 import { useAuth } from '../../contexts/AuthContext';
-import { toWeekStartISO } from '../../utils/weekKey';
+import { toWeekStartISO, getDefaultWeekStart } from '../../utils/weekKey';
 
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const WEEKDAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
 
 export default function MyAssignments() {
   const { user } = useAuth();
-  const [selectedDate, setSelectedDate] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 0 })
-  );
+  // Auto-switch to next week on Fridays
+  const [selectedDate, setSelectedDate] = useState(() => getDefaultWeekStart());
   const [assignments, setAssignments] = useState([]);
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
@@ -237,10 +236,10 @@ export default function MyAssignments() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setSelectedDate(startOfWeek(new Date(), { weekStartsOn: 0 }))}
+              onClick={() => setSelectedDate(getDefaultWeekStart())}
               className="px-2 md:px-4 text-xs md:text-sm"
             >
-              השבוע הנוכחי
+              שבוע ברירת מחדל
             </Button>
 
             <Button

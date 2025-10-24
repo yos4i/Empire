@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { format, addDays, startOfWeek } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { Calendar, User, Clock3, ChevronLeft, ChevronRight, Loader2, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { WeeklySchedule } from '../../entities/WeeklySchedule';
 import { User as UserEntity } from '../../entities/User';
 import { ShiftAssignment } from '../../entities/ShiftAssignment';
-import { toWeekStartISO } from '../../utils/weekKey';
+import { toWeekStartISO, getDefaultWeekStart } from '../../utils/weekKey';
 import { DAYS, SHIFT_NAMES, SHIFT_TYPES_HE } from '../../config/shifts';
 
 const DAYS_HE = {
@@ -21,9 +21,8 @@ const DAYS_HE = {
 };
 
 export default function WeeklyScheduleView({ soldierMission }) {
-  const [selectedDate, setSelectedDate] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 0 })
-  );
+  // Auto-switch to next week on Fridays
+  const [selectedDate, setSelectedDate] = useState(() => getDefaultWeekStart());
   const [schedule, setSchedule] = useState(null);
   const [users, setUsers] = useState({});
   const [assignments, setAssignments] = useState([]);

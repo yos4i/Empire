@@ -1,15 +1,14 @@
 // src/services/adminApi.js
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  addDoc, 
-  updateDoc, 
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
   deleteDoc,
   doc,
   orderBy,
-  Timestamp 
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { format, parseISO, addDays } from 'date-fns';
@@ -20,10 +19,7 @@ export class AdminApiService {
   static async getShiftPreferences(weekStart) {
     try {
       console.log('AdminApiService: Fetching preferences for week:', weekStart);
-      
-      // Calculate week end date
-      const weekEnd = format(addDays(parseISO(weekStart), 6), 'yyyy-MM-dd');
-      
+
       // Query the shift_preferences collection
       const preferencesRef = collection(db, 'shift_preferences');
       const q = query(
@@ -236,7 +232,7 @@ export class AdminApiService {
             
             if (!isAssigned) {
               try {
-                const result = await this.assignShift({
+                await this.assignShift({
                   soldierId: pref.soldier_id,
                   date: shiftDate,
                   shiftType: shift,

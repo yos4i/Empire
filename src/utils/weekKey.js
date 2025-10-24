@@ -37,3 +37,29 @@ export function getNextWeekStart() {
 export function getCurrentWeekStart() {
   return toWeekStartISO(new Date());
 }
+
+/**
+ * Get default week start for soldier views
+ * On Friday (day 5), automatically shows next week
+ * Otherwise shows current week
+ * @returns {Date} Week start date object
+ */
+export function getDefaultWeekStart() {
+  const today = new Date();
+  const dayOfWeek = today.getDay(); // 0=Sunday, 5=Friday
+
+  // If it's Friday (5), show next week
+  if (dayOfWeek === 5) {
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+    // Get the Sunday of next week
+    const nextWeekSunday = new Date(nextWeek);
+    nextWeekSunday.setDate(nextWeek.getDate() - nextWeek.getDay());
+    return nextWeekSunday;
+  }
+
+  // Otherwise, show current week (Sunday)
+  const currentWeekSunday = new Date(today);
+  currentWeekSunday.setDate(today.getDate() - today.getDay());
+  return currentWeekSunday;
+}

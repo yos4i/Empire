@@ -9,7 +9,6 @@ import { ShiftDefinition } from '../entities/ShiftDefinition';
 
 // Simple test framework for browser
 const createTestRunner = () => {
-  const tests = [];
   const results = [];
 
   const expect = (actual) => ({
