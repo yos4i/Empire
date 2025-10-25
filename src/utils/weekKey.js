@@ -40,25 +40,46 @@ export function getCurrentWeekStart() {
 
 /**
  * Get default week start for soldier views
- * On Friday (day 5), automatically shows next week
- * Otherwise shows current week
+ * From Friday 7:00 AM onwards through the weekend, shows next week
+ *
+ * Week structure: Sunday - Saturday
+ *
+ * Example timeline (assuming week of Jan 1-7 is Sun-Sat):
+ * - Sunday Jan 1: Shows week Jan 1-7 (current week)
+ * - Monday Jan 2: Shows week Jan 1-7 (current week)
+ * - Thursday Jan 5: Shows week Jan 1-7 (current week)
+ * - Friday Jan 6 at 6:59 AM: Shows week Jan 1-7 (current week)
+ * - Friday Jan 6 at 7:00 AM: Shows week Jan 8-14 (next week) ✅
+ * - Saturday Jan 7: Shows week Jan 8-14 (next week)
+ * - Sunday Jan 8: Shows week Jan 8-14 (current week - new week started)
+ * - Thursday Jan 12: Shows week Jan 8-14 (current week)
+ * - Friday Jan 13 at 7:00 AM: Shows week Jan 15-21 (next week) ✅
+ *
  * @returns {Date} Week start date object
  */
 export function getDefaultWeekStart() {
   const today = new Date();
-  const dayOfWeek = today.getDay(); // 0=Sunday, 5=Friday
+  const dayOfWeek = today.getDay(); // 0=Sunday, 1=Monday, ..., 5=Friday, 6=Saturday
+  const currentHour = today.getHours(); // 0-23
 
-  // If it's Friday (5), show next week
-  if (dayOfWeek === 5) {
-    const nextWeek = new Date(today);
-    nextWeek.setDate(today.getDate() + 7);
-    // Get the Sunday of next week
-    const nextWeekSunday = new Date(nextWeek);
-    nextWeekSunday.setDate(nextWeek.getDate() - nextWeek.getDay());
+  // Check if we're in the "show next week" window:
+  // Friday 7 AM onwards OR Saturday (but not Sunday, that's the start of the new week)
+  const shouldShowNextWeek =
+    (dayOfWeek === 5 && currentHour >= 7) || // Friday 7 AM or later
+    (dayOfWeek === 6); // Saturday
+
+  if (shouldShowNextWeek) {
+    // Show next week's Sunday (7 days from current week's Sunday)
+    const currentWeekSunday = new Date(today);
+    currentWeekSunday.setDate(today.getDate() - today.getDay());
+
+    const nextWeekSunday = new Date(currentWeekSunday);
+    nextWeekSunday.setDate(currentWeekSunday.getDate() + 7);
+
     return nextWeekSunday;
   }
 
-  // Otherwise, show current week (Sunday)
+  // Otherwise, show current week (this week's Sunday)
   const currentWeekSunday = new Date(today);
   currentWeekSunday.setDate(today.getDate() - today.getDay());
   return currentWeekSunday;
