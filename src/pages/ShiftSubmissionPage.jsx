@@ -9,8 +9,8 @@ import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import ShiftSelectionGrid from "../components/soldier/ShiftSelectionGrid";
 import SubmissionRules from "../components/soldier/SubmissionRules";
-import { startOfWeek, addDays, addWeeks, format } from "date-fns";
-import { toWeekStartISO } from '../utils/weekKey';
+import { addDays, addWeeks, format } from "date-fns";
+import { toWeekStartISO, getDefaultWeekStart } from '../utils/weekKey';
 import { DAYS } from "../config/shifts";
 import { useAuth } from "../contexts/AuthContext";
 import { ShiftSubmissionService } from '../services/shiftSubmission';
@@ -46,7 +46,7 @@ export default function ShiftSubmissionPage() {
     }
   }, [user, soldierId, navigate]);
 
-  const nextWeekStart = addWeeks(startOfWeek(new Date(), { weekStartsOn: 0 }), weekOffset);
+  const nextWeekStart = addWeeks(getDefaultWeekStart(), weekOffset);
   const nextWeekStartStr = toWeekStartISO(nextWeekStart);
 
   const loadData = useCallback(async () => {

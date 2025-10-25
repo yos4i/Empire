@@ -4,8 +4,8 @@ import { User } from '../entities/User';
 import { ShiftSubmission } from '../entities/ShiftSubmission';
 import { WeeklySchedule } from '../entities/WeeklySchedule';
 import { ShiftAssignment } from '../entities/ShiftAssignment';
-import { format, addDays, startOfWeek, addWeeks } from 'date-fns';
-import { toWeekStartISO } from '../utils/weekKey';
+import { format, addDays, addWeeks } from 'date-fns';
+import { toWeekStartISO, getDefaultWeekStart } from '../utils/weekKey';
 import { Calendar, Home, Users, Trash2, Edit2, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import ScheduleBoard from '../components/admin/schedule/ScheduleBoard';
@@ -55,7 +55,7 @@ export default function ScheduleManagementPage() {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [dialogShift, setDialogShift] = useState(null);
 
-  const selectedWeekStart = addWeeks(startOfWeek(new Date(), { weekStartsOn: 0 }), weekOffset);
+  const selectedWeekStart = addWeeks(getDefaultWeekStart(), weekOffset);
   const nextWeekStart = selectedWeekStart; // For backwards compatibility
   const nextWeekStartStr = toWeekStartISO(selectedWeekStart);
 

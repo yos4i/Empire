@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format, addDays, startOfWeek } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { ChevronLeft, ChevronRight, Calendar, Eye, Search, Filter, Users, Home } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -9,6 +9,7 @@ import { Badge } from '../components/ui/badge';
 import { User } from '../entities/User';
 import { ShiftSubmission } from '../entities/ShiftSubmission';
 import { DAYS, SHIFT_NAMES } from '../config/shifts';
+import { getDefaultWeekStart } from '../utils/weekKey';
 
 const DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי"];
 
@@ -19,7 +20,7 @@ export default function ShiftPreferencesPage() {
   const [soldierNotes, setSoldierNotes] = useState({}); // Store soldier notes by user ID
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedWeek, setSelectedWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 0 }));
+  const [selectedWeek, setSelectedWeek] = useState(() => getDefaultWeekStart());
   const [filterUnit, setFilterUnit] = useState("הכל");
 
   const selectedWeekStr = format(selectedWeek, 'yyyy-MM-dd');
@@ -197,9 +198,9 @@ export default function ShiftPreferencesPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setSelectedWeek(startOfWeek(new Date(), { weekStartsOn: 0 }))}
+                  onClick={() => setSelectedWeek(getDefaultWeekStart())}
                 >
-                  השבוע הנוכחי
+                  שבוע ברירת מחדל
                 </Button>
                 <Button 
                   variant="outline" 
