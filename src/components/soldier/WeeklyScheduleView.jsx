@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { WeeklySchedule } from '../../entities/WeeklySchedule';
 import { User as UserEntity } from '../../entities/User';
 import { ShiftAssignment } from '../../entities/ShiftAssignment';
-import { toWeekStartISO, getDefaultWeekStart } from '../../utils/weekKey';
+import { toWeekStartISO, getDefaultWeekStart, getLongShiftEndTime } from '../../utils/weekKey';
 import { DAYS, SHIFT_NAMES, SHIFT_TYPES_HE } from '../../config/shifts';
 
 const DAYS_HE = {
@@ -338,7 +338,7 @@ export default function WeeklyScheduleView({ soldierMission }) {
                                   {hasLongShift && (
                                     <Badge className="bg-amber-100 text-amber-800 text-[10px] px-1 py-0 flex items-center gap-0.5">
                                       <Clock3 className="w-2.5 h-2.5" />
-                                      15:30
+                                      {getLongShiftEndTime(day)}
                                     </Badge>
                                   )}
                                 </div>
@@ -511,7 +511,7 @@ export default function WeeklyScheduleView({ soldierMission }) {
                                     {hasLongShift && (
                                       <Badge className="bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 flex items-center gap-1">
                                         <Clock3 className="w-3 h-3" />
-                                        עד 15:30
+                                        עד {getLongShiftEndTime(day)}
                                       </Badge>
                                     )}
                                   </div>

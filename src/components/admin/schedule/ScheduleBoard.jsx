@@ -4,6 +4,7 @@ import { Button } from "../../ui/button";
 import { Badge } from "../../ui/badge";
 import { User, Clock, AlertTriangle, X, Users as UsersIcon, ArrowLeftRight, Clock3, MessageSquare } from 'lucide-react';
 import { DAYS, SHIFT_NAMES, SHIFT_TYPES_HE } from '../../../config/shifts';
+import { getLongShiftEndTime } from '../../../utils/weekKey';
 
 const DAYS_HE = {
   sunday: 'ראשון',
@@ -106,15 +107,15 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
       <div
         key={`${soldierId}-${day}-${shiftKey}`}
         className={`
-          p-2 mb-2 rounded border text-sm transition-all shadow-sm
+          p-2 mb-2 rounded border text-xs transition-all shadow-sm
           ${hasSwapRequest ? 'bg-orange-50 border-orange-300' : isOverworked ? 'bg-red-100 border-red-300' : isLongShift ? 'bg-amber-50 border-amber-300 border-l-4' : 'bg-white border-gray-200'}
           ${!isPublished ? 'hover:shadow-md' : ''}
         `}
       >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <User className="w-3 h-3 text-gray-500" />
-                <span className="font-medium text-gray-900">{soldier.hebrew_name}</span>
+            <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center gap-1 min-w-0 flex-1">
+                <User className="w-3 h-3 text-gray-500 flex-shrink-0" />
+                <span className="font-medium text-gray-900 truncate">{soldier.hebrew_name}</span>
                 {hasNotes && (
                   <button
                     onClick={(e) => {
@@ -128,16 +129,16 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-shrink-0">
                 {isLongShift && (
-                  <Badge className="bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 flex items-center gap-1">
-                    <Clock3 className="w-3 h-3" />
-                    עד 15:30
+                  <Badge className="bg-amber-100 text-amber-800 text-[10px] px-1 py-0 flex items-center gap-0.5">
+                    <Clock3 className="w-2.5 h-2.5" />
+                    {getLongShiftEndTime(day)}
                   </Badge>
                 )}
                 {hasSwapRequest && (
-                  <Badge className="bg-orange-100 text-orange-800 text-xs px-1.5 py-0.5 flex items-center gap-1">
-                    <ArrowLeftRight className="w-3 h-3" />
+                  <Badge className="bg-orange-100 text-orange-800 text-[10px] px-1 py-0 flex items-center gap-0.5">
+                    <ArrowLeftRight className="w-2.5 h-2.5" />
                     החלפה
                   </Badge>
                 )}
@@ -333,9 +334,9 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
         <CardContent className="p-0 flex-1 overflow-auto">
           {/* Desktop Grid Layout */}
           <div className="hidden md:block h-full">
-            <div className="min-w-[1200px] pb-4">
+            <div className="min-w-[1400px] pb-4">
               {/* Header Row - Days as columns */}
-              <div className="grid gap-2 p-4 bg-gray-50 border-b sticky top-0 z-10" style={{ gridTemplateColumns: '200px repeat(6, 1fr)' }}>
+              <div className="grid gap-2 p-4 bg-gray-50 border-b sticky top-0 z-10" style={{ gridTemplateColumns: '180px repeat(6, minmax(180px, 1fr))' }}>
                 <div className="font-semibold text-center text-gray-700">סוג משמרת</div>
                 {DAYS.map(day => (
                   <div key={day} className="font-semibold text-center text-gray-700">
@@ -346,11 +347,11 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
 
               {/* Schedule Grid - Each row is a shift type */}
               {filteredShiftKeys.map(shiftKey => (
-                <div key={shiftKey} className="grid gap-2 p-4 border-b" style={{ gridTemplateColumns: '200px repeat(6, 1fr)' }}>
+                <div key={shiftKey} className="grid gap-2 p-4 border-b" style={{ gridTemplateColumns: '180px repeat(6, minmax(180px, 1fr))' }}>
                   {/* Shift Type Header */}
-                  <div className="flex items-center justify-center bg-purple-100 border-2 border-purple-300 rounded-lg p-4">
+                  <div className="flex items-center justify-center bg-purple-100 border-2 border-purple-300 rounded-lg p-3">
                     <div className="text-center">
-                      <span className="font-bold text-lg text-purple-900 block">
+                      <span className="font-bold text-sm text-purple-900 block leading-tight">
                         {SHIFT_TYPES_HE[shiftKey]?.name || shiftKey}
                       </span>
                     </div>
@@ -358,10 +359,10 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
 
                   {/* Day Cells for this shift */}
                   {DAYS.map(day => (
-                    <div key={`${day}-${shiftKey}`}>
+                    <div key={`${day}-${shiftKey}`} className="min-w-0">
                       {schedule[day]?.[shiftKey] ?
                         renderShiftCell(day, shiftKey, schedule[day][shiftKey]) :
-                        <div className="min-h-[200px] bg-gray-100 rounded-lg flex items-center justify-center">
+                        <div className="min-h-[180px] bg-gray-100 rounded-lg flex items-center justify-center">
                           <span className="text-gray-400 text-sm">לא זמין</span>
                         </div>
                       }

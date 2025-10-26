@@ -5,7 +5,7 @@ import { ShiftSubmission } from '../entities/ShiftSubmission';
 import { WeeklySchedule } from '../entities/WeeklySchedule';
 import { ShiftAssignment } from '../entities/ShiftAssignment';
 import { format, addDays, addWeeks } from 'date-fns';
-import { toWeekStartISO, getDefaultWeekStart } from '../utils/weekKey';
+import { toWeekStartISO, getDefaultWeekStart, getLongShiftEndTime } from '../utils/weekKey';
 import { Calendar, Home, Users, Trash2, Edit2, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import ScheduleBoard from '../components/admin/schedule/ScheduleBoard';
@@ -554,11 +554,8 @@ export default function ScheduleManagementPage() {
               }
             }
 
-            // Determine end time for long shifts
-            let longShiftEndTime = '15:30';
-            if (day === 'tuesday') {
-              longShiftEndTime = '16:15';
-            }
+            // Determine end time for long shifts (16:15 for Tuesday, 15:30 for others)
+            const longShiftEndTime = getLongShiftEndTime(day);
 
             console.log('💾 Creating assignment before toggling long shift:', {
               soldier_id: searchId,
@@ -756,11 +753,8 @@ ${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWit
                   isLongShift
                 });
 
-                // Determine end time for long shifts
-                let longShiftEndTime = '15:30';
-                if (isLongShift && day === 'tuesday') {
-                  longShiftEndTime = '16:15';
-                }
+                // Determine end time for long shifts (16:15 for Tuesday, 15:30 for others)
+                const longShiftEndTime = getLongShiftEndTime(day);
 
                 assignments.push({
                   soldier_id: soldier.uid,  // ✅ FIXED: Use Auth UID, not Firestore doc ID
@@ -1035,11 +1029,8 @@ ${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWit
           isLongShift
         });
 
-        // Determine end time for long shifts
-        let longShiftEndTime = '15:30';
-        if (isLongShift && day === 'tuesday') {
-          longShiftEndTime = '16:15';
-        }
+        // Determine end time for long shifts (16:15 for Tuesday, 15:30 for others)
+        const longShiftEndTime = getLongShiftEndTime(day);
 
         // Use soldier.uid if available, otherwise use selectedSoldierId
         const soldierIdToSave = soldier.uid || selectedSoldierId;
@@ -1228,54 +1219,61 @@ ${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWit
                 selectedSoldierId={selectedSoldierId}
             />
             <div className="flex-grow p-4 md:p-6 flex flex-col overflow-hidden">
-                <div className="relative flex items-center justify-center mb-4 flex-shrink-0">
+                {/* Header with Home Button */}
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
                     <Button
                         variant="outline"
                         size="icon"
                         onClick={() => navigate('/admin')}
-                        className="absolute left-0"
                     >
                         <Home className="w-5 h-5"/>
                     </Button>
-
-                    <div className="text-center">
-                        <div className="flex items-center gap-3 justify-center">
-                            <Calendar className="w-8 h-8 text-blue-600"/>
-                            <div>
-                                <h1 className="text-2xl md:text-3xl font-bold text-black">ניהול סידור עבודה</h1>
-                                <div className="flex items-center gap-2 justify-center">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setWeekOffset(weekOffset - 1)}
-                                        className="h-8 w-8 p-0"
-                                    >
-                                        <ChevronRight className="w-4 h-4"/>
-                                    </Button>
-                                    <p className="text-gray-600 min-w-[150px] text-center">שבוע מתאריך: {format(selectedWeekStart, 'dd/MM/yyyy')}</p>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setWeekOffset(weekOffset + 1)}
-                                        className="h-8 w-8 p-0"
-                                    >
-                                        <ChevronLeft className="w-4 h-4"/>
-                                    </Button>
-                                </div>
-                                {saveStatus && (
-                                    <p className={`text-sm mt-1 ${saveStatus.includes('✅') ? 'text-green-600' : saveStatus.includes('❌') ? 'text-red-600' : 'text-blue-600'}`}>
-                                        {saveStatus}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
+                    <div className="flex items-center gap-3">
+                        <Calendar className="w-6 h-6 text-blue-600"/>
+                        <h1 className="text-xl md:text-2xl font-bold text-black">ניהול סידור עבודה</h1>
                     </div>
+                    <div className="w-10"></div> {/* Spacer for balance */}
+                </div>
 
-                    <div className="flex gap-2 items-center flex-wrap">
+                {/* Week Navigation */}
+                <div className="flex items-center gap-2 justify-center mb-4 flex-shrink-0">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWeekOffset(weekOffset - 1)}
+                        className="h-8 w-8 p-0"
+                    >
+                        <ChevronRight className="w-4 h-4"/>
+                    </Button>
+                    <p className="text-gray-600 min-w-[150px] text-center text-sm">שבוע מתאריך: {format(selectedWeekStart, 'dd/MM/yyyy')}</p>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setWeekOffset(weekOffset + 1)}
+                        className="h-8 w-8 p-0"
+                    >
+                        <ChevronLeft className="w-4 h-4"/>
+                    </Button>
+                </div>
+
+                {/* Save Status */}
+                {saveStatus && (
+                    <div className="text-center mb-2 flex-shrink-0">
+                        <p className={`text-sm ${saveStatus.includes('✅') ? 'text-green-600' : saveStatus.includes('❌') ? 'text-red-600' : 'text-blue-600'}`}>
+                            {saveStatus}
+                        </p>
+                    </div>
+                )}
+
+                {/* Action Buttons - Organized in rows */}
+                <div className="mb-4 flex-shrink-0 space-y-2">
+                    {/* Primary Actions */}
+                    <div className="flex gap-2 items-center justify-center flex-wrap">
                         <Button
                             variant={isEditMode ? "default" : "outline"}
                             onClick={() => setIsEditMode(!isEditMode)}
                             disabled={saving}
+                            size="sm"
                             className={isEditMode ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}
                         >
                             <Edit2 className="w-4 h-4 ml-2"/>{isEditMode ? "סיום עריכה" : "ערוך"}
@@ -1284,14 +1282,49 @@ ${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWit
                             variant="default"
                             onClick={handleManualSave}
                             disabled={saving}
+                            size="sm"
                             className="bg-green-600 hover:bg-green-700 text-white"
                         >
                             <Save className="w-4 h-4 ml-2"/>שמור סידור
                         </Button>
-                        <Button variant="outline" onClick={handleRemoveTuesdayFridayEveningShifts} disabled={saving} className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"><Trash2 className="w-4 h-4 ml-2"/>מחק ערב שלישי/שישי</Button>
-                        <Button variant="outline" onClick={handleClearAllAssignments} disabled={saving} className="border-red-300 text-red-600 hover:bg-red-50"><Trash2 className="w-4 h-4 ml-2"/>נקה שיבוצים</Button>
-                        <Button variant="outline" onClick={handleResetShiftData} disabled={saving} className="border-orange-300 text-orange-600 hover:bg-orange-50"><Trash2 className="w-4 h-4 ml-2"/>אפס הגדרות משמרות</Button>
-                        <Button onClick={handlePublishToSoldiers} disabled={saving} className="bg-purple-600 hover:bg-purple-700 text-white"><Users className="w-4 h-4 ml-2"/>פרסם לחיילים</Button>
+                        <Button
+                            onClick={handlePublishToSoldiers}
+                            disabled={saving}
+                            size="sm"
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                            <Users className="w-4 h-4 ml-2"/>פרסם לחיילים
+                        </Button>
+                    </div>
+                    {/* Destructive Actions */}
+                    <div className="flex gap-2 items-center justify-center flex-wrap">
+                        <Button
+                            variant="outline"
+                            onClick={handleRemoveTuesdayFridayEveningShifts}
+                            disabled={saving}
+                            size="sm"
+                            className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"
+                        >
+                            <Trash2 className="w-4 h-4 ml-2"/>מחק ערב שלישי/שישי
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={handleClearAllAssignments}
+                            disabled={saving}
+                            size="sm"
+                            className="border-red-300 text-red-600 hover:bg-red-50"
+                        >
+                            <Trash2 className="w-4 h-4 ml-2"/>נקה שיבוצים
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={handleResetShiftData}
+                            disabled={saving}
+                            size="sm"
+                            className="border-orange-300 text-orange-600 hover:bg-orange-50"
+                        >
+                            <Trash2 className="w-4 h-4 ml-2"/>אפס הגדרות משמרות
+                        </Button>
                     </div>
                 </div>
 

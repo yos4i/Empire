@@ -84,3 +84,15 @@ export function getDefaultWeekStart() {
   currentWeekSunday.setDate(today.getDate() - today.getDay());
   return currentWeekSunday;
 }
+
+/**
+ * Get the end time for a long shift based on the day
+ * Tuesday long shifts end at 16:15
+ * All other days end at 15:30
+ *
+ * @param {string} day - Day name (e.g., "tuesday", "monday")
+ * @returns {string} End time in HH:MM format
+ */
+export function getLongShiftEndTime(day) {
+  return day === 'tuesday' ? '16:15' : '15:30';
+}

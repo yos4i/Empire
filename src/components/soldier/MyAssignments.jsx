@@ -21,7 +21,7 @@ import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { SoldierApiService } from '../../services/soldierApi';
 import { useAuth } from '../../contexts/AuthContext';
-import { toWeekStartISO, getDefaultWeekStart } from '../../utils/weekKey';
+import { toWeekStartISO, getDefaultWeekStart, getLongShiftEndTime } from '../../utils/weekKey';
 
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const WEEKDAYS_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
@@ -362,7 +362,7 @@ export default function MyAssignments() {
                               {assignment.isLongShift && (
                                 <Badge className="bg-amber-100 text-amber-800 text-[10px] md:text-xs px-1.5 py-0.5 flex items-center gap-1">
                                   <Clock3 className="w-3 h-3" />
-                                  עד 15:30
+                                  עד {getLongShiftEndTime(day)}
                                 </Badge>
                               )}
                             </div>
@@ -370,7 +370,7 @@ export default function MyAssignments() {
                             <div className="flex items-center gap-1 text-xs font-semibold text-gray-700">
                               <Clock className="w-3 h-3 md:w-3.5 md:h-3.5" />
                               <span className="text-[11px] md:text-xs">
-                                {assignment.start_time} - {assignment.isLongShift ? '15:30' : assignment.end_time}
+                                {assignment.start_time} - {assignment.isLongShift ? getLongShiftEndTime(day) : assignment.end_time}
                               </span>
                             </div>
 
