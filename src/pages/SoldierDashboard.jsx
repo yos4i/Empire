@@ -2,10 +2,12 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
-import { Calendar, ClipboardList, LogOut, User, Shield } from "lucide-react";
+import { Calendar, ClipboardList, LogOut, User, Shield, X } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import WeeklyScheduleView from "../components/soldier/WeeklyScheduleView";
 import { User as UserEntity } from "../entities/User";
+import { Textarea } from "../components/ui/textarea";
+import { Label } from "../components/ui/label";
 
 export default function SoldierDashboard() {
   const { user, signOut } = useAuth();
@@ -15,6 +17,8 @@ export default function SoldierDashboard() {
   const [onStandby, setOnStandby] = useState(false);
   const [updatingStandby, setUpdatingStandby] = useState(false);
   const [hebrewName, setHebrewName] = useState(user?.hebrew_name || user?.displayName);
+  const [showStandbyDialog, setShowStandbyDialog] = useState(false);
+  const [standbyReason, setStandbyReason] = useState('');
 
   // Security check: Ensure the soldier can only access their own dashboard
   useEffect(() => {
@@ -64,18 +68,50 @@ export default function SoldierDashboard() {
     }
   }, [user]);
 
-  const toggleStandby = async () => {
+  const handleStandbyClick = () => {
+    // If turning OFF standby, show dialog to ask for reason
+    if (onStandby) {
+      setShowStandbyDialog(true);
+    } else {
+      // If turning ON standby, just toggle without asking
+      toggleStandby(true, '');
+    }
+  };
+
+  const toggleStandby = async (newStatus, reason = '') => {
     setUpdatingStandby(true);
     try {
-      const newStandbyStatus = !onStandby;
-      await UserEntity.updateMyUserData({ on_standby: newStandbyStatus });
-      setOnStandby(newStandbyStatus);
+      const updateData = {
+        on_standby: newStatus,
+        standby_reason: reason || null,
+        standby_updated_at: new Date().toISOString()
+      };
+
+      console.log('🔍 SoldierDashboard - Sending standby update:', updateData);
+      console.log('🔍 SoldierDashboard - Reason value:', reason);
+      console.log('🔍 SoldierDashboard - Reason truthy?', !!reason);
+
+      await UserEntity.updateMyUserData(updateData);
+
+      console.log('✅ SoldierDashboard - Update completed successfully');
+
+      setOnStandby(newStatus);
+      setShowStandbyDialog(false);
+      setStandbyReason('');
     } catch (error) {
-      console.error('Error updating standby status:', error);
+      console.error('❌ SoldierDashboard - Error updating standby status:', error);
       alert('שגיאה בעדכון מצב כוננות');
     } finally {
       setUpdatingStandby(false);
     }
+  };
+
+  const handleConfirmStandbyOff = () => {
+    if (!standbyReason.trim()) {
+      alert('נא להזין סיבה');
+      return;
+    }
+    toggleStandby(false, standbyReason);
   };
 
   const handleLogout = async () => {
@@ -100,7 +136,7 @@ export default function SoldierDashboard() {
           {/* Standby Toggle Button */}
           <div className="flex justify-center">
             <Button
-              onClick={toggleStandby}
+              onClick={handleStandbyClick}
               disabled={updatingStandby}
               size="lg"
               className={`
@@ -183,6 +219,68 @@ export default function SoldierDashboard() {
           </Card>
         </div>
       </div>
+
+      {/* Standby Reason Dialog */}
+      {showStandbyDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowStandbyDialog(false)}>
+          <Card className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-red-600" />
+                  ביטול כוננות
+                </CardTitle>
+                <button
+                  onClick={() => setShowStandbyDialog(false)}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-gray-600">
+                אתה עומד לבטל את מצב הכוננות. נא להסביר את הסיבה (למשל: חופשה, מילואים, וכו')
+              </p>
+
+              <div className="space-y-2">
+                <Label htmlFor="standby-reason" className="text-sm font-semibold">
+                  סיבת ביטול הכוננות <span className="text-red-500">*</span>
+                </Label>
+                <Textarea
+                  id="standby-reason"
+                  value={standbyReason}
+                  onChange={(e) => setStandbyReason(e.target.value)}
+                  placeholder="לדוגמה: אני בחופשה עד תאריך 15/11..."
+                  rows={4}
+                  className="resize-none"
+                />
+                <p className="text-xs text-gray-500">
+                  הסיבה תועבר למנהל ותוצג בדשבורד
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2">
+                <Button
+                  onClick={handleConfirmStandbyOff}
+                  disabled={!standbyReason.trim() || updatingStandby}
+                  className="flex-1 bg-red-600 hover:bg-red-700"
+                >
+                  {updatingStandby ? 'מעדכן...' : 'אשר ביטול כוננות'}
+                </Button>
+                <Button
+                  onClick={() => setShowStandbyDialog(false)}
+                  variant="outline"
+                  disabled={updatingStandby}
+                >
+                  ביטול
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

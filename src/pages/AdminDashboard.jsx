@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Shield, FileText, Search, LogOut, Plus, Eye, ArrowLeftRight, Calendar } from "lucide-react";
-import { Card } from "../components/ui/card";
+import { Users, Shield, FileText, Search, LogOut, Plus, Eye, ArrowLeftRight, Calendar, X, Clock } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
 import { useAuth } from "../contexts/AuthContext";
 import AddSoldierDialog from "../components/admin/AddSoldierDialog";
 import SoldierDetailsDialog from "../components/admin/SoldierDetailsDialog";
@@ -12,6 +13,7 @@ import SubmissionWindowsDialog from "../components/admin/SubmissionWindowsDialog
 import { db } from "../config/firebase";
 import { collection, getDocs } from "firebase/firestore";
 import { ShiftAssignment } from "../entities/ShiftAssignment";
+import { format } from "date-fns";
 
 export default function AdminDashboard() {
   const { signOut, addSoldier, deleteSoldier } = useAuth();
@@ -30,6 +32,7 @@ export default function AdminDashboard() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showExchangeRequestsDialog, setShowExchangeRequestsDialog] = useState(false);
   const [showSubmissionWindowsDialog, setShowSubmissionWindowsDialog] = useState(false);
+  const [showStandbyReasonsDialog, setShowStandbyReasonsDialog] = useState(false);
   const [exchangeRequests, setExchangeRequests] = useState([]);
 
   useEffect(() => {
@@ -72,6 +75,8 @@ export default function AdminDashboard() {
               is_driver: data.is_driver,
               equipment: data.equipment,
               on_standby: data.on_standby || false,
+              standby_reason: data.standby_reason || null,
+              standby_updated_at: data.standby_updated_at || null,
               created_at: data.created_at,
               updated_at: data.updated_at
             };
@@ -195,11 +200,15 @@ export default function AdminDashboard() {
               <Shield className="w-8 h-8 text-green-500" />
             </div>
           </Card>
-          <Card className="p-4 bg-red-50 border-red-200">
+          <Card
+            className="p-4 bg-red-50 border-red-200 cursor-pointer hover:shadow-lg transition-all"
+            onClick={() => setShowStandbyReasonsDialog(true)}
+          >
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">לא בכוננות</p>
                 <p className="text-2xl font-bold text-red-600">{soldiers.filter(s => !s.on_standby).length}</p>
+                <p className="text-xs text-gray-500 mt-1">לחץ לצפייה בסיבות</p>
               </div>
               <Shield className="w-8 h-8 text-red-500" />
             </div>
@@ -385,6 +394,78 @@ export default function AdminDashboard() {
           isOpen={showSubmissionWindowsDialog}
           onClose={() => setShowSubmissionWindowsDialog(false)}
         />
+
+        {/* Standby Reasons Dialog */}
+        {showStandbyReasonsDialog && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setShowStandbyReasonsDialog(false)}>
+            <Card className="w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <CardHeader className="pb-3 border-b">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-red-600" />
+                    חיילים לא בכוננות - סיבות
+                  </CardTitle>
+                  <button
+                    onClick={() => setShowStandbyReasonsDialog(false)}
+                    className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-auto p-4">
+                {soldiers.filter(s => !s.on_standby).length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Shield className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>כל החיילים בכוננות</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {soldiers
+                      .filter(s => !s.on_standby)
+                      .sort((a, b) => {
+                        // Sort by update time, newest first
+                        const aTime = a.standby_updated_at ? new Date(a.standby_updated_at) : new Date(0);
+                        const bTime = b.standby_updated_at ? new Date(b.standby_updated_at) : new Date(0);
+                        return bTime - aTime;
+                      })
+                      .map(soldier => (
+                        <div key={soldier.id} className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Shield className="w-4 h-4 text-red-600" />
+                                <span className="font-semibold text-gray-900">
+                                  {soldier.hebrew_name || soldier.displayName || soldier.full_name}
+                                </span>
+                                <Badge className="bg-red-100 text-red-800 text-xs">לא בכוננות</Badge>
+                              </div>
+                              {soldier.standby_reason ? (
+                                <div className="bg-white p-3 rounded border border-red-200">
+                                  <p className="text-sm font-medium text-gray-700 mb-1">סיבה:</p>
+                                  <p className="text-sm text-gray-900">{soldier.standby_reason}</p>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-gray-500 italic">לא צוינה סיבה</p>
+                              )}
+                              {soldier.standby_updated_at && (
+                                <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
+                                  <Clock className="w-3 h-3" />
+                                  <span>
+                                    עודכן: {format(new Date(soldier.standby_updated_at), 'dd/MM/yyyy HH:mm')}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );

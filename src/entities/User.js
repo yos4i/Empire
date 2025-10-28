@@ -106,14 +106,19 @@ export class User {
       console.log("User.updateMyUserData: Data to update:", data);
 
       // Clean the data - remove undefined values to prevent Firestore errors
+      // Special handling for standby_reason: allow null to explicitly clear it
       const cleanData = {};
       Object.keys(data).forEach(key => {
-        if (data[key] !== undefined && data[key] !== null) {
+        // Allow null for standby_reason to explicitly clear it when turning standby on
+        if (key === 'standby_reason') {
+          cleanData[key] = data[key]; // Allow both string values and null
+        } else if (data[key] !== undefined && data[key] !== null) {
           cleanData[key] = data[key];
         }
       });
 
       console.log("User.updateMyUserData: Cleaned data:", cleanData);
+      console.log("User.updateMyUserData: standby_reason in cleanData:", cleanData.standby_reason);
 
       // Find the document in Firestore by UID field
       const usersSnapshot = await getDocs(collection(db, 'users'));
