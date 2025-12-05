@@ -142,7 +142,7 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                     החלפה
                   </Badge>
                 )}
-                {!isPublished && onToggleLongShift && (
+                {onToggleLongShift && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -163,14 +163,14 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                     <Clock3 className="w-4 h-4" />
                   </Button>
                 )}
-                {!isPublished && (
+                {onCancelShift && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-4 w-4 p-0 hover:bg-red-100"
                     onClick={(e) => {
                       e.stopPropagation();
-                      onCancelShift && onCancelShift(day, shiftKey, soldierId);
+                      onCancelShift(day, shiftKey, soldierId);
                     }}
                   >
                     <X className="w-3 h-3 text-red-500" />
@@ -248,7 +248,7 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {!isPublished && isEditMode && onEditShiftHours && (
+                {isEditMode && onEditShiftHours && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -290,7 +290,7 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
             </div>
 
             {/* Shift Actions - Only show when edit mode is active */}
-            {!isPublished && isEditMode && (
+            {isEditMode && onCancelShift && (
               <div className="flex gap-2 mt-2">
                 <Button
                   variant="ghost"
@@ -298,7 +298,7 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                   className="text-xs"
                   onClick={(e) => {
                     e.stopPropagation();
-                    onCancelShift && onCancelShift(day, shiftKey);
+                    onCancelShift(day, shiftKey);
                   }}
                 >
                   {shift.cancelled ? 'בטל ביטול' : 'בטל משמרת'}
