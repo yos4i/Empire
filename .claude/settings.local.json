@@ -13,7 +13,8 @@
       "Bash(fuser:*)",
       "Bash(netstat:*)",
       "Bash(ss:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": []

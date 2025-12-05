@@ -83,11 +83,16 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
     const soldierShiftCount = soldierShiftCounts[soldierId] || 0;
     const isOverworked = soldierShiftCount > 6;
 
-    // Get assignment info to check for swap requests and long shift status
+    // Get assignment info to check for swap requests
     const assignmentInfo = getAssignmentInfo(soldierId, shiftKey, day);
     const hasSwapRequest = assignmentInfo?.status === 'swap_requested';
     const swapReason = assignmentInfo?.swap_reason;
-    const isLongShift = assignmentInfo?.isLongShift || false;
+
+    // Check long shift status from BOTH schedule preferences AND assignments
+    const shiftData = schedule[day]?.[shiftKey];
+    const longShiftFromPreference = shiftData?.longShiftPreferences?.[soldierId] || false;
+    const longShiftFromAssignment = assignmentInfo?.isLongShift || false;
+    const isLongShift = longShiftFromPreference || longShiftFromAssignment;
 
     // Log only when isLongShift is true to reduce noise
     if (isLongShift) {
@@ -95,7 +100,9 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
         soldier: soldier.hebrew_name,
         day,
         shiftKey,
-        isLongShift: assignmentInfo.isLongShift
+        longShiftFromPreference,
+        longShiftFromAssignment,
+        isLongShift
       });
     }
 
@@ -142,7 +149,7 @@ export default function ScheduleBoard({ schedule, users, submissions, soldierShi
                     החלפה
                   </Badge>
                 )}
-                {!isPublished && onToggleLongShift && (
+                {onToggleLongShift && (
                   <Button
                     variant="ghost"
                     size="sm"
