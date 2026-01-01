@@ -7,7 +7,7 @@ export const SHIFT_TYPES = {
 
 export const SHIFT_NAMES = {
   "קריית_חינוך_בוקר": "קריית חינוך בוקר",
-  "קריית_חינוך_ערב": "קריית חינוך ערב 15:30-19:30",
+  "קריית_חינוך_ערב": "קריית חינוך ערב 13:30-19:30",
   "גבולות_בוקר": "גבולות בוקר"
 };
 
@@ -27,10 +27,10 @@ export const LONG_SHIFTS = [];
 
 // Day-specific end times for morning shifts
 export const DAY_END_TIMES = {
-  sunday: "13:30",
+  sunday: "14:30",
   monday: "14:30",
-  tuesday: "13:30",
+  tuesday: "14:30",
   wednesday: "14:30",
-  thursday: "13:30",
+  thursday: "14:30",
   friday: "12:00"
 };
