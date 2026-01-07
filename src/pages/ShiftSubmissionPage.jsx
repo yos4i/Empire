@@ -186,15 +186,14 @@ const handleSubmit = async () => {
                 </p>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {[
                     { key: 'sunday', name: 'ראשון' },
                     { key: 'monday', name: 'שני' },
                     { key: 'tuesday', name: 'שלישי' },
                     { key: 'wednesday', name: 'רביעי' },
                     { key: 'thursday', name: 'חמישי' },
-                    { key: 'friday', name: 'שישי' },
-                    { key: 'saturday', name: 'שבת' }
+                    { key: 'friday', name: 'שישי' }
                   ].map(({ key, name }) => (
                     <button
                       key={key}
@@ -219,7 +218,7 @@ const handleSubmit = async () => {
                     <p className="text-green-800 font-medium">
                       ✓ נבחר: יום {
                         { sunday: 'ראשון', monday: 'שני', tuesday: 'שלישי', wednesday: 'רביעי',
-                          thursday: 'חמישי', friday: 'שישי', saturday: 'שבת' }[selectedDayOff]
+                          thursday: 'חמישי', friday: 'שישי' }[selectedDayOff]
                       }
                     </p>
                   </div>
