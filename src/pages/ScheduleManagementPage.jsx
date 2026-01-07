@@ -264,8 +264,7 @@ export default function ScheduleManagementPage() {
             id: doc.id,
             userName: d.userName,
             userId: d.userId,  // Note: userId not user_id
-            days: d.days || {},
-            longShiftDays: d.longShiftDays || {}, // Include long shift preferences
+            dayOffRequest: d.dayOffRequest || null, // NEW: Day off request
             notes: d.notes || '', // Include soldier notes
             updatedAt: d.updatedAt?.toDate ? d.updatedAt.toDate() : (d.updatedAt || null),
             createdAt: d.createdAt?.toDate ? d.createdAt.toDate() : (d.createdAt || null),
@@ -732,11 +731,8 @@ ${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWit
                   }
                 }
 
-                // Check if soldier has long shift preference for this day
-                const soldierSubmission = normalizedSubmissions.find(sub =>
-                  sub.userId === soldierId || sub.userId === soldier.uid
-                );
-                const hasLongShiftPref = soldierSubmission?.longShiftDays?.[day] || false;
+                // Long shift preferences are no longer used in the day-off request system
+                const hasLongShiftPref = false;
 
                 // For morning shifts, check if soldier preferred long shift OR if admin manually toggled it
                 const isMorningShift = shiftKey.includes('בוקר');
@@ -1013,11 +1009,8 @@ ${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWit
           }
         }
 
-        // Check if soldier has long shift preference for this day
-        const soldierSubmission = normalizedSubmissions.find(sub =>
-          sub.userId === selectedSoldierId || sub.userId === soldier.uid
-        );
-        const hasLongShiftPref = soldierSubmission?.longShiftDays?.[day] || false;
+        // Long shift preferences are no longer used in the day-off request system
+        const hasLongShiftPref = false;
 
         // For morning shifts, check if soldier preferred long shift
         const isMorningShift = shiftKey.includes('בוקר');
@@ -1100,20 +1093,7 @@ ${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWit
     rawSubmissions.forEach(sub => {
       console.log('Processing submission:', sub);
       console.log('Submission userId:', sub.userId);
-      console.log('Submission days:', sub.days);
-
-      // Ensure all days exist in the days object
-      const normalizedDays = {
-        sunday: sub.days?.sunday || [],
-        monday: sub.days?.monday || [],
-        tuesday: sub.days?.tuesday || [],
-        wednesday: sub.days?.wednesday || [],
-        thursday: sub.days?.thursday || [],
-        friday: sub.days?.friday || [],
-        saturday: sub.days?.saturday || []
-      };
-
-      console.log('Normalized days:', normalizedDays);
+      console.log('Submission dayOffRequest:', sub.dayOffRequest);
 
       const normalized = {
         id: sub.id,
@@ -1121,13 +1101,12 @@ ${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWit
         uid: sub.userId,
         userName: sub.userName || 'ללא שם',
         updatedAt: sub.updatedAt || new Date(),
-        days: normalizedDays,
+        dayOffRequest: sub.dayOffRequest || null,
         weekStart: sub.weekStart,
-        longShiftDays: sub.longShiftDays || {}, // Include long shift preferences
-        notes: sub.notes || '' // Include soldier notes
+        notes: sub.notes || ''
       };
 
-      console.log('Normalized submission with days:', normalized);
+      console.log('Normalized submission:', normalized);
 
       // Keep only the latest submission per user
       const existing = submissionsByUserId.get(sub.userId);
@@ -1176,15 +1155,8 @@ ${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWit
           userName: soldier.hebrew_name || soldier.displayName || soldier.full_name || 'ללא שם',
           weekStart: nextWeekStartStr,
           updatedAt: new Date(0), // Very old date to sort last
-          days: {
-            sunday: [],
-            monday: [],
-            tuesday: [],
-            wednesday: [],
-            thursday: [],
-            friday: [],
-            saturday: []
-          }
+          dayOffRequest: null,
+          notes: ''
         });
       }
     });

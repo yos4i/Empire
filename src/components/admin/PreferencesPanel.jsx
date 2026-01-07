@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
-import { Search, Calendar, User, Clock3, MessageSquare } from 'lucide-react';
+import { Search, Calendar, User, CalendarX, MessageSquare } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { format } from 'date-fns';
-import {
-  hasAnyPreferences
-} from '../../utils/preferences';
 
 export default function PreferencesPanel({
   isOpen,
@@ -29,11 +26,9 @@ export default function PreferencesPanel({
     return nameMatch || idMatch;
   });
 
-  // Filter submissions that have any preferences
-  const submissionsWithPrefs = filteredSubmissions.filter(sub => {
-    return Object.values(sub.days || {}).some(dayShifts => dayShifts && dayShifts.length > 0);
-  });
-  const submissionsWithoutPrefs = filteredSubmissions.filter(sub => !hasAnyPreferences(sub));
+  // Filter submissions based on day-off request
+  const submissionsWithDayOff = filteredSubmissions.filter(sub => sub.dayOffRequest);
+  const submissionsWithoutDayOff = filteredSubmissions.filter(sub => !sub.dayOffRequest);
 
   return (
     <div
@@ -75,10 +70,10 @@ export default function PreferencesPanel({
             </div>
             <div className="flex items-center justify-between gap-1">
               <Badge variant="outline" className="bg-green-50 text-green-700 text-xs flex-1 justify-center">
-                ✓ {submissionsWithPrefs.length}
+                ✓ {submissionsWithDayOff.length}
               </Badge>
               <Badge variant="outline" className="bg-red-50 text-red-700 text-xs flex-1 justify-center">
-                ✗ {submissionsWithoutPrefs.length}
+                ✗ {submissionsWithoutDayOff.length}
               </Badge>
             </div>
           </div>
@@ -103,17 +98,17 @@ export default function PreferencesPanel({
             </div>
           ) : (
             <div className="p-2">
-              {/* Submissions with preferences */}
-              {submissionsWithPrefs.length > 0 && (
+              {/* Submissions with day-off request */}
+              {submissionsWithDayOff.length > 0 && (
                 <div className="mb-4">
                   <h3 className="text-xs font-semibold text-gray-900 mb-2 text-center">
                     <Badge className="bg-green-100 text-green-800 text-xs w-full justify-center">
-                      הגישו ({submissionsWithPrefs.length})
+                      הגישו ({submissionsWithDayOff.length})
                     </Badge>
                   </h3>
 
                   <div className="space-y-2">
-                    {submissionsWithPrefs.map((submission, index) => (
+                    {submissionsWithDayOff.map((submission, index) => (
                       <SubmissionCard
                         key={submission.id}
                         submission={submission}
@@ -128,17 +123,17 @@ export default function PreferencesPanel({
                 </div>
               )}
 
-              {/* Submissions without preferences */}
-              {submissionsWithoutPrefs.length > 0 && (
+              {/* Submissions without day-off request */}
+              {submissionsWithoutDayOff.length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold text-gray-900 mb-2 text-center">
                     <Badge className="bg-red-100 text-red-800 text-xs w-full justify-center">
-                      לא הגישו ({submissionsWithoutPrefs.length})
+                      לא הגישו ({submissionsWithoutDayOff.length})
                     </Badge>
                   </h3>
 
                   <div className="space-y-2">
-                    {submissionsWithoutPrefs.map((submission, index) => (
+                    {submissionsWithoutDayOff.map((submission, index) => (
                       <SubmissionCard
                         key={submission.id}
                         submission={submission}
@@ -164,10 +159,6 @@ function SubmissionCard({ submission, index, soldierShiftCounts, users, onSelect
 
   console.log('Rendering submission:', submission);
 
-  // Calculate total shifts
-  const totalShifts = Object.values(submission.days || {}).reduce((total, dayShifts) =>
-    total + (dayShifts?.length || 0), 0);
-
   const shiftCount = soldierShiftCounts[submission.userId] || 0;
   const soldier = users[submission.userId];
   const isSelected = selectedSoldierId === submission.userId;
@@ -176,11 +167,21 @@ function SubmissionCard({ submission, index, soldierShiftCounts, users, onSelect
   console.log('Creating draggable with ID:', draggableId, 'at index:', index);
 
   const handleCardClick = () => {
-    // Both select soldier AND expand preferences
+    // Both select soldier AND expand card
     if (onSelectSoldier) {
       onSelectSoldier(submission.userId);
     }
     setIsExpanded(!isExpanded);
+  };
+
+  const dayNames = {
+    sunday: 'ראשון',
+    monday: 'שני',
+    tuesday: 'שלישי',
+    wednesday: 'רביעי',
+    thursday: 'חמישי',
+    friday: 'שישי',
+    saturday: 'שבת'
   };
 
   return (
@@ -207,9 +208,16 @@ function SubmissionCard({ submission, index, soldierShiftCounts, users, onSelect
               </div>
             </div>
             <div className="flex flex-col gap-1">
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 text-xs justify-center">
-                {totalShifts} העדפות
-              </Badge>
+              {submission.dayOffRequest ? (
+                <Badge variant="outline" className="bg-purple-50 text-purple-700 text-xs justify-center flex items-center gap-1">
+                  <CalendarX className="w-3 h-3" />
+                  יום {dayNames[submission.dayOffRequest]}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-gray-50 text-gray-500 text-xs justify-center">
+                  לא הגיש
+                </Badge>
+              )}
               {shiftCount > 0 && (
                 <Badge variant="outline" className={`text-xs justify-center
                   ${shiftCount <= 3 ? 'bg-green-50 text-green-700' : ''}
@@ -221,7 +229,7 @@ function SubmissionCard({ submission, index, soldierShiftCounts, users, onSelect
               )}
               {isSelected && (
                 <Badge className="text-xs bg-blue-600 text-white justify-center">
-                  ✓ לחץ על משמרת
+                  ✓ נבחר
                 </Badge>
               )}
             </div>
@@ -230,64 +238,37 @@ function SubmissionCard({ submission, index, soldierShiftCounts, users, onSelect
       {isExpanded && (
         <div className="border-t border-gray-200 bg-gray-50">
           <div className="p-2">
+            {/* Day Off Display */}
+            {submission.dayOffRequest && (
+              <div className="mb-2 pb-2 border-b border-gray-200">
+                <div className="flex items-center gap-1 mb-1">
+                  <CalendarX className="w-3 h-3 text-purple-600" />
+                  <span className="text-xs font-bold text-gray-700">יום חופש מבוקש:</span>
+                </div>
+                <div className="text-sm font-medium text-purple-700 bg-purple-50 p-2 rounded text-center">
+                  יום {dayNames[submission.dayOffRequest]}
+                </div>
+              </div>
+            )}
+
             {/* Notes Section */}
             {submission.notes && (
-              <div className="mb-2 pb-2 border-b border-gray-200">
+              <div className="mb-2">
                 <div className="flex items-center gap-1 mb-1">
                   <MessageSquare className="w-3 h-3 text-blue-600" />
                   <span className="text-xs font-bold text-gray-700">הערות:</span>
                 </div>
-                <div className="text-xs text-gray-600 italic bg-blue-50 p-2 rounded">
+                <div className="text-xs text-gray-600 italic bg-blue-50 p-2 rounded whitespace-pre-wrap">
                   {submission.notes}
                 </div>
               </div>
             )}
 
-            {/* Days List - Vertical */}
-            <div className="space-y-1">
-              {[
-                { key: 'sunday', name: 'א׳' },
-                { key: 'monday', name: 'ב׳' },
-                { key: 'tuesday', name: 'ג׳' },
-                { key: 'wednesday', name: 'ד׳' },
-                { key: 'thursday', name: 'ה׳' },
-                { key: 'friday', name: 'ו׳' },
-                { key: 'saturday', name: 'ש׳' }
-              ].map(({ key, name }) => {
-                const daySlots = submission.days?.[key] || [];
-                const hasLongShift = submission.longShiftDays?.[key];
-
-                return (
-                  <div key={key} className="flex items-start gap-1 border-b border-gray-200 pb-1 last:border-b-0">
-                    <div className="text-xs font-bold text-gray-700 min-w-[20px]">
-                      {name}
-                    </div>
-                    <div className="flex flex-col gap-0.5 flex-1">
-                      {daySlots.length > 0 ? (
-                        <>
-                          {daySlots.map((slot, idx) => (
-                            <Badge
-                              key={idx}
-                              className={`text-xs border-green-300 justify-center ${hasLongShift ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}
-                            >
-                              {slot}
-                            </Badge>
-                          ))}
-                          {hasLongShift && (
-                            <Badge className="text-xs bg-amber-100 text-amber-800 justify-center flex items-center gap-1">
-                              <Clock3 className="w-3 h-3" />
-                              עד 15:30
-                            </Badge>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-xs text-gray-400 text-center">—</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            {!submission.dayOffRequest && !submission.notes && (
+              <div className="text-xs text-gray-400 text-center py-2">
+                אין מידע נוסף
+              </div>
+            )}
           </div>
         </div>
       )}

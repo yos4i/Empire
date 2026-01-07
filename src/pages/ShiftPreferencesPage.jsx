@@ -7,11 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { User } from '../entities/User';
-import { ShiftSubmission } from '../entities/ShiftSubmission';
-import { DAYS, SHIFT_NAMES } from '../config/shifts';
 import { getDefaultWeekStart } from '../utils/weekKey';
-
-const DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי"];
 
 export default function ShiftPreferencesPage() {
   const navigate = useNavigate();
@@ -36,8 +32,8 @@ export default function ShiftPreferencesPage() {
       }, {});
       setUsers(usersMap);
 
-      // Load submissions from shift_preferences collection (same as Schedule Management)
-      const submissionsMap = {};
+      // Load day-off requests from shift_preferences collection
+      const submissionsMap = {}; // Now stores { dayOffRequest, updatedAt }
       const notesMap = {};
 
       try {
@@ -50,23 +46,27 @@ export default function ShiftPreferencesPage() {
         );
         const snapshot = await firestoreGetDocs(q);
 
-        console.log('ShiftPreferencesPage: Loaded', snapshot.docs.length, 'preferences from shift_preferences collection');
+        console.log('ShiftPreferencesPage: Loaded', snapshot.docs.length, 'day-off requests from shift_preferences collection');
 
         snapshot.docs.forEach(doc => {
           const data = doc.data();
           console.log('Preference document:', doc.id, data);
 
           // Map the userId from the document to the user
-          if (data.userId && data.days) {
+          if (data.userId) {
             // Find the user by matching uid or id
             const user = allUsers.find(u => u.uid === data.userId || u.id === data.userId);
             if (user) {
-              submissionsMap[user.id] = data.days;
+              // Store day-off request with timestamp
+              submissionsMap[user.id] = {
+                dayOffRequest: data.dayOffRequest || null,
+                updatedAt: data.updatedAt?.toDate() || null
+              };
               // Store notes if available
               if (data.notes) {
                 notesMap[user.id] = data.notes;
               }
-              console.log(`Mapped preference for ${user.hebrew_name}:`, data.days);
+              console.log(`Mapped day-off request for ${user.hebrew_name}:`, data.dayOffRequest);
             }
           }
         });
@@ -74,23 +74,7 @@ export default function ShiftPreferencesPage() {
         console.error('Error loading from shift_preferences:', error);
       }
 
-      // Fallback: check user weekly_shifts data
-      allUsers.forEach(user => {
-        if (!submissionsMap[user.id] && user.weekly_shifts && user.weekly_shifts[selectedWeekStr]) {
-          const userShifts = user.weekly_shifts[selectedWeekStr].shifts;
-          if (userShifts) {
-            submissionsMap[user.id] = userShifts;
-          }
-        }
-      });
-
-      // Final fallback: check shift_submissions collection
-      const allSubmissions = await ShiftSubmission.filter({ week_start: selectedWeekStr });
-      allSubmissions.forEach(sub => {
-        if (!submissionsMap[sub.user_id]) {
-          submissionsMap[sub.user_id] = sub.shifts;
-        }
-      });
+      // No fallbacks needed for day-off system - only use shift_preferences
 
       console.log('ShiftPreferencesPage: Final submissions map:', submissionsMap);
       console.log('ShiftPreferencesPage: Final notes map:', notesMap);
@@ -110,11 +94,6 @@ export default function ShiftPreferencesPage() {
     setSelectedWeek(prev => addDays(prev, direction * 7));
   };
 
-  const getShiftDisplayName = (shiftType, unit) => {
-    const fullShiftKey = `${unit}_${shiftType}`;
-    return SHIFT_NAMES[fullShiftKey] || `${unit.replace('_', ' ')} ${shiftType}`;
-  };
-
   const getFilteredUsers = () => {
     return Object.values(users)
       .filter(user => user.role !== 'admin' && user.is_active)
@@ -129,10 +108,10 @@ export default function ShiftPreferencesPage() {
 
   const getSubmissionStats = () => {
     const activeUsers = Object.values(users).filter(user => user.role !== 'admin' && user.is_active);
-    const submittedUsers = activeUsers.filter(user => 
-      submissions[user.id] && Object.values(submissions[user.id]).some(dayShifts => dayShifts.length > 0)
+    const submittedUsers = activeUsers.filter(user =>
+      submissions[user.id] !== undefined && submissions[user.id] !== null
     );
-    
+
     return {
       total: activeUsers.length,
       submitted: submittedUsers.length,
@@ -167,7 +146,7 @@ export default function ShiftPreferencesPage() {
               <Home className="w-5 h-5"/>
             </Button>
             <div className="text-center">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">צפייה בהעדפות משמרות</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">צפייה בבקשות יום חופש</h1>
               <p className="text-sm md:text-base text-gray-600">שבוע {format(selectedWeek, 'dd/MM/yyyy')} - {format(addDays(selectedWeek, 6), 'dd/MM/yyyy')}</p>
             </div>
           </div>
@@ -230,7 +209,7 @@ export default function ShiftPreferencesPage() {
             <div className="flex flex-col items-center text-center gap-2">
               <Eye className="w-8 h-8 md:w-10 md:h-10 text-green-500" />
               <div>
-                <p className="text-xs md:text-sm text-gray-600 mb-1">הגישו העדפות</p>
+                <p className="text-xs md:text-sm text-gray-600 mb-1">הגישו בקשה</p>
                 <p className="text-2xl md:text-3xl font-bold text-green-600">{stats.submitted}</p>
               </div>
             </div>
@@ -293,7 +272,7 @@ export default function ShiftPreferencesPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5" />
-              העדפות משמרות ({filteredUsers.length} חיילים)
+              בקשות יום חופש ({filteredUsers.length} חיילים)
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -304,32 +283,36 @@ export default function ShiftPreferencesPage() {
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 sticky right-0 bg-gray-50 min-w-[120px]">חייל</th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 min-w-[100px]">מ.א</th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 min-w-[100px]">יחידה</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 min-w-[150px]">יום חופש מבוקש</th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 min-w-[200px]">הערות</th>
-                    {DAYS_HE.map((day, index) => (
-                      <th key={day} className="px-4 py-3 text-center text-sm font-medium text-gray-900 min-w-[140px]">
-                        <div>
-                          <div>{day}</div>
-                          <div className="text-xs text-gray-500 font-normal">
-                            {format(addDays(selectedWeek, index), 'dd/MM')}
-                          </div>
-                        </div>
-                      </th>
-                    ))}
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 min-w-[150px]">תאריך הגשה</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredUsers.map((user) => {
-                    const userSubmissions = submissions[user.id] || {};
-                    const hasSubmissions = Object.values(userSubmissions).some(dayShifts => dayShifts.length > 0);
-                    
+                    const userSubmission = submissions[user.id];
+                    const dayOffRequest = userSubmission?.dayOffRequest;
+                    const submissionDate = userSubmission?.updatedAt;
+                    const hasSubmission = dayOffRequest !== null && dayOffRequest !== undefined;
+
                     const userNotes = soldierNotes[user.id];
 
+                    const dayNames = {
+                      sunday: 'ראשון',
+                      monday: 'שני',
+                      tuesday: 'שלישי',
+                      wednesday: 'רביעי',
+                      thursday: 'חמישי',
+                      friday: 'שישי',
+                      saturday: 'שבת'
+                    };
+
                     return (
-                      <tr key={user.id} className={!hasSubmissions ? 'bg-red-50' : ''}>
+                      <tr key={user.id} className={!hasSubmission ? 'bg-red-50' : ''}>
                         <td className="px-4 py-3 text-sm font-medium text-gray-900 sticky right-0 bg-white">
                           <div className="flex items-center gap-2">
                             <span>{user.hebrew_name || user.full_name}</span>
-                            {!hasSubmissions && (
+                            {!hasSubmission && (
                               <Badge variant="outline" className="bg-red-100 text-red-800 text-xs">
                                 לא הגיש
                               </Badge>
@@ -338,6 +321,15 @@ export default function ShiftPreferencesPage() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600">{user.personal_number}</td>
                         <td className="px-4 py-3 text-sm text-gray-600">{user.unit?.replace('_', ' ')}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {hasSubmission ? (
+                            <Badge variant="outline" className="bg-purple-50 text-purple-800 border-purple-200">
+                              יום {dayNames[dayOffRequest]}
+                            </Badge>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 text-sm text-gray-600 max-w-[200px]">
                           {userNotes ? (
                             <div className="text-xs italic text-gray-700 truncate" title={userNotes}>
@@ -347,28 +339,15 @@ export default function ShiftPreferencesPage() {
                             <span className="text-gray-400 text-xs">-</span>
                           )}
                         </td>
-                        {DAYS.map((day) => {
-                          const dayShifts = userSubmissions[day] || [];
-                          return (
-                            <td key={day} className="px-4 py-3 text-center">
-                              <div className="space-y-1">
-                                {dayShifts.length > 0 ? (
-                                  dayShifts.map((shift, index) => (
-                                    <Badge 
-                                      key={index} 
-                                      variant="outline" 
-                                      className="text-xs bg-green-50 text-green-800 border-green-200"
-                                    >
-                                      {getShiftDisplayName(shift, user.unit)}
-                                    </Badge>
-                                  ))
-                                ) : (
-                                  <span className="text-gray-400 text-xs">-</span>
-                                )}
-                              </div>
-                            </td>
-                          );
-                        })}
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {submissionDate ? (
+                            <span className="text-xs">
+                              {format(submissionDate, 'dd/MM HH:mm')}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

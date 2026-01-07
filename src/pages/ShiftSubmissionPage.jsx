@@ -1,20 +1,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ShiftSubmission } from "../entities/ShiftSubmission";
-import { WeeklySchedule } from "../entities/WeeklySchedule";
 import { SubmissionWindow } from "../entities/SubmissionWindow";
-import { ClipboardList, AlertTriangle, Lock, ChevronLeft, ChevronRight } from "lucide-react";
+import { ClipboardList, Lock, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import ShiftSelectionGrid from "../components/soldier/ShiftSelectionGrid";
-import SubmissionRules from "../components/soldier/SubmissionRules";
 import { addDays, addWeeks, format } from "date-fns";
 import { toWeekStartISO, getDefaultWeekStart } from '../utils/weekKey';
-import { DAYS } from "../config/shifts";
 import { useAuth } from "../contexts/AuthContext";
 import { ShiftSubmissionService } from '../services/shiftSubmission';
-import { User } from '../entities/User';
 
 
 export default function ShiftSubmissionPage() {
@@ -22,17 +16,12 @@ export default function ShiftSubmissionPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [shifts, setShifts] = useState(
-    DAYS.reduce((acc, day) => ({ ...acc, [day]: [] }), {})
-  );
-  const [longShiftDays, setLongShiftDays] = useState({}); // Track which days have long shift preference
-  const [notes, setNotes] = useState(''); // Soldier notes/comments
+  // New state for day-off request system
+  const [selectedDayOff, setSelectedDayOff] = useState(null); // "sunday", "monday", etc. or null
+  const [additionalNotes, setAdditionalNotes] = useState(''); // Additional soldier notes
   const [existingSubmission, setExistingSubmission] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [errors, setErrors] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [weeklySchedule, setWeeklySchedule] = useState(null);
-  const [soldierMission, setSoldierMission] = useState(null);
   const [isWeekOpen, setIsWeekOpen] = useState(false);
   const [checkingWeekStatus, setCheckingWeekStatus] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0); // 0 = this week, 1 = next week
@@ -59,75 +48,24 @@ export default function ShiftSubmissionPage() {
       console.log('📅 ShiftSubmissionPage: Week', nextWeekStartStr, 'is', weekOpen ? 'OPEN' : 'CLOSED', 'for submissions');
       setCheckingWeekStatus(false);
 
-      // Use authenticated user instead of User.me()
-      if (!user) {
-        console.error("No authenticated user found");
-        return;
-      }
+      // Try to load day-off request
+      const dayOffData = await ShiftSubmissionService.getDayOffRequest(user.uid, nextWeekStartStr);
 
-      // Check if mission is in user object, if not fetch from Firestore
-      let mission = user.mission;
-      if (!mission) {
-        console.log('🔍 ShiftSubmissionPage: Mission not in user object, fetching from Firestore...');
-        try {
-          const userDoc = await User.me();
-          if (userDoc?.mission) {
-            mission = userDoc.mission;
-            console.log('✅ ShiftSubmissionPage: Fetched mission from Firestore:', mission);
+      if (dayOffData) {
+        console.log('✅ ShiftSubmissionPage: Loaded day-off request:', dayOffData);
+        setExistingSubmission(dayOffData);
+        setSelectedDayOff(dayOffData.dayOffRequest);
 
-            // Update localStorage with mission
-            const updatedUser = { ...user, mission };
-            localStorage.setItem('authUser', JSON.stringify(updatedUser));
-          } else {
-            console.warn('⚠️ ShiftSubmissionPage: No mission found in Firestore for this user');
-          }
-        } catch (err) {
-          console.error('❌ ShiftSubmissionPage: Error fetching mission from Firestore:', err);
-        }
-      }
-      setSoldierMission(mission);
-      console.log('🎯 ShiftSubmissionPage: Final mission value:', mission);
-
-      // Load the weekly schedule to get custom shift hours
-      const schedules = await WeeklySchedule.filter({ week_start: nextWeekStartStr });
-      if (schedules.length > 0) {
-        setWeeklySchedule(schedules[0]);
-        console.log('📅 ShiftSubmissionPage: Loaded weekly schedule:', schedules[0]);
-        console.log('📅 ShiftSubmissionPage: Schedule data:', schedules[0].schedule);
+        // Extract additional notes (remove the auto-generated part)
+        const notes = dayOffData.notes || '';
+        const additionalNotesMatch = notes.match(/הערות נוספות:\n([\s\S]*)/);
+        setAdditionalNotes(additionalNotesMatch ? additionalNotesMatch[1] : '');
       } else {
-        console.log('⚠️ ShiftSubmissionPage: No weekly schedule found for', nextWeekStartStr);
-      }
-
-      // Try to load from the new shift_preferences collection first (using the service)
-      const preferences = await ShiftSubmissionService.getPreferences(user.uid, nextWeekStartStr);
-
-      if (preferences) {
-        console.log('✅ ShiftSubmissionPage: Loaded preferences from shift_preferences:', preferences);
-        setExistingSubmission(preferences);
-        setShifts(preferences.days || DAYS.reduce((acc, day) => ({ ...acc, [day]: [] }), {}));
-        setLongShiftDays(preferences.longShiftDays || {});
-        setNotes(preferences.notes || '');
-      } else {
-        // Fallback: try old shift_submissions collection for backward compatibility
-        const submissions = await ShiftSubmission.filter({
-          user_id: user.uid,
-          week_start: nextWeekStartStr,
-        });
-
-        if (submissions.length > 0) {
-          console.log('✅ ShiftSubmissionPage: Loaded from old shift_submissions:', submissions[0]);
-          setExistingSubmission(submissions[0]);
-          setShifts(submissions[0].shifts || DAYS.reduce((acc, day) => ({ ...acc, [day]: [] }), {}));
-          setLongShiftDays(submissions[0].longShiftDays || {});
-          setNotes(submissions[0].notes || '');
-        } else {
-          // Clear form if no submission exists for this week
-          console.log('🔄 ShiftSubmissionPage: No submission found for week', nextWeekStartStr, '- cleared form');
-          setExistingSubmission(null);
-          setShifts(DAYS.reduce((acc, day) => ({ ...acc, [day]: [] }), {}));
-          setLongShiftDays({});
-          setNotes('');
-        }
+        // No submission found - clear form
+        console.log('🔄 ShiftSubmissionPage: No day-off request found for week', nextWeekStartStr);
+        setExistingSubmission(null);
+        setSelectedDayOff(null);
+        setAdditionalNotes('');
       }
     } catch (e) {
       console.error("Error loading data", e);
@@ -139,111 +77,38 @@ export default function ShiftSubmissionPage() {
     loadData();
   }, [loadData]);
 
-  const validateShifts = useCallback(() => {
-    // No validation - allow any number of shifts
-    setErrors([]);
-  }, []);
-
-  useEffect(() => {
-    validateShifts();
-  }, [validateShifts]);
-
-  const toggleShift = (day, shiftType) => {
-    // Check if this is a "long shift" virtual type
-    const isLongShiftType = shiftType.includes('_ארוך');
-
-    if (isLongShiftType) {
-      // This is a long shift preference - toggle it
-      const baseShiftType = shiftType.replace('_ארוך', '');
-      setShifts((prev) => {
-        const dayShifts = prev[day] || [];
-        const hasBaseShift = dayShifts.includes(baseShiftType);
-
-        if (hasBaseShift) {
-          // Already have the base shift - just toggle long preference
-          setLongShiftDays(prevLong => ({
-            ...prevLong,
-            [day]: !prevLong[day]
-          }));
-          return prev;
-        } else {
-          // Add base shift and mark as long
-          setLongShiftDays(prevLong => ({
-            ...prevLong,
-            [day]: true
-          }));
-          return { ...prev, [day]: [...dayShifts, baseShiftType] };
-        }
-      });
-    } else {
-      // Regular shift toggle
-      setShifts((prev) => {
-        const dayShifts = prev[day] || [];
-        const isSelected = dayShifts.includes(shiftType);
-        const newDayShifts = isSelected
-          ? dayShifts.filter((s) => s !== shiftType)
-          : [...dayShifts, shiftType];
-
-        // If deselecting, also clear long shift preference
-        if (isSelected) {
-          setLongShiftDays(prevLong => {
-            const newLong = { ...prevLong };
-            delete newLong[day];
-            return newLong;
-          });
-        }
-
-        return { ...prev, [day]: newDayShifts };
-      });
-    }
-  };
+  // Removed old validation and toggle functions - no longer needed for day-off system
 
 
 const handleSubmit = async () => {
   // Check if week is open
   if (!isWeekOpen) {
-    alert('השבוע סגור להגשת העדפות. אנא פנה למנהל.');
+    alert('השבוע סגור להגשת בקשות. אנא פנה למנהל.');
+    return;
+  }
+
+  // Validation: must select a day off
+  if (!selectedDayOff) {
+    alert('יש לבחור יום חופש אחד');
     return;
   }
 
   setSaving(true);
   try {
-    // Save using BOTH methods for compatibility
-
-    // Method 1: New way using ShiftSubmissionService (for admin to see)
-    await ShiftSubmissionService.submitPreferences(
+    // Submit day-off request
+    await ShiftSubmissionService.submitDayOffRequest(
       user.uid,
       user.displayName || user.username || user.hebrew_name,
       nextWeekStartStr,
-      shifts,
-      longShiftDays, // Pass long shift preferences
-      notes // Pass soldier notes
+      selectedDayOff,
+      additionalNotes
     );
 
-    // Method 2: Old way using ShiftSubmission entity (for backward compatibility)
-    const submissionData = {
-      uid: user.uid,
-      user_id: user.uid,
-      soldier_id: user.uid,
-      userName: user.displayName || user.username || user.hebrew_name,
-      week_start: nextWeekStartStr,
-      shifts: shifts,
-      days: shifts,
-      longShiftDays: longShiftDays, // Store which days have long shift preference
-      notes: notes // Store soldier notes
-    };
-
-    if (existingSubmission) {
-      await ShiftSubmission.update(existingSubmission.id, submissionData);
-    } else {
-      await ShiftSubmission.create(submissionData);
-    }
-    
-    alert('Preferences submitted successfully!');
+    alert('בקשת יום חופש נשלחה בהצלחה!');
     navigate(`/soldier/${user.uid}`);
   } catch (error) {
-    console.error('Error submitting preferences:', error);
-    alert('Error submitting preferences: ' + error.message);
+    console.error('Error submitting day-off request:', error);
+    alert('שגיאה בשליחת הבקשה: ' + error.message);
   } finally {
     setSaving(false);
   }
@@ -312,86 +177,106 @@ const handleSubmit = async () => {
 
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            {console.log('🎯 ShiftSubmissionPage: Passing soldierMission to grid:', soldierMission, 'Full user:', user)}
-
-            {/* Show message if soldier doesn't have a mission assigned */}
-            {!soldierMission ? (
-              <Alert className="bg-yellow-50 border-yellow-200">
-                <AlertTriangle className="h-5 w-5 text-yellow-600" />
-                <AlertTitle className="text-yellow-900 font-semibold">לא ניתן להגיש העדפות כרגע</AlertTitle>
-                <AlertDescription className="text-yellow-800">
-                  <p className="mb-2">המשימה שלך טרם הוגדרה על ידי המנהל.</p>
-                  <p>נא לפנות למנהל המערכת כדי שיקצה אותך למשימה (גבולות או קריית חינוך).</p>
-                  <p className="mt-3 text-sm">לאחר שהמשימה תוגדר, תוכל לבחור את העדפות המשמרות שלך.</p>
-                </AlertDescription>
-              </Alert>
-            ) : (
-              <>
-                <ShiftSelectionGrid
-                  shifts={shifts}
-                  onToggleShift={toggleShift}
-                  isSubmissionOpen={isWeekOpen}
-                  weeklySchedule={weeklySchedule}
-                  soldierMission={soldierMission}
-                  longShiftDays={longShiftDays}
-                  weekStart={nextWeekStart}
-                />
-
-                {/* Soldier Notes Section */}
-                <div className="mt-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">הערות והעדפות נוספות</CardTitle>
-                      <p className="text-sm text-gray-600 mt-1">
-                        אפשר להשאיר הערות למנהל - למשל: בקשה למשמרת מסוימת, מגבלות, או כל מידע רלוונטי אחר
-                      </p>
-                    </CardHeader>
-                    <CardContent>
-                      <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        disabled={!isWeekOpen}
-                        placeholder="כתוב כאן הערות למנהל..."
-                        className="w-full min-h-[120px] p-3 border-2 border-gray-200 rounded-lg resize-y focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:opacity-50 disabled:bg-gray-100"
-                        maxLength={500}
-                      />
-                      <div className="text-xs text-gray-500 mt-2 text-left">
-                        {notes.length}/500 תווים
-                      </div>
-                    </CardContent>
-                  </Card>
+            {/* Day Off Selection UI */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-xl">בחר יום חופש אחד</CardTitle>
+                <p className="text-sm text-gray-600 mt-2">
+                  בחר יום אחד בשבוע בו תרצה לקבל חופש
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { key: 'sunday', name: 'ראשון' },
+                    { key: 'monday', name: 'שני' },
+                    { key: 'tuesday', name: 'שלישי' },
+                    { key: 'wednesday', name: 'רביעי' },
+                    { key: 'thursday', name: 'חמישי' },
+                    { key: 'friday', name: 'שישי' },
+                    { key: 'saturday', name: 'שבת' }
+                  ].map(({ key, name }) => (
+                    <button
+                      key={key}
+                      onClick={() => setSelectedDayOff(key)}
+                      disabled={!isWeekOpen}
+                      className={`
+                        p-4 rounded-lg border-2 transition-all font-medium text-base
+                        ${selectedDayOff === key
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                        }
+                        ${!isWeekOpen ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                      `}
+                    >
+                      יום {name}
+                    </button>
+                  ))}
                 </div>
 
-                <div className="mt-6 flex justify-end gap-3">
-                  <Button
-                    onClick={handleSubmit}
-                    disabled={saving || !isWeekOpen}
-                    size="lg"
-                    className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {saving ? "שולח..." : !isWeekOpen ? "השבוע סגור להגשות" : existingSubmission ? "עדכן העדפות" : "שלח העדפות"}
-                  </Button>
-                </div>
-              </>
-            )}
+                {selectedDayOff && (
+                  <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-center">
+                    <p className="text-green-800 font-medium">
+                      ✓ נבחר: יום {
+                        { sunday: 'ראשון', monday: 'שני', tuesday: 'שלישי', wednesday: 'רביעי',
+                          thursday: 'חמישי', friday: 'שישי', saturday: 'שבת' }[selectedDayOff]
+                      }
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Additional Notes Section */}
+            <div className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">הערות נוספות (אופציונלי)</CardTitle>
+                  <p className="text-sm text-gray-600 mt-1">
+                    אפשר להוסיף הערות או בקשות נוספות למנהל
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <textarea
+                    value={additionalNotes}
+                    onChange={(e) => setAdditionalNotes(e.target.value)}
+                    disabled={!isWeekOpen}
+                    placeholder="לדוגמה: תור לרופא, בקשה מיוחדת..."
+                    className="w-full min-h-[120px] p-3 border-2 border-gray-200 rounded-lg resize-y focus:border-blue-500 focus:ring-2 focus:ring-blue-200 disabled:opacity-50 disabled:bg-gray-100"
+                    maxLength={500}
+                  />
+                  <div className="text-xs text-gray-500 mt-2 text-left">
+                    {additionalNotes.length}/500 תווים
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Submit Button */}
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                onClick={handleSubmit}
+                disabled={saving || !isWeekOpen || !selectedDayOff}
+                size="lg"
+                className="bg-blue-600 hover:bg-blue-700 w-full md:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? "שולח..." : !isWeekOpen ? "השבוע סגור להגשות" : !selectedDayOff ? "יש לבחור יום חופש" : existingSubmission ? "עדכן בקשה" : "שלח בקשה"}
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-6">
-            <SubmissionRules />
-            
-            {errors.length > 0 && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>שגיאות בהגשה</AlertTitle>
-                <AlertDescription>
-                  <ul className="list-disc list-inside space-y-1">
-                    {errors.map((error, idx) => (
-                      <li key={idx}>{error}</li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            )}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">הנחיות</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm text-gray-700 space-y-2">
+                <p>• בחר יום חופש אחד לשבוע</p>
+                <p>• ניתן להוסיף הערות נוספות (אופציונלי)</p>
+                <p>• הבקשה תישלח למנהל לאישור</p>
+                <p>• ניתן לעדכן את הבקשה עד סגירת השבוע</p>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
