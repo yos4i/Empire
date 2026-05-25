@@ -18,11 +18,6 @@ export async function updateShiftRequirements() {
         shiftKey: 'קריית_חינוך_בוקר',
         required: 18, // Keep 18 for regular days
         name: 'קריית חינוך בוקר'
-      },
-      {
-        shiftKey: 'גבולות_בוקר',
-        required: 4, // Change from 6 to 4
-        name: 'גבולות בוקר'
       }
     ];
 
@@ -78,7 +73,7 @@ export async function previewCurrentRequirements() {
     console.log('👀 Current shift requirements:');
     console.log('================================');
 
-    const shifts = ['קריית_חינוך_בוקר', 'קריית_חינוך_ערב', 'גבולות_בוקר'];
+    const shifts = ['קריית_חינוך_בוקר', 'קריית_חינוך_ערב'];
 
     for (const shiftKey of shifts) {
       const docRef = doc(db, 'shift_definitions', shiftKey);

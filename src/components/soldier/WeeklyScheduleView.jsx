@@ -189,7 +189,7 @@ export default function WeeklyScheduleView({ soldierMission }) {
           <AlertTitle className="text-yellow-900 font-semibold">אין אפשרות לצפות בסידור כרגע</AlertTitle>
           <AlertDescription className="text-yellow-800">
             <p className="mb-2">המשימה שלך טרם הוגדרה על ידי המנהל.</p>
-            <p>נא לפנות למנהל המערכת כדי שיקצה אותך למשימה (גבולות או קריית חינוך).</p>
+            <p>נא לפנות למנהל המערכת כדי שיקצה אותך למשימה (קריית חינוך).</p>
             <p className="mt-3 text-sm">לאחר שהמשימה תוגדר, תוכל לצפות בסידור השבועי שלך.</p>
           </AlertDescription>
         </Alert>
@@ -225,22 +225,7 @@ export default function WeeklyScheduleView({ soldierMission }) {
                   </div>
 
                   {/* Schedule Rows - Each shift type */}
-                  {Object.keys(SHIFT_NAMES).filter(shiftKey => {
-                    // Filter by soldier's mission
-                    console.log('🔍 WeeklyScheduleView - Checking shift:', shiftKey, 'soldierMission:', soldierMission);
-                    if (soldierMission) {
-                      if (soldierMission === 'קריית_חינוך' && !shiftKey.includes('קריית_חינוך')) {
-                        console.log('❌ WeeklyScheduleView - Skipping', shiftKey, '(not קריית_חינוך)');
-                        return false; // Skip non-kiryat shifts
-                      }
-                      if (soldierMission === 'גבולות' && !shiftKey.includes('גבולות')) {
-                        console.log('❌ WeeklyScheduleView - Skipping', shiftKey, '(not גבולות)');
-                        return false; // Skip non-borders shifts
-                      }
-                    }
-                    console.log('✅ WeeklyScheduleView - Including shift:', shiftKey);
-                    return true;
-                  }).map(shiftKey => (
+                  {Object.keys(SHIFT_NAMES).map(shiftKey => (
                   <div key={shiftKey} className="grid gap-2 p-4 border-b" style={{ gridTemplateColumns: '150px repeat(6, 1fr)' }}>
                     {/* Shift Type Header */}
                     <div className="flex items-center justify-center bg-purple-50 rounded-lg p-3">
@@ -366,18 +351,9 @@ export default function WeeklyScheduleView({ soldierMission }) {
           {/* Mobile Card View - Visible only on mobile/tablet */}
           <div className="lg:hidden space-y-3">
             {DAYS.map(day => {
-              const dayShifts = Object.keys(SHIFT_NAMES).filter(shiftKey => {
-                // Filter by soldier's mission
-                if (soldierMission) {
-                  if (soldierMission === 'קריית_חינוך' && !shiftKey.includes('קריית_חינוך')) {
-                    return false;
-                  }
-                  if (soldierMission === 'גבולות' && !shiftKey.includes('גבולות')) {
-                    return false;
-                  }
-                }
-                return schedule[day]?.[shiftKey]; // Only show days with shifts
-              });
+              const dayShifts = Object.keys(SHIFT_NAMES).filter(
+                (shiftKey) => schedule[day]?.[shiftKey]
+              );
 
               if (dayShifts.length === 0) return null;
 

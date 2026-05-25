@@ -1,5 +1,5 @@
 import { MIN_SHIFTS_PER_WEEK } from '../config/app';
-import { LONG_SHIFTS, DAYS } from '../config/shifts';
+import { DAYS } from '../config/shifts';
 
 export const validateShiftSubmission = (submission) => {
   const errors = [];
@@ -7,10 +7,6 @@ export const validateShiftSubmission = (submission) => {
   const totalShifts = Object.values(submission.shifts).flat().length;
   if (totalShifts < MIN_SHIFTS_PER_WEEK) {
     errors.push(`נדרשות לפחות ${MIN_SHIFTS_PER_WEEK} משמרות. נבחרו ${totalShifts}.`);
-  }
-  const hasLongShift = Object.values(submission.shifts).flat().some(shift => LONG_SHIFTS.includes(shift));
-  if (!hasLongShift) {
-    errors.push("יש לבחור לפחות משמרת ארוכה אחת (גבולות).");
   }
   if (totalShifts > 8) {
     warnings.push(`נבחרו ${totalShifts} משמרות. זה מעל הממוצע השבועי.`);

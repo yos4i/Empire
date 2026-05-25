@@ -145,7 +145,6 @@ export default function SoldierDetailsDialog({ isOpen, onClose, soldier, onDelet
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="קריית_חינוך">קריית חינוך</SelectItem>
-                          <SelectItem value="גבולות">גבולות</SelectItem>
                         </SelectContent>
                       </Select>
                       <Button

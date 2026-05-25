@@ -73,19 +73,9 @@ export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmission
               const shiftData = updatedShifts.rawShifts?.[shiftKey];
               if (!shiftData) return;
 
-              // Filter by soldier's mission
-              // If soldier has "קריית_חינוך" mission, only show קריית_חינוך shifts
-              // If soldier has "גבולות" mission, only show גבולות shifts
-              console.log('🔍 ShiftSelectionGrid: Checking shift:', shiftKey, 'soldierMission:', soldierMission);
-              if (soldierMission) {
-                if (soldierMission === 'קריית_חינוך' && !shiftKey.includes('קריית_חינוך')) {
-                  console.log('❌ ShiftSelectionGrid: Skipping', shiftKey, '(not קריית_חינוך)');
-                  return; // Skip non-kiryat shifts
-                }
-                if (soldierMission === 'גבולות' && !shiftKey.includes('גבולות')) {
-                  console.log('❌ ShiftSelectionGrid: Skipping', shiftKey, '(not גבולות)');
-                  return; // Skip non-borders shifts
-                }
+              // Only קריית_חינוך shifts are active.
+              if (soldierMission === 'קריית_חינוך' && !shiftKey.includes('קריית_חינוך')) {
+                return;
               }
 
               // Check if this shift is cancelled in the weekly schedule for this day
@@ -135,8 +125,7 @@ export default function ShiftSelectionGrid({ shifts, onToggleShift, isSubmission
               });
 
               // Add "long shift" option for morning shifts
-              // Skip long shifts for גבולות soldiers
-              if (shiftData.type === 'בוקר' && !shiftData.isLong && soldierMission !== 'גבולות') {
+              if (shiftData.type === 'בוקר' && !shiftData.isLong) {
                 newConfig[dayKey].push({
                   type: shiftTypePart + '_ארוך',
                   label: `${displayShiftType} ארוך 07:00-15:30`,

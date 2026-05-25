@@ -321,7 +321,7 @@ const handleSubmit = async () => {
                 <AlertTitle className="text-yellow-900 font-semibold">לא ניתן להגיש העדפות כרגע</AlertTitle>
                 <AlertDescription className="text-yellow-800">
                   <p className="mb-2">המשימה שלך טרם הוגדרה על ידי המנהל.</p>
-                  <p>נא לפנות למנהל המערכת כדי שיקצה אותך למשימה (גבולות או קריית חינוך).</p>
+                  <p>נא לפנות למנהל המערכת כדי שיקצה אותך למשימה (קריית חינוך).</p>
                   <p className="mt-3 text-sm">לאחר שהמשימה תוגדר, תוכל לבחור את העדפות המשמרות שלך.</p>
                 </AlertDescription>
               </Alert>

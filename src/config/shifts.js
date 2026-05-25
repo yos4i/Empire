@@ -1,26 +1,22 @@
 export const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday"];
 
 export const SHIFT_TYPES = {
-  "קריית_חינוך": ["בוקר", "ערב"],
-  "גבולות": ["בוקר"]
+  "קריית_חינוך": ["בוקר", "ערב"]
 };
 
 export const SHIFT_NAMES = {
   "קריית_חינוך_בוקר": "קריית חינוך בוקר",
-  "קריית_חינוך_ערב": "קריית חינוך ערב 13:30-19:30",
-  "גבולות_בוקר": "גבולות בוקר"
+  "קריית_חינוך_ערב": "קריית חינוך ערב 13:30-19:30"
 };
 
 export const SHIFT_TYPES_HE = {
   "קריית_חינוך_בוקר": { name: "קריית חינוך בוקר", type: "בוקר", isLong: false },
-  "קריית_חינוך_ערב": { name: "קריית חינוך ערב", type: "ערב", isLong: false },
-  "גבולות_בוקר": { name: "גבולות בוקר", type: "בוקר", isLong: false }
+  "קריית_חינוך_ערב": { name: "קריית חינוך ערב", type: "ערב", isLong: false }
 };
 
 export const SHIFT_REQUIREMENTS = {
-  "קריית_חינוך_בוקר": { required: 18},
-  "קריית_חינוך_ערב": { required: 6},
-  "גבולות_בוקר": { required: 6}
+  "קריית_חינוך_בוקר": { required: 18 },
+  "קריית_חינוך_ערב": { required: 6 }
 };
 
 export const LONG_SHIFTS = [];

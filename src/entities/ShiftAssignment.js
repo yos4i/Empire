@@ -1,5 +1,5 @@
 import { db } from '../config/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, serverTimestamp, writeBatch } from 'firebase/firestore';
 
 export class ShiftAssignment {
   static async list() {
@@ -156,23 +156,32 @@ export class ShiftAssignment {
     }
   }
 
-  // Bulk assignment for drag-and-drop operations
+  // Atomic bulk-create via Firestore writeBatch — single round-trip, all-or-nothing.
+  // Firestore caps a batch at 500 operations; chunk if we exceed that.
   static async bulkCreate(assignments) {
-    try {
-      console.log("ShiftAssignment.bulkCreate: Creating bulk assignments:", assignments);
-      
-      const results = [];
-      for (const assignment of assignments) {
-        const result = await this.create(assignment);
-        results.push(result);
-      }
-      
-      console.log("ShiftAssignment.bulkCreate: Successfully created", results.length, "assignments");
-      return results;
-    } catch (error) {
-      console.error('ShiftAssignment.bulkCreate: Error creating bulk assignments:', error);
-      throw error;
+    if (!Array.isArray(assignments) || assignments.length === 0) return [];
+
+    const CHUNK = 500;
+    const results = [];
+
+    for (let i = 0; i < assignments.length; i += CHUNK) {
+      const slice = assignments.slice(i, i + CHUNK);
+      const batch = writeBatch(db);
+      const refs = slice.map((a) => {
+        const ref = doc(collection(db, 'shift_assignments'));
+        batch.set(ref, {
+          ...a,
+          status: a.status || 'assigned',
+          created_at: serverTimestamp(),
+          updated_at: serverTimestamp(),
+        });
+        return { id: ref.id, ...a };
+      });
+      await batch.commit();
+      results.push(...refs);
     }
+
+    return results;
   }
 
   // Get assignments for a specific week

@@ -80,27 +80,6 @@ class ShiftTypesService {
       defaultEndTime: '19:30',
       required: 6,
       order: 2
-    },
-    {
-      id: 'borders',
-      name_he: 'גבולות בוקר',
-      name_en: 'borders',
-      type: 'borders',
-      category: 'borders',
-      defaultStartTime: '07:00',
-      defaultEndTime: '13:30',
-      required: 6,
-      isLong: false,
-      order: 3,
-      // Day-specific times for borders shifts
-      daySpecificTimes: {
-        sunday: { startTime: '07:00', endTime: '13:30' },
-        monday: { startTime: '07:00', endTime: '14:30' },
-        tuesday: { startTime: '07:00', endTime: '13:30' },
-        wednesday: { startTime: '07:00', endTime: '14:30' },
-        thursday: { startTime: '07:00', endTime: '13:30' },
-        friday: { startTime: '07:00', endTime: '12:00' }
-      }
     }
   ];
 

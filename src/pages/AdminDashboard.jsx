@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Shield, FileText, Search, LogOut, Plus, Eye, ArrowLeftRight, Calendar, X, Clock } from "lucide-react";
+import { Users, Shield, FileText, Search, LogOut, Plus, Eye, ArrowLeftRight, Calendar, X, Clock, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
@@ -249,7 +249,7 @@ export default function AdminDashboard() {
               <Eye className="w-10 h-10 text-green-600" />
             </div>
           </Card>
-          <Card 
+          <Card
             className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 border-blue-300 bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-150"
             onClick={() => navigate('/schedule-management')}
           >
@@ -259,6 +259,18 @@ export default function AdminDashboard() {
                 <p className="text-sm text-blue-600"> יצירת וניהול סידור</p>
               </div>
               <FileText className="w-10 h-10 text-blue-600" />
+            </div>
+          </Card>
+          <Card
+            className="p-4 cursor-pointer hover:shadow-lg transition-all border-2 border-purple-300 bg-gradient-to-r from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-150"
+            onClick={() => navigate('/daily-auto-schedule')}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-lg font-bold text-purple-700">שיבוץ אוטומטי יומי</p>
+                <p className="text-sm text-purple-600"> ייצור סידור יומי אוטומטי</p>
+              </div>
+              <Sparkles className="w-10 h-10 text-purple-600" />
             </div>
           </Card>
         </div>
@@ -285,7 +297,7 @@ export default function AdminDashboard() {
               <Input placeholder="חיפוש לפי שם או מספר אישי..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pr-10" />
             </div>
             <div className="flex gap-2">
-              {["הכל", "קריית_חינוך", "גבולות"].map((unit) => (
+              {["הכל", "קריית_חינוך"].map((unit) => (
                 <Button key={unit} variant={filterUnit === unit ? "default" : "outline"} size="sm" onClick={() => setFilterUnit(unit)}>
                   {unit.replace("_", " ")}
                 </Button>

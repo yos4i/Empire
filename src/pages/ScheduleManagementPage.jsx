@@ -1,1197 +1,614 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User } from '../entities/User';
 import { ShiftSubmission } from '../entities/ShiftSubmission';
 import { WeeklySchedule } from '../entities/WeeklySchedule';
 import { ShiftAssignment } from '../entities/ShiftAssignment';
 import { format, addDays, addWeeks } from 'date-fns';
-import { toWeekStartISO, getDefaultWeekStart, getLongShiftEndTime } from '../utils/weekKey';
-import { Calendar, Home, Users, Trash2, Edit2, Save, ChevronLeft, ChevronRight } from 'lucide-react';
+import { toWeekStartISO, getDefaultWeekStart } from '../utils/weekKey';
+import { Calendar, Home, Users, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import ScheduleBoard from '../components/admin/schedule/ScheduleBoard';
 import AssignSoldierDialog from '../components/admin/schedule/AssignSoldierDialog';
 import PreferencesPanel from '../components/admin/PreferencesPanel';
 import QuickShiftHoursEditor from '../components/admin/schedule/QuickShiftHoursEditor';
-import { useMediaQuery } from '../components/hooks/useMediaQuery';
-import { DAYS, SHIFT_NAMES, SHIFT_REQUIREMENTS, DAY_END_TIMES } from '../config/shifts';
+import { DAYS, SHIFT_NAMES } from '../config/shifts';
 import { db } from '../config/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { clearAllShiftAssignments, initializeShiftAssignmentsCollection, clearAllShiftData, removeTuesdayFridayEveningShifts } from '../utils/dbUtils';
 import { shiftDefinitionsService } from '../services/shiftDefinitions';
 import * as shiftsConfig from '../config/shifts';
+import {
+  getShiftRequirements,
+  buildAssignment,
+  readDraft,
+  writeDraft,
+  clearDraft,
+} from '../utils/scheduleHelpers';
 
 export default function ScheduleManagementPage() {
   const navigate = useNavigate();
   const [users, setUsers] = useState({});
   const [schedule, setSchedule] = useState({});
-  const [submissions, setSubmissions] = useState({});
-  const [soldierNotes, setSoldierNotes] = useState({}); // Store soldier notes by user ID/UID
+  const [soldierNotes, setSoldierNotes] = useState({});
   const [weeklyScheduleEntity, setWeeklyScheduleEntity] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState(''); // For showing save feedback
-  const [shiftAssignments, setShiftAssignments] = useState([]); // Store all shift assignments with their statuses
+  const [publishing, setPublishing] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('');
+  const [shiftAssignments, setShiftAssignments] = useState([]);
+  const [draftActive, setDraftActive] = useState(false); // is current view from local draft?
 
   // Preferences panel state
   const [rawSubmissions, setRawSubmissions] = useState([]);
   const [preferencesLoading, setPreferencesLoading] = useState(false);
   const [selectedSoldierId, setSelectedSoldierId] = useState(null);
 
-  // Edit mode state - controls whether cancel shift button is visible
-  const [isEditMode, setIsEditMode] = useState(false);
-
   // Quick shift hours editor state
-  const [editingShift, setEditingShift] = useState(null); // { shiftKey, shiftName }
+  const [editingShift, setEditingShift] = useState(null);
 
   // Dynamic shift definitions state
   const [dynamicShiftNames, setDynamicShiftNames] = useState(SHIFT_NAMES);
 
-  // Mission filter state
-  const [missionFilter, setMissionFilter] = useState("הכל"); // "הכל", "קריית_חינוך", "גבולות"
-
   // Week navigation state
-  const [weekOffset, setWeekOffset] = useState(0); // 0 = current week, 1 = next week, etc.
+  const [weekOffset, setWeekOffset] = useState(0);
 
-  const isMobile = useMediaQuery("(max-width: 768px)");
   const [dialogShift, setDialogShift] = useState(null);
 
-  const selectedWeekStart = addWeeks(getDefaultWeekStart(), weekOffset);
-  const nextWeekStart = selectedWeekStart; // For backwards compatibility
-  const nextWeekStartStr = toWeekStartISO(selectedWeekStart);
+  // Tracks which week the data currently in `schedule` belongs to. The auto-save
+  // effect uses this to refuse writing stale data into the wrong week's key when
+  // the user navigates between weeks faster than loadData can complete.
+  const scheduleWeekRef = useRef(null);
+  // Set to true right before a load updates `schedule`; the next auto-save
+  // effect tick consumes the flag and skips, so loading a week never echoes
+  // back to localStorage as a fresh draft.
+  const skipNextAutoSaveRef = useRef(false);
 
+  const selectedWeekStart = useMemo(
+    () => addWeeks(getDefaultWeekStart(), weekOffset),
+    [weekOffset]
+  );
+  const nextWeekStartStr = useMemo(
+    () => toWeekStartISO(selectedWeekStart),
+    [selectedWeekStart]
+  );
+
+  // Build a fresh blank schedule for the week using shared rules.
   const initializeSchedule = useCallback(() => {
-    const newSchedule = {};
+    const blank = {};
     for (const day of DAYS) {
-      newSchedule[day] = {};
-      const dayEndTime = DAY_END_TIMES[day];
-
+      blank[day] = {};
       for (const shiftKey in SHIFT_NAMES) {
-        // Skip evening shifts on Tuesday and Friday
         if (shiftKey === 'קריית_חינוך_ערב' && (day === 'tuesday' || day === 'friday')) {
           continue;
         }
-
-        const shiftData = {
+        blank[day][shiftKey] = {
           soldiers: [],
+          longShiftSoldiers: [],
           cancelled: false,
-          ...SHIFT_REQUIREMENTS[shiftKey]
+          ...getShiftRequirements(day, shiftKey),
         };
-
-        // Override requirements based on the day
-        if (shiftKey === 'גבולות_בוקר') {
-          shiftData.required = day === 'friday' ? 3 : 4;
-        }
-        if (shiftKey === 'קריית_חינוך_בוקר' && day === 'friday') {
-          shiftData.required = 12;
-        }
-
-        // Add custom end times for morning shifts based on the day
-        if (shiftKey.includes('בוקר')) {
-          shiftData.customStartTime = '07:00';
-          shiftData.customEndTime = dayEndTime;
-        }
-
-        newSchedule[day][shiftKey] = shiftData;
       }
     }
-    return newSchedule;
+    return blank;
   }, []);
 
+  // Load remote (published) schedule, then overlay any local admin draft.
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Load users from Firestore only
       let allUsers = [];
       try {
         allUsers = await User.list();
-        console.log('ScheduleManagement: Loaded users:', allUsers);
       } catch (error) {
         console.error('ScheduleManagement: Could not load users:', error);
-        allUsers = []; // Empty array if loading fails
       }
 
-      const weekEndDate = format(addDays(nextWeekStart, 6), 'yyyy-MM-dd');
+      const weekEndDate = format(addDays(selectedWeekStart, 6), 'yyyy-MM-dd');
       const [allSubmissions, schedules, assignments] = await Promise.all([
         ShiftSubmission.filter({ week_start: nextWeekStartStr }),
         WeeklySchedule.filter({ week_start: nextWeekStartStr }),
-        ShiftAssignment.filter({ start_date: nextWeekStartStr, end_date: weekEndDate })
+        ShiftAssignment.filter({ start_date: nextWeekStartStr, end_date: weekEndDate }),
       ]);
 
-      // Store shift assignments
       setShiftAssignments(assignments);
-      console.log('ScheduleManagement: Loaded shift assignments:', assignments);
 
-      // Create usersMap with BOTH id and uid as keys for compatibility
       const usersMap = {};
-      allUsers.forEach(user => {
-        usersMap[user.id] = user; // Map by Firestore doc ID
-        if (user.uid && user.uid !== user.id) {
-          usersMap[user.uid] = user; // Also map by Firebase Auth UID
-        }
+      allUsers.forEach((user) => {
+        usersMap[user.id] = user;
+        if (user.uid && user.uid !== user.id) usersMap[user.uid] = user;
       });
       setUsers(usersMap);
-      
-      // Create submissions map from user weekly_shifts data
+
+      // Reconcile submissions for the preferences pane (unchanged shape).
       const submissionsMap = {};
-      allUsers.forEach(user => {
-        if (user.weekly_shifts && user.weekly_shifts[nextWeekStartStr]) {
-          const userShifts = user.weekly_shifts[nextWeekStartStr].shifts;
-          if (userShifts) {
-            submissionsMap[user.id] = userShifts;
-            console.log(`ScheduleManagement: Found shifts for user ${user.id}:`, userShifts);
-          }
+      allUsers.forEach((user) => {
+        const userShifts = user.weekly_shifts?.[nextWeekStartStr]?.shifts;
+        if (userShifts) submissionsMap[user.id] = userShifts;
+      });
+      allSubmissions.forEach((sub) => {
+        if (!submissionsMap[sub.user_id]) submissionsMap[sub.user_id] = {};
+        for (const day in sub.shifts) {
+          if (!submissionsMap[sub.user_id][day]) submissionsMap[sub.user_id][day] = [];
+          submissionsMap[sub.user_id][day].push(...sub.shifts[day]);
         }
       });
-      
-      // Also include data from shift_submissions collection as fallback
-      allSubmissions.forEach(sub => {
-        if (!submissionsMap[sub.user_id]) {
-          submissionsMap[sub.user_id] = {};
-        }
-        for(const day in sub.shifts) {
-            if(!submissionsMap[sub.user_id][day]) submissionsMap[sub.user_id][day] = [];
-            submissionsMap[sub.user_id][day].push(...sub.shifts[day]);
-        }
-      });
-      
-      console.log('ScheduleManagement: Final submissions map:', submissionsMap);
-      setSubmissions(submissionsMap);
-      
-      if (schedules.length > 0) {
-        console.log('📥 Loading existing schedule from DB:', schedules[0]);
-        const loadedSchedule = schedules[0].schedule;
-        console.log('📥 Loaded schedule data:', loadedSchedule);
-        const updatedSchedule = {};
 
+      const publishedEntity = schedules[0] || null;
+      setWeeklyScheduleEntity(publishedEntity);
+
+      // Build the baseline schedule (blank ∪ published) so unknown days/shifts
+      // always exist as empty cells. Then overlay any saved draft.
+      const baseline = initializeSchedule();
+      if (publishedEntity?.schedule) {
         for (const day of DAYS) {
-          updatedSchedule[day] = {};
           for (const shiftKey in SHIFT_NAMES) {
-            // Skip evening shifts on Tuesday and Friday
-            if (shiftKey === 'קריית_חינוך_ערב' && (day === 'tuesday' || day === 'friday')) {
-              continue;
-            }
-
-            const existingShiftData = loadedSchedule[day]?.[shiftKey] || {};
-            const latestRequirements = { ...SHIFT_REQUIREMENTS[shiftKey] };
-
-            // Override requirements based on the day
-            if (shiftKey === 'גבולות_בוקר') {
-              latestRequirements.required = day === 'friday' ? 3 : 4;
-            }
-            if (shiftKey === 'קריית_חינוך_בוקר' && day === 'friday') {
-              latestRequirements.required = 12;
-            }
-
-            updatedSchedule[day][shiftKey] = {
-              ...latestRequirements,
-              soldiers: existingShiftData.soldiers || [],
-              cancelled: existingShiftData.cancelled || false,
-              // Preserve custom shift hours if they exist
-              ...(existingShiftData.customStartTime && { customStartTime: existingShiftData.customStartTime }),
-              ...(existingShiftData.customEndTime && { customEndTime: existingShiftData.customEndTime }),
+            if (!baseline[day]?.[shiftKey]) continue;
+            const remoteShift = publishedEntity.schedule[day]?.[shiftKey];
+            if (!remoteShift) continue;
+            baseline[day][shiftKey] = {
+              ...baseline[day][shiftKey],
+              soldiers: remoteShift.soldiers || [],
+              longShiftSoldiers:
+                remoteShift.longShiftSoldiers ||
+                // Backward compat: derive long-shift soldiers from prior assignments
+                assignments
+                  .filter(
+                    (a) =>
+                      a.day_name === day &&
+                      a.shift_type === shiftKey &&
+                      a.isLongShift
+                  )
+                  .map((a) => {
+                    // Reverse-lookup the soldier doc id used in the schedule
+                    const u = Object.values(usersMap).find(
+                      (x) => x.uid === a.soldier_id || x.id === a.soldier_id
+                    );
+                    return u?.id || a.soldier_id;
+                  }),
+              cancelled: remoteShift.cancelled || false,
+              ...(remoteShift.customStartTime && { customStartTime: remoteShift.customStartTime }),
+              ...(remoteShift.customEndTime && { customEndTime: remoteShift.customEndTime }),
             };
-
-            if (existingShiftData.soldiers && existingShiftData.soldiers.length > 0) {
-              console.log(`📥 Loaded soldiers for ${day} ${shiftKey}:`, existingShiftData.soldiers);
-            }
           }
         }
+      }
 
-        console.log('📥 Final updated schedule:', updatedSchedule);
-        setWeeklyScheduleEntity(schedules[0]);
-        setSchedule(updatedSchedule);
+      // Mark this state mutation as a "load" so the auto-save effect skips it,
+      // and tag which week `schedule` now belongs to.
+      skipNextAutoSaveRef.current = true;
+      scheduleWeekRef.current = nextWeekStartStr;
+
+      const draft = readDraft(nextWeekStartStr);
+      if (draft) {
+        setSchedule(draft);
+        setDraftActive(true);
       } else {
-        console.log('📥 No existing schedule found, initializing new one');
-        setSchedule(initializeSchedule());
-        setWeeklyScheduleEntity(null);
+        setSchedule(baseline);
+        setDraftActive(false);
       }
     } catch (error) {
-      console.error("Error loading schedule data:", error);
+      console.error('Error loading schedule data:', error);
     }
     setLoading(false);
-    // nextWeekStart is derived from nextWeekStartStr, so we don't need it in dependencies
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nextWeekStartStr, initializeSchedule]);
+  }, [nextWeekStartStr, selectedWeekStart, initializeSchedule]);
 
-  useEffect(() => { loadData(); }, [loadData]);
-
-  // Initialize shift definitions from config and subscribe to real-time updates
   useEffect(() => {
-    const initializeShiftDefinitions = async () => {
+    loadData();
+  }, [loadData]);
+
+  // Subscribe to remote shift definitions for live name updates. Fixes a prior
+  // leak where the cleanup never registered because the outer callback was async.
+  useEffect(() => {
+    let unsubscribe = null;
+    (async () => {
       try {
-        // Initialize Firestore with static config if needed
         await shiftDefinitionsService.initializeFromConfig(shiftsConfig);
-
-        // Subscribe to real-time updates
-        const unsubscribe = shiftDefinitionsService.subscribeToShiftDefinitions((updatedShifts) => {
-          console.log('ScheduleManagement: Received shift definitions update:', updatedShifts);
-          setDynamicShiftNames(updatedShifts.SHIFT_NAMES);
-
-          // Reload schedule to reflect new shift definitions
-          loadData();
+        unsubscribe = shiftDefinitionsService.subscribeToShiftDefinitions((updated) => {
+          if (updated?.SHIFT_NAMES) setDynamicShiftNames(updated.SHIFT_NAMES);
         });
-
-        return () => {
-          unsubscribe();
-        };
       } catch (error) {
         console.error('ScheduleManagement: Error initializing shift definitions:', error);
       }
+    })();
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
     };
+  }, []);
 
-    initializeShiftDefinitions();
-  }, [loadData]);
-
-  // NOTE: Auto-save is now handled directly in handleShiftSlotClick function
-  // This ensures shift_assignments are created immediately when soldiers are assigned
-
-  // Fetch shift submissions for Preferences Panel - Always load automatically
+  // Soldier preferences (shift_preferences collection) — read-only side panel data.
   useEffect(() => {
     setPreferencesLoading(true);
-
     const fetchSubmissions = async () => {
       try {
-        // Fetch from shift_preferences collection (not shift_submissions)
         const q = query(
           collection(db, 'shift_preferences'),
           where('weekStart', '==', nextWeekStartStr)
         );
         const snapshot = await getDocs(q);
-        const submissions = snapshot.docs.map(doc => {
+        const submissions = snapshot.docs.map((doc) => {
           const d = doc.data();
-          console.log('Fetched shift_preferences document:', doc.id, d);
           return {
             id: doc.id,
             userName: d.userName,
-            userId: d.userId,  // Note: userId not user_id
+            userId: d.userId,
             days: d.days || {},
-            longShiftDays: d.longShiftDays || {}, // Include long shift preferences
-            notes: d.notes || '', // Include soldier notes
-            updatedAt: d.updatedAt?.toDate ? d.updatedAt.toDate() : (d.updatedAt || null),
-            createdAt: d.createdAt?.toDate ? d.createdAt.toDate() : (d.createdAt || null),
-            weekStart: d.weekStart
+            longShiftDays: d.longShiftDays || {},
+            notes: d.notes || '',
+            updatedAt: d.updatedAt?.toDate ? d.updatedAt.toDate() : d.updatedAt || null,
+            createdAt: d.createdAt?.toDate ? d.createdAt.toDate() : d.createdAt || null,
+            weekStart: d.weekStart,
           };
         });
-        console.log('Fetched shift preferences submissions:', submissions);
-
         setRawSubmissions(submissions);
       } catch (error) {
         console.error('Error fetching submissions:', error);
       }
       setPreferencesLoading(false);
     };
-
     fetchSubmissions();
   }, [nextWeekStartStr]);
 
-  // Map soldier notes by all possible user identifiers after both users and submissions are loaded
+  // Index soldier notes by every known identifier (id + uid + raw submission userId)
   useEffect(() => {
     if (Object.keys(users).length === 0 || rawSubmissions.length === 0) return;
-
     const notesMap = {};
-    rawSubmissions.forEach(sub => {
+    rawSubmissions.forEach((sub) => {
       if (!sub.notes) return;
-
-      // Map by the original userId from the submission
       notesMap[sub.userId] = sub.notes;
-
-      // Find the user and map by all their identifiers
-      const user = Object.values(users).find(u => u.uid === sub.userId || u.id === sub.userId);
+      const user = Object.values(users).find(
+        (u) => u.uid === sub.userId || u.id === sub.userId
+      );
       if (user) {
         if (user.id) notesMap[user.id] = sub.notes;
         if (user.uid) notesMap[user.uid] = sub.notes;
-        console.log(`✅ Mapped notes for ${user.hebrew_name}:`, {
-          originalUserId: sub.userId,
-          userId: user.id,
-          userUid: user.uid,
-          notes: sub.notes
-        });
-      } else {
-        console.warn(`⚠️ Could not find user for userId: ${sub.userId}`);
       }
     });
-
-    console.log('📝 Final soldier notes map:', notesMap);
     setSoldierNotes(notesMap);
   }, [users, rawSubmissions]);
+
+  // Auto-persist every schedule change to the admin's local draft. This is the
+  // safety net: the admin's progress is never lost if the tab closes.
+  //
+  // Two guards prevent cross-week corruption:
+  //   • scheduleWeekRef must agree with the currently-selected week — when the
+  //     user navigates to a new week the ref still points at the old one until
+  //     loadData updates it, so we refuse to save the old data into the new key.
+  //   • skipNextAutoSaveRef is set immediately before a load updates `schedule`,
+  //     so the post-load tick of this effect doesn't echo the fresh data back to
+  //     localStorage (which would otherwise mark every loaded week as a draft).
+  useEffect(() => {
+    if (loading) return;
+    if (!schedule || Object.keys(schedule).length === 0) return;
+    if (scheduleWeekRef.current !== nextWeekStartStr) return;
+    if (skipNextAutoSaveRef.current) {
+      skipNextAutoSaveRef.current = false;
+      return;
+    }
+    writeDraft(nextWeekStartStr, schedule);
+    setDraftActive(true);
+  }, [schedule, nextWeekStartStr, loading]);
 
   const soldierShiftCounts = useMemo(() => {
     const counts = {};
     if (!schedule || Object.keys(schedule).length === 0) return counts;
-
     Object.values(schedule).forEach((dayShifts) => {
-        if (!dayShifts) return;
-        Object.values(dayShifts).forEach((shiftData) => {
-            if (shiftData && Array.isArray(shiftData.soldiers)) {
-                shiftData.soldiers.forEach((soldierId) => {
-                    counts[soldierId] = (counts[soldierId] || 0) + 1;
-                });
-            }
-        });
+      if (!dayShifts) return;
+      Object.values(dayShifts).forEach((shiftData) => {
+        if (shiftData && Array.isArray(shiftData.soldiers)) {
+          shiftData.soldiers.forEach((soldierId) => {
+            counts[soldierId] = (counts[soldierId] || 0) + 1;
+          });
+        }
+      });
     });
     return counts;
   }, [schedule]);
 
-  const handleShiftClick = (day, shiftKey, shiftName, dayName) => {
-    if (!isMobile || isPublished) return;
-    setDialogShift({ day, shiftKey, shiftName, dayName });
-  };
-  
   const handleToggleAssign = (soldierId) => {
     if (!dialogShift) return;
     const currentCount = soldierShiftCounts[soldierId] || 0;
-    const isAssigned = dialogShift ? schedule[dialogShift.day][dialogShift.shiftKey].soldiers.includes(soldierId) : false;
+    const isAssigned = schedule[dialogShift.day][dialogShift.shiftKey].soldiers.includes(soldierId);
     if (!isAssigned && currentCount >= 6) {
-        if (!window.confirm(`החייל ${users[soldierId]?.hebrew_name} כבר משובץ ל-6 משמרות. האם אתה בטוח שברצונך להוסיף משמרת נוספת?`)) {
-            return;
-        }
-    }
-    const { day, shiftKey } = dialogShift;
-    setSchedule(prev => {
-      const newSchedule = JSON.parse(JSON.stringify(prev));
-      const soldiers = newSchedule[day][shiftKey].soldiers;
-      const index = soldiers.indexOf(soldierId);
-      if (index > -1) soldiers.splice(index, 1); else soldiers.push(soldierId);
-      newSchedule[day][shiftKey].soldiers = soldiers;
-      return newSchedule;
-    });
-  };
-
-  const handleCancelShift = async (day, shiftKey, soldierId = null) => {
-    if (soldierId) {
-      // Remove specific soldier from shift
-      setSchedule(prev => {
-        const newSchedule = JSON.parse(JSON.stringify(prev));
-        if (newSchedule[day]?.[shiftKey]?.soldiers) {
-          newSchedule[day][shiftKey].soldiers = newSchedule[day][shiftKey].soldiers.filter(id => id !== soldierId);
-        }
-        return newSchedule;
-      });
-
-      // Also delete the assignment from the database
-      try {
-        const soldier = users[soldierId];
-        if (!soldier) {
-          console.error('Soldier not found:', soldierId);
-          return;
-        }
-
-        // Calculate the date for this day
-        const dayDate = addDays(nextWeekStart, DAYS.indexOf(day));
-        const dateStr = format(dayDate, 'yyyy-MM-dd');
-
-        console.log('🗑️ Deleting assignment:', {
-          soldier_uid: soldier.uid,
-          date: dateStr,
-          shift: shiftKey
-        });
-
-        // Find and delete the assignment
-        const assignments = await ShiftAssignment.filter({
-          soldier_id: soldier.uid,
-          date: dateStr,
-          shift_type: shiftKey
-        });
-
-        console.log('Found assignments to delete:', assignments);
-
-        for (const assignment of assignments) {
-          await ShiftAssignment.delete(assignment.id);
-          console.log('✅ Deleted assignment:', assignment.id);
-        }
-
-        // Reload assignments to update the UI
-        const weekEndDate = format(addDays(nextWeekStart, 6), 'yyyy-MM-dd');
-        const updatedAssignments = await ShiftAssignment.filter({
-          start_date: nextWeekStartStr,
-          end_date: weekEndDate
-        });
-        setShiftAssignments(updatedAssignments);
-
-        console.log('✅ Assignment deleted and UI updated');
-      } catch (error) {
-        console.error('❌ Error deleting assignment:', error);
-        alert('שגיאה במחיקת השיבוץ מהמסד נתונים: ' + error.message);
-      }
-    } else {
-      // Cancel/uncanel entire shift
-      if (!window.confirm("האם אתה בטוח שברצונך לבטל את המשמרת הזו?")) return;
-      setSchedule(prev => ({
-        ...prev,
-        [day]: {
-          ...prev[day],
-          [shiftKey]: {
-            ...prev[day][shiftKey],
-            cancelled: !prev[day][shiftKey].cancelled
-          }
-        }
-      }));
-    }
-  };
-
-  const handleToggleLongShift = async (day, shiftKey, soldierId, isLong) => {
-    console.log('🎯 handleToggleLongShift CALLED:', {
-      day,
-      shiftKey,
-      soldierId,
-      isLong,
-      usersKeys: Object.keys(users).slice(0, 5)
-    });
-
-    try {
-      const soldier = users[soldierId];
-      if (!soldier) {
-        console.error('❌ Soldier not found:', soldierId);
-        console.error('Available user keys:', Object.keys(users));
+      if (!window.confirm(`החייל ${users[soldierId]?.hebrew_name} כבר משובץ ל-6 משמרות. האם אתה בטוח שברצונך להוסיף משמרת נוספת?`)) {
         return;
       }
-
-      console.log('✅ Soldier found:', soldier.hebrew_name);
-      console.log('📊 Soldier details:', {
-        id: soldier.id,
-        uid: soldier.uid,
-        soldierId_param: soldierId
-      });
-
-      // Use soldier.uid if available, otherwise use soldierId
-      const searchId = soldier.uid || soldierId;
-      console.log('🔑 Using searchId for query:', searchId);
-
-      // Calculate the date for this day
-      const dayDate = addDays(selectedWeekStart, DAYS.indexOf(day));
-      const dateStr = format(dayDate, 'yyyy-MM-dd');
-
-      console.log('⏰ Toggling long shift:', {
-        soldier_uid: searchId,
-        date: dateStr,
-        shift: shiftKey,
-        isLong,
-        selectedWeekStart: selectedWeekStart.toISOString(),
-        dayIndex: DAYS.indexOf(day)
-      });
-
-      // Find and update the assignment
-      console.log('🔍 Searching for assignment with:', {
-        soldier_id: searchId,
-        date: dateStr,
-        shift_type: shiftKey
-      });
-
-      const assignments = await ShiftAssignment.filter({
-        soldier_id: searchId,
-        date: dateStr,
-        shift_type: shiftKey
-      });
-
-      console.log('📋 Found assignments:', assignments.length, assignments);
-
-      // DEBUG: Let's also check what assignments exist for this soldier regardless of date/shift
-      const allSoldierAssignments = await ShiftAssignment.filter({
-        soldier_id: searchId
-      });
-      console.log('🔍 ALL assignments for this soldier:', allSoldierAssignments.length, allSoldierAssignments.map(a => ({
-        date: a.date,
-        shift: a.shift_type,
-        day: a.day_name,
-        week_start: a.week_start
-      })));
-
-      console.log('📅 Week comparison:', {
-        currentlyViewingWeek: nextWeekStartStr,
-        assignmentsFoundForWeeks: [...new Set(allSoldierAssignments.map(a => a.week_start))],
-        searchingForDate: dateStr,
-        assignmentDates: allSoldierAssignments.map(a => a.date)
-      });
-
-      // Check if soldier has ANY assignments for this week
-      const weekAssignments = allSoldierAssignments.filter(a => a.week_start === nextWeekStartStr);
-      console.log(`📊 Soldier has ${weekAssignments.length} assignments in week ${nextWeekStartStr}`);
-
-      if (assignments.length > 0) {
-        for (const assignment of assignments) {
-          console.log('🔄 Updating assignment:', assignment.id, 'with isLongShift:', isLong);
-          await ShiftAssignment.update(assignment.id, {
-            isLongShift: isLong
-          });
-          console.log('✅ Updated assignment long shift status:', assignment.id, isLong);
-        }
-
-        // Reload assignments to update the UI
-        const weekEndDate = format(addDays(selectedWeekStart, 6), 'yyyy-MM-dd');
-        console.log('🔄 Reloading assignments for week:', nextWeekStartStr, 'to', weekEndDate);
-        const updatedAssignments = await ShiftAssignment.filter({
-          start_date: nextWeekStartStr,
-          end_date: weekEndDate
-        });
-        console.log('📋 Reloaded assignments:', updatedAssignments.length);
-        setShiftAssignments(updatedAssignments);
-
-        console.log('✅ Long shift status updated successfully');
-      } else {
-        console.warn('⚠️ No assignment found - will try to create it first');
-
-        // Check if soldier is in the in-memory schedule for this shift
-        const soldierInSchedule = schedule[day]?.[shiftKey]?.soldiers?.includes(soldierId);
-
-        if (soldierInSchedule) {
-          console.log('💡 Soldier is in the schedule but not saved to DB yet - creating assignment first');
-
-          try {
-            // Get shift times from the schedule
-            const shiftData = schedule[day][shiftKey];
-            let startTime = '07:00';
-            let endTime = '13:30';
-
-            if (shiftData.customStartTime && shiftData.customEndTime) {
-              startTime = shiftData.customStartTime;
-              endTime = shiftData.customEndTime;
-            } else {
-              const shiftDisplayName = dynamicShiftNames[shiftKey] || SHIFT_NAMES[shiftKey] || '';
-              const timeMatch = shiftDisplayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
-              if (timeMatch) {
-                startTime = timeMatch[1];
-                endTime = timeMatch[2];
-              }
-            }
-
-            // Determine end time for long shifts (16:15 for Tuesday, 15:30 for others)
-            const longShiftEndTime = getLongShiftEndTime(day);
-
-            console.log('💾 Creating assignment before toggling long shift:', {
-              soldier_id: searchId,
-              date: dateStr,
-              shift_type: shiftKey,
-              isLongShift: isLong
-            });
-
-            // Create the assignment
-            await ShiftAssignment.create({
-              soldier_id: searchId,
-              soldier_name: soldier.hebrew_name || soldier.displayName || soldier.full_name,
-              date: dateStr,
-              day_name: day,
-              shift_type: shiftKey,
-              shift_name: dynamicShiftNames[shiftKey] || SHIFT_NAMES[shiftKey],
-              start_time: startTime,
-              end_time: isLong ? longShiftEndTime : endTime,
-              week_start: nextWeekStartStr,
-              status: 'assigned',
-              isLongShift: isLong
-            });
-
-            console.log('✅ Assignment created with isLongShift:', isLong);
-
-            // Reload assignments to update the UI
-            const weekEndDate = format(addDays(selectedWeekStart, 6), 'yyyy-MM-dd');
-            const updatedAssignments = await ShiftAssignment.filter({
-              start_date: nextWeekStartStr,
-              end_date: weekEndDate
-            });
-            setShiftAssignments(updatedAssignments);
-
-            console.log('✅ Long shift status set successfully on new assignment');
-          } catch (createError) {
-            console.error('❌ Failed to create assignment:', createError);
-            alert(`שגיאה ביצירת השיבוץ: ${createError.message}`);
-          }
-        } else {
-          // Soldier is not in the schedule at all
-          console.error('❌ No assignment found to update');
-          console.error('💡 Debugging info:');
-          console.error('   - Expected soldier_id:', searchId);
-          console.error('   - Expected date:', dateStr);
-          console.error('   - Expected shift_type:', shiftKey);
-          console.error('   - Currently viewing week:', nextWeekStartStr);
-          console.error('   - Total assignments for this soldier:', allSoldierAssignments.length);
-          console.error('   - Available dates for this soldier:', [...new Set(allSoldierAssignments.map(a => a.date))]);
-          console.error('   - Available shifts for this soldier:', [...new Set(allSoldierAssignments.map(a => a.shift_type))]);
-          console.error('   - Weeks with assignments:', [...new Set(allSoldierAssignments.map(a => a.week_start))]);
-
-          const weeksWithAssignments = [...new Set(allSoldierAssignments.map(a => a.week_start))];
-          const isWrongWeek = weeksWithAssignments.length > 0 && !weeksWithAssignments.includes(nextWeekStartStr);
-
-          alert(`לא נמצא שיבוץ לעדכון.
-
-פרטי חיפוש:
-- חייל: ${soldier.hebrew_name}
-- תאריך: ${dateStr}
-- משמרת: ${shiftKey}
-- שבוע נוכחי: ${nextWeekStartStr}
-
-${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWithAssignments.join(', ')} ולא לשבוע ${nextWeekStartStr}
-
-הסיבה: אתה מנסה לעדכן משמרת בשבוע שהחייל לא משובץ בו.
-יש להקליק על החץ כדי לעבור לשבוע הנכון או לשבץ את החייל לשבוע זה תחילה.` : `סה"כ שיבוצים לחייל זה: ${allSoldierAssignments.length}`}
-
-בדוק בקונסול לפרטים נוספים.`);
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error toggling long shift:', error);
-      alert('שגיאה בעדכון סטטוס משמרת ארוכה: ' + error.message);
     }
+    const { day, shiftKey } = dialogShift;
+    setSchedule((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      const soldiers = next[day][shiftKey].soldiers;
+      const idx = soldiers.indexOf(soldierId);
+      if (idx > -1) soldiers.splice(idx, 1); else soldiers.push(soldierId);
+      next[day][shiftKey].soldiers = soldiers;
+      return next;
+    });
   };
 
-  const handleManualSave = async () => {
+  // Local-only mutation: remove a soldier from a shift OR toggle a shift's cancelled flag.
+  // Persists nothing remote — only the local draft picks it up.
+  const handleCancelShift = (day, shiftKey, soldierId = null) => {
+    if (soldierId) {
+      setSchedule((prev) => {
+        const next = JSON.parse(JSON.stringify(prev));
+        const cell = next[day]?.[shiftKey];
+        if (cell?.soldiers) {
+          cell.soldiers = cell.soldiers.filter((id) => id !== soldierId);
+        }
+        if (Array.isArray(cell?.longShiftSoldiers)) {
+          cell.longShiftSoldiers = cell.longShiftSoldiers.filter((id) => id !== soldierId);
+        }
+        return next;
+      });
+      return;
+    }
+
+    if (!window.confirm('האם אתה בטוח שברצונך לבטל את המשמרת הזו?')) return;
+    setSchedule((prev) => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [shiftKey]: {
+          ...prev[day][shiftKey],
+          cancelled: !prev[day][shiftKey].cancelled,
+        },
+      },
+    }));
+  };
+
+  // Local-only: toggle long-shift state on a soldier in a given cell.
+  const handleToggleLongShift = (day, shiftKey, soldierId, isLong) => {
+    setSchedule((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      const cell = next[day]?.[shiftKey];
+      if (!cell) return prev;
+      const current = Array.isArray(cell.longShiftSoldiers) ? cell.longShiftSoldiers : [];
+      cell.longShiftSoldiers = isLong
+        ? Array.from(new Set([...current, soldierId]))
+        : current.filter((id) => id !== soldierId);
+      return next;
+    });
+  };
+
+  // Save = persist admin's working copy to localStorage. Soldiers see NOTHING.
+  const handleManualSave = () => {
     setSaving(true);
     setSaveStatus('שומר...');
     try {
-        console.log('💾 Manually saving schedule...', { schedule, weeklyScheduleEntity: weeklyScheduleEntity?.id });
-
-        // Save to weekly_schedules collection
-        if (weeklyScheduleEntity) {
-            await WeeklySchedule.update(weeklyScheduleEntity.id, { schedule });
-            console.log('✅ Weekly schedule updated successfully!');
-        } else {
-            const newEntity = await WeeklySchedule.create({
-              week_start: nextWeekStartStr,
-              schedule: schedule,
-              is_published: false
-            });
-            setWeeklyScheduleEntity(newEntity);
-            console.log('✅ New schedule created and saved!');
-        }
-
-        setSaveStatus('✅ נשמר בהצלחה');
-        setTimeout(() => setSaveStatus(''), 2000);
-        alert("הסידור נשמר בהצלחה!");
+      const ok = writeDraft(nextWeekStartStr, schedule);
+      if (!ok) throw new Error('localStorage write failed');
+      setDraftActive(true);
+      setSaveStatus('✅ נשמר מקומית (טיוטה)');
+      setTimeout(() => setSaveStatus(''), 2500);
     } catch (e) {
-        console.error("Error saving schedule:", e);
-        setSaveStatus('❌ שגיאה בשמירה');
-        setTimeout(() => setSaveStatus(''), 3000);
-        alert("שגיאה בשמירת הסידור: " + e.message);
+      console.error('Error saving local draft:', e);
+      setSaveStatus('❌ שגיאה בשמירה מקומית');
+      setTimeout(() => setSaveStatus(''), 3000);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
-  
 
+  // Publish = push the local draft to BOTH weekly_schedules (for the grid soldiers
+  // see in WeeklyScheduleView) AND shift_assignments (for each soldier's dashboard).
+  // This is the only action that exposes admin changes outside the admin browser.
   const handlePublishToSoldiers = async () => {
-    if (!window.confirm("האם לפרסם את הסידור לכל החיילים? החיילים יוכלו לראות את השיבוצים שלהם.")) return;
-    setSaving(true);
+    if (!window.confirm('האם לפרסם את הסידור לכל החיילים? לאחר הפרסום החיילים יראו את השיבוצים שלהם.')) {
+      return;
+    }
+    setPublishing(true);
+    setSaveStatus('מפרסם לחיילים...');
     try {
-      console.log('Publishing schedule to soldiers...');
+      // 1) Persist the full schedule document to weekly_schedules
+      if (weeklyScheduleEntity) {
+        await WeeklySchedule.update(weeklyScheduleEntity.id, {
+          schedule,
+          is_published: true,
+        });
+      } else {
+        const newEntity = await WeeklySchedule.create({
+          week_start: nextWeekStartStr,
+          schedule,
+          is_published: true,
+        });
+        setWeeklyScheduleEntity(newEntity);
+      }
 
-      // Load existing assignments to preserve manual isLongShift toggles
-      const existingAssignments = await ShiftAssignment.filter({
+      // 2) Rewrite shift_assignments for the week from scratch.
+      // Delete existing first to avoid duplicates.
+      const weekEndDate = format(addDays(selectedWeekStart, 6), 'yyyy-MM-dd');
+      const oldAssignments = await ShiftAssignment.filter({
         start_date: nextWeekStartStr,
-        end_date: format(addDays(nextWeekStart, 6), 'yyyy-MM-dd')
+        end_date: weekEndDate,
       });
-
-      // Create a map of existing long shift statuses (manually toggled by admin)
-      const existingLongShifts = {};
-      existingAssignments.forEach(assignment => {
-        if (assignment.isLongShift) {
-          const key = `${assignment.soldier_id}_${assignment.date}_${assignment.shift_type}`;
-          existingLongShifts[key] = true;
-        }
-      });
-
-      console.log('📋 Preserving', Object.keys(existingLongShifts).length, 'manually toggled long shifts');
+      for (const old of oldAssignments) {
+        await ShiftAssignment.delete(old.id);
+      }
 
       const assignments = [];
-
-      // Iterate through the schedule and create assignments
       for (const day of DAYS) {
-        const dayDate = addDays(nextWeekStart, DAYS.indexOf(day));
-        const dateStr = format(dayDate, 'yyyy-MM-dd');
+        const cells = schedule[day] || {};
+        for (const shiftKey in cells) {
+          const shiftData = cells[shiftKey];
+          if (!shiftData?.soldiers?.length || shiftData.cancelled) continue;
+          const longSet = new Set(shiftData.longShiftSoldiers || []);
 
-        for (const shiftKey in schedule[day]) {
-          const shift = schedule[day][shiftKey];
-          if (shift && shift.soldiers && shift.soldiers.length > 0) {
-            for (const soldierId of shift.soldiers) {
-              const soldier = users[soldierId];
-              if (soldier) {
-                // CRITICAL: Use soldier.uid (Firebase Auth UID), not soldierId (Firestore doc ID)
-                if (!soldier.uid) {
-                  console.error('❌ Soldier missing uid field:', soldier);
-                  continue; // Skip this soldier
-                }
+          for (const soldierId of shiftData.soldiers) {
+            const soldier = users[soldierId];
+            if (!soldier?.uid) continue;
 
-                console.log('📝 Publishing assignment for:', soldier.hebrew_name, {
-                  'Using soldier.uid': soldier.uid,
-                  'NOT using soldierId': soldierId,
-                  'Are they same?': soldier.uid === soldierId ? 'YES' : 'NO'
-                });
+            // Long-shift = admin manual toggle OR soldier's submitted preference (morning only)
+            const isMorning = shiftKey.includes('בוקר');
+            const longByAdmin = longSet.has(soldierId);
+            const longByPref = !!normalizedSubmissions.find(
+              (s) => s.userId === soldierId || s.userId === soldier.uid
+            )?.longShiftDays?.[day];
+            const isLongShift = isMorning && (longByAdmin || longByPref);
 
-                // Extract shift times from the shift data
-                const shiftData = schedule[day][shiftKey];
-                let startTime = '00:00';
-                let endTime = '23:59';
-
-                // Check for custom hours first
-                if (shiftData.customStartTime && shiftData.customEndTime) {
-                  startTime = shiftData.customStartTime;
-                  endTime = shiftData.customEndTime;
-                } else {
-                  // Extract from shift name
-                  const shiftDisplayName = SHIFT_NAMES[shiftKey] || '';
-                  const timeMatch = shiftDisplayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
-                  if (timeMatch) {
-                    startTime = timeMatch[1];
-                    endTime = timeMatch[2];
-                  }
-                }
-
-                // Check if soldier has long shift preference for this day
-                const soldierSubmission = normalizedSubmissions.find(sub =>
-                  sub.userId === soldierId || sub.userId === soldier.uid
-                );
-                const hasLongShiftPref = soldierSubmission?.longShiftDays?.[day] || false;
-
-                // For morning shifts, check if soldier preferred long shift OR if admin manually toggled it
-                const isMorningShift = shiftKey.includes('בוקר');
-                const manualToggleKey = `${soldier.uid}_${dateStr}_${shiftKey}`;
-                const wasManuallyToggled = existingLongShifts[manualToggleKey] || false;
-
-                // Preserve manual toggle if it exists, otherwise use preference
-                const isLongShift = isMorningShift && (wasManuallyToggled || hasLongShiftPref);
-
-                console.log(`📋 Publishing ${soldier.hebrew_name} for ${day} ${shiftKey}:`, {
-                  hasLongShiftPref,
-                  isMorningShift,
-                  wasManuallyToggled,
-                  isLongShift
-                });
-
-                // Determine end time for long shifts (16:15 for Tuesday, 15:30 for others)
-                const longShiftEndTime = getLongShiftEndTime(day);
-
-                assignments.push({
-                  soldier_id: soldier.uid,  // ✅ FIXED: Use Auth UID, not Firestore doc ID
-                  soldier_name: soldier.hebrew_name || soldier.displayName || soldier.full_name,
-                  date: dateStr,
-                  day_name: day,
-                  shift_type: shiftKey,
-                  shift_name: SHIFT_NAMES[shiftKey],
-                  start_time: startTime,
-                  end_time: isLongShift ? longShiftEndTime : endTime, // Override end time for long shifts (16:15 for Tuesday, 15:30 for others)
-                  week_start: nextWeekStartStr,
-                  status: 'assigned',
-                  isLongShift: isLongShift // Add isLongShift field
-                });
-              }
-            }
+            assignments.push(
+              buildAssignment({
+                soldier,
+                day,
+                shiftKey,
+                shiftData,
+                weekStart: nextWeekStartStr,
+                isLongShift,
+                dynamicNames: dynamicShiftNames,
+              })
+            );
           }
         }
       }
 
-      console.log(`Creating ${assignments.length} assignments for soldiers...`);
-
-      // Delete old assignments for this week first
-      const oldAssignments = await ShiftAssignment.filter({
-        start_date: nextWeekStartStr,
-        end_date: format(addDays(nextWeekStart, 6), 'yyyy-MM-dd')
-      });
-
-      for (const oldAssignment of oldAssignments) {
-        await ShiftAssignment.delete(oldAssignment.id);
+      if (assignments.length > 0) {
+        await ShiftAssignment.bulkCreate(assignments);
       }
 
-      // Create new assignments
-      await ShiftAssignment.bulkCreate(assignments);
+      // 3) Clear the local draft — board now reflects what soldiers see.
+      clearDraft(nextWeekStartStr);
+      setDraftActive(false);
 
+      // Refresh assignments cache for swap-request decoration.
+      const refreshed = await ShiftAssignment.filter({
+        start_date: nextWeekStartStr,
+        end_date: weekEndDate,
+      });
+      setShiftAssignments(refreshed);
+
+      setSaveStatus('✅ פורסם לחיילים');
+      setTimeout(() => setSaveStatus(''), 2500);
       alert(`הסידור פורסם בהצלחה! ${assignments.length} שיבוצים נשלחו לחיילים.`);
-
     } catch (e) {
-      console.error("Error publishing to soldiers:", e);
-      alert("שגיאה בפרסום הסידור לחיילים: " + e.message);
+      console.error('Error publishing to soldiers:', e);
+      setSaveStatus('❌ שגיאה בפרסום');
+      setTimeout(() => setSaveStatus(''), 3000);
+      alert('שגיאה בפרסום הסידור לחיילים: ' + e.message);
+    } finally {
+      setPublishing(false);
     }
-    setSaving(false);
-  };
-
-  const handleResetShiftData = async () => {
-    if (!window.confirm("⚠️ האם אתה בטוח שברצונך לאפס את הגדרות המשמרות?\n\nפעולה זו תמחק:\n- הגדרות משמרות (shift_definitions)\n- סוגי משמרות (shift_types)\n- שעות מותאמות אישית (weekly_shift_hours)\n\nהמשמרות יטענו מחדש מההגדרות בקוד עם השעות החדשות.\n\nפעולה זו אינה הפיכה!")) {
-      return;
-    }
-
-    setSaving(true);
-    try {
-      console.log('🗑️ Resetting shift data...');
-
-      const results = await clearAllShiftData();
-
-      alert(`✅ הגדרות המשמרות אופסו בהצלחה!\n\nנמחקו:\n- ${results.definitions.deleted} הגדרות משמרות\n- ${results.types.deleted} סוגי משמרות\n- ${results.weeklyHours.deleted} שעות מותאמות\n\nהעמוד ייטען מחדש כעת...`);
-
-      // Reload the page to reinitialize everything
-      window.location.reload();
-    } catch (error) {
-      console.error('❌ Error resetting shift data:', error);
-      alert('שגיאה באיפוס הגדרות המשמרות: ' + error.message);
-    }
-    setSaving(false);
-  };
-
-  const handleRemoveTuesdayFridayEveningShifts = async () => {
-    if (!window.confirm("האם למחוק את משמרות הערב של יום שלישי ושישי מכל הסידורים? פעולה זו תעדכן את כל הסידורים הקיימים.")) {
-      return;
-    }
-
-    setSaving(true);
-    try {
-      console.log('🗑️ Removing Tuesday and Friday evening shifts...');
-
-      const result = await removeTuesdayFridayEveningShifts();
-
-      alert(`✅ הפעולה הושלמה!\n\nעובדו ${result.processed} סידורים\nעודכנו ${result.modified} סידורים\n\nהעמוד ייטען מחדש כעת...`);
-
-      // Reload the page to show updated schedule
-      window.location.reload();
-    } catch (error) {
-      console.error('❌ Error removing evening shifts:', error);
-      alert('שגיאה במחיקת משמרות הערב: ' + error.message);
-    }
-    setSaving(false);
-  };
-
-  const handleClearAllAssignments = async () => {
-    if (!window.confirm("האם אתה בטוח שברצונך למחוק את כל שיבוצי המשמרות? פעולה זו אינה הפיכה!")) {
-      return;
-    }
-
-    setSaving(true);
-    try {
-      console.log('🗑️ Clearing all shift assignments...');
-
-      // Initialize collection if it doesn't exist
-      await initializeShiftAssignmentsCollection();
-
-      // Clear all assignments
-      const result = await clearAllShiftAssignments();
-
-      alert(`נמחקו ${result.deleted} שיבוצים בהצלחה! כעת אפשר להתחיל מחדש.`);
-      console.log('✅ Cleared assignments:', result);
-    } catch (e) {
-      console.error("Error clearing assignments:", e);
-      alert("שגיאה במחיקת שיבוצים: " + e.message);
-    }
-    setSaving(false);
   };
 
   const handleEditShiftHours = (day, shiftKey, shiftName) => {
-    console.log('Opening shift hours editor for:', day, shiftKey, shiftName);
     setEditingShift({ day, shiftKey, shiftName });
   };
 
-  const handleSaveShiftHours = async (day, shiftKey, startTime, endTime) => {
-    try {
-      console.log('💾 Saving shift hours for:', day, shiftKey, 'New times:', startTime, '-', endTime);
-
-      // Update the schedule state with new times for this specific day/shift
-      const newSchedule = JSON.parse(JSON.stringify(schedule));
-
-      if (newSchedule[day]?.[shiftKey]) {
-        // Store the custom hours in the shift data
-        newSchedule[day][shiftKey].customStartTime = startTime;
-        newSchedule[day][shiftKey].customEndTime = endTime;
-
-        console.log('📝 Updated shift data:', newSchedule[day][shiftKey]);
+  // Editing per-shift custom hours stays LOCAL until the admin hits "Publish".
+  const handleSaveShiftHours = (day, shiftKey, startTime, endTime) => {
+    setSchedule((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      if (next[day]?.[shiftKey]) {
+        next[day][shiftKey].customStartTime = startTime;
+        next[day][shiftKey].customEndTime = endTime;
       }
-
-      setSchedule(newSchedule);
-
-      // Immediately save to database
-      try {
-        if (weeklyScheduleEntity) {
-          await WeeklySchedule.update(weeklyScheduleEntity.id, { schedule: newSchedule });
-          console.log('✅ Weekly schedule updated in database!');
-        } else {
-          const newEntity = await WeeklySchedule.create({
-            week_start: nextWeekStartStr,
-            schedule: newSchedule,
-            is_published: false
-          });
-          setWeeklyScheduleEntity(newEntity);
-          console.log('✅ New schedule created in database!');
-        }
-
-        alert(`שעות המשמרת עודכנו בהצלחה עבור יום ${day}!`);
-      } catch (saveError) {
-        console.error('❌ Error saving to database:', saveError);
-        alert('שגיאה בשמירה למאגר: ' + saveError.message);
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error('❌ Error saving shift hours:', error);
-      throw error;
-    }
-  };
-
-  const isPublished = weeklyScheduleEntity?.is_published;
-
-  // Handle soldier selection from preferences panel
-  const handleSelectSoldier = (soldierId) => {
-    if (selectedSoldierId === soldierId) {
-      // Deselect if clicking the same soldier
-      setSelectedSoldierId(null);
-      console.log('❌ Soldier deselected');
-    } else {
-      setSelectedSoldierId(soldierId);
-      const soldierObj = users[soldierId];
-      console.log('✅ Soldier selected:', {
-        name: soldierObj?.hebrew_name || soldierObj?.displayName,
-        selectedSoldierId: soldierId,
-        'soldier.id': soldierObj?.id,
-        'soldier.uid': soldierObj?.uid,
-        'Full soldier object': soldierObj
-      });
-    }
-  };
-
-  // Handle clicking on a shift slot to assign/remove selected soldier
-  const handleShiftSlotClick = async (day, shiftKey) => {
-    console.log('🎯 handleShiftSlotClick called:', { day, shiftKey, selectedSoldierId });
-
-    if (!selectedSoldierId) {
-      console.log('⚠️ No soldier selected. Click on a soldier first.');
-      return;
-    }
-
-    const soldier = users[selectedSoldierId];
-    if (!soldier) {
-      console.error('❌ Soldier not found:', selectedSoldierId);
-      return;
-    }
-
-    console.log('👤 Soldier found:', soldier.hebrew_name || soldier.displayName);
-
-    // Track what action we're performing
-    let actionType = null; // 'add' or 'remove'
-    let updatedSchedule = null;
-
-    setSchedule(prev => {
-      const newSchedule = JSON.parse(JSON.stringify(prev));
-
-      if (newSchedule[day]?.[shiftKey]) {
-        const soldierIndex = newSchedule[day][shiftKey].soldiers.indexOf(selectedSoldierId);
-
-        if (soldierIndex !== -1) {
-          // Soldier is already in this shift - remove them
-          newSchedule[day][shiftKey].soldiers.splice(soldierIndex, 1);
-          console.log('🗑️ Soldier removed from shift:', soldier.hebrew_name);
-          actionType = 'remove';
-        } else {
-          // Soldier not in shift - add them (with confirmation if already at 6+ shifts)
-          const currentCount = soldierShiftCounts[selectedSoldierId] || 0;
-          if (currentCount >= 6) {
-            if (!window.confirm(`החייל ${soldier.hebrew_name} כבר משובץ ל-6 משמרות. האם אתה בטוח שברצונך להוסיף משמרת נוספת?`)) {
-              return prev; // Return unchanged schedule
-            }
-          }
-          newSchedule[day][shiftKey].soldiers.push(selectedSoldierId);
-          console.log('✅ Soldier assigned to shift:', soldier.hebrew_name);
-          actionType = 'add';
-        }
-        updatedSchedule = newSchedule;
-      } else {
-        console.log('❌ Shift not found:', shiftKey);
-      }
-
-      return newSchedule;
+      return next;
     });
+    return { success: true };
+  };
 
-    // Auto-save: Create or delete ShiftAssignment immediately
-    try {
-      const dayDate = addDays(selectedWeekStart, DAYS.indexOf(day));
-      const dateStr = format(dayDate, 'yyyy-MM-dd');
+  const isPublished = weeklyScheduleEntity?.is_published && !draftActive;
 
-      if (actionType === 'add') {
-        // Extract shift times
-        const shiftData = schedule[day][shiftKey];
-        let startTime = '00:00';
-        let endTime = '23:59';
+  const handleSelectSoldier = (soldierId) => {
+    setSelectedSoldierId((prev) => (prev === soldierId ? null : soldierId));
+  };
 
-        if (shiftData.customStartTime && shiftData.customEndTime) {
-          startTime = shiftData.customStartTime;
-          endTime = shiftData.customEndTime;
-        } else {
-          const shiftDisplayName = dynamicShiftNames[shiftKey] || SHIFT_NAMES[shiftKey] || '';
-          const timeMatch = shiftDisplayName.match(/(\d{2}:\d{2})-(\d{2}:\d{2})/);
-          if (timeMatch) {
-            startTime = timeMatch[1];
-            endTime = timeMatch[2];
+  // Local-only: add/remove the currently-selected soldier from a shift slot.
+  const handleShiftSlotClick = (day, shiftKey) => {
+    if (!selectedSoldierId) return;
+    const soldier = users[selectedSoldierId];
+    if (!soldier) return;
+
+    setSchedule((prev) => {
+      const next = JSON.parse(JSON.stringify(prev));
+      const cell = next[day]?.[shiftKey];
+      if (!cell) return prev;
+
+      const idx = cell.soldiers.indexOf(selectedSoldierId);
+      if (idx !== -1) {
+        cell.soldiers.splice(idx, 1);
+        if (Array.isArray(cell.longShiftSoldiers)) {
+          cell.longShiftSoldiers = cell.longShiftSoldiers.filter((id) => id !== selectedSoldierId);
+        }
+      } else {
+        const currentCount = soldierShiftCounts[selectedSoldierId] || 0;
+        if (currentCount >= 6) {
+          if (!window.confirm(`החייל ${soldier.hebrew_name} כבר משובץ ל-6 משמרות. האם אתה בטוח שברצונך להוסיף משמרת נוספת?`)) {
+            return prev;
           }
         }
-
-        // Check if soldier has long shift preference for this day
-        const soldierSubmission = normalizedSubmissions.find(sub =>
-          sub.userId === selectedSoldierId || sub.userId === soldier.uid
-        );
-        const hasLongShiftPref = soldierSubmission?.longShiftDays?.[day] || false;
-
-        // For morning shifts, check if soldier preferred long shift
-        const isMorningShift = shiftKey.includes('בוקר');
-        const isLongShift = isMorningShift && hasLongShiftPref;
-
-        console.log(`📋 Manual assignment for ${soldier.hebrew_name} on ${day}:`, {
-          hasLongShiftPref,
-          isMorningShift,
-          isLongShift
-        });
-
-        // Determine end time for long shifts (16:15 for Tuesday, 15:30 for others)
-        const longShiftEndTime = getLongShiftEndTime(day);
-
-        // Use soldier.uid if available, otherwise use selectedSoldierId
-        const soldierIdToSave = soldier.uid || selectedSoldierId;
-
-        console.log('💾 Creating assignment with:', {
-          soldier_id: soldierIdToSave,
-          soldier_name: soldier.hebrew_name,
-          date: dateStr,
-          day_name: day,
-          shift_type: shiftKey,
-          isLongShift: isLongShift
-        });
-
-        // Create assignment
-        await ShiftAssignment.create({
-          soldier_id: soldierIdToSave,
-          soldier_name: soldier.hebrew_name || soldier.displayName || soldier.full_name,
-          date: dateStr,
-          day_name: day,
-          shift_type: shiftKey,
-          shift_name: dynamicShiftNames[shiftKey] || SHIFT_NAMES[shiftKey],
-          start_time: startTime,
-          end_time: isLongShift ? longShiftEndTime : endTime, // 16:15 for Tuesday, 15:30 for others
-          week_start: nextWeekStartStr,
-          status: 'assigned',
-          isLongShift: isLongShift // Add isLongShift based on soldier's preference
-        });
-
-        console.log('✅ ShiftAssignment created immediately with soldier_id:', soldierIdToSave, 'isLongShift:', isLongShift);
-      } else if (actionType === 'remove') {
-        // Delete assignment
-        const soldierIdToSearch = soldier.uid || selectedSoldierId;
-        const assignments = await ShiftAssignment.filter({
-          soldier_id: soldierIdToSearch,
-          date: dateStr,
-          shift_type: shiftKey
-        });
-
-        for (const assignment of assignments) {
-          await ShiftAssignment.delete(assignment.id);
-          console.log('✅ ShiftAssignment deleted:', assignment.id);
-        }
+        cell.soldiers.push(selectedSoldierId);
       }
-
-      // Reload assignments to update the UI
-      const weekEndDate = format(addDays(selectedWeekStart, 6), 'yyyy-MM-dd');
-      const updatedAssignments = await ShiftAssignment.filter({
-        start_date: nextWeekStartStr,
-        end_date: weekEndDate
-      });
-      setShiftAssignments(updatedAssignments);
-
-    } catch (error) {
-      console.error('❌ Error auto-saving assignment:', error);
-    }
-
-    console.log('📊 After setSchedule:', { hasSchedule: !!updatedSchedule, actionType });
-    console.log('✅ Soldier assignment updated and saved.');
+      return next;
+    });
   };
 
   const normalizedSubmissions = useMemo(() => {
-    console.log('ScheduleManagement: Raw submissions from Firestore:', rawSubmissions);
-
-    // Create map of submissions by userId for O(1) lookup
-    const submissionsByUserId = new Map();
-
-    rawSubmissions.forEach(sub => {
-      console.log('Processing submission:', sub);
-      console.log('Submission userId:', sub.userId);
-      console.log('Submission days:', sub.days);
-
-      // Ensure all days exist in the days object
-      const normalizedDays = {
-        sunday: sub.days?.sunday || [],
-        monday: sub.days?.monday || [],
-        tuesday: sub.days?.tuesday || [],
-        wednesday: sub.days?.wednesday || [],
-        thursday: sub.days?.thursday || [],
-        friday: sub.days?.friday || [],
-        saturday: sub.days?.saturday || []
-      };
-
-      console.log('Normalized days:', normalizedDays);
-
+    const byUserId = new Map();
+    rawSubmissions.forEach((sub) => {
       const normalized = {
         id: sub.id,
         userId: sub.userId,
         uid: sub.userId,
         userName: sub.userName || 'ללא שם',
         updatedAt: sub.updatedAt || new Date(),
-        days: normalizedDays,
+        days: {
+          sunday: sub.days?.sunday || [],
+          monday: sub.days?.monday || [],
+          tuesday: sub.days?.tuesday || [],
+          wednesday: sub.days?.wednesday || [],
+          thursday: sub.days?.thursday || [],
+          friday: sub.days?.friday || [],
+          saturday: sub.days?.saturday || [],
+        },
         weekStart: sub.weekStart,
-        longShiftDays: sub.longShiftDays || {}, // Include long shift preferences
-        notes: sub.notes || '' // Include soldier notes
+        longShiftDays: sub.longShiftDays || {},
+        notes: sub.notes || '',
       };
-
-      console.log('Normalized submission with days:', normalized);
-
-      // Keep only the latest submission per user
-      const existing = submissionsByUserId.get(sub.userId);
+      const existing = byUserId.get(sub.userId);
       if (!existing || normalized.updatedAt > existing.updatedAt) {
-        submissionsByUserId.set(sub.userId, normalized);
+        byUserId.set(sub.userId, normalized);
       }
     });
 
-    console.log('ScheduleManagement: Submissions by userId:', Array.from(submissionsByUserId.keys()));
-
-    // Get all roster soldiers - filter out duplicates by using a Map with user.id as key
     const soldiersMap = new Map();
-    Object.values(users).forEach(user => {
+    Object.values(users).forEach((user) => {
       if ((user.role === 'soldier' || user.role === 'user') && !soldiersMap.has(user.id)) {
         soldiersMap.set(user.id, user);
       }
     });
     const allSoldiers = Array.from(soldiersMap.values());
-    console.log('ScheduleManagement: All soldiers:', allSoldiers.map(s => `${s.id}: ${s.hebrew_name || s.full_name}`));
 
-    // Join roster with submissions
     const submitted = [];
     const notSubmitted = [];
-
-    allSoldiers.forEach(soldier => {
-      // Try to match by both id and uid (for new vs old user formats)
-      let submission = submissionsByUserId.get(soldier.id);
-      if (!submission && soldier.uid) {
-        submission = submissionsByUserId.get(soldier.uid);
-      }
-
+    allSoldiers.forEach((soldier) => {
+      let submission = byUserId.get(soldier.id);
+      if (!submission && soldier.uid) submission = byUserId.get(soldier.uid);
       if (submission) {
-        // Update submission with soldier info for consistency
         submitted.push({
           ...submission,
-          userName: soldier.hebrew_name || soldier.displayName || soldier.full_name || submission.userName || 'ללא שם',
+          userName:
+            soldier.hebrew_name ||
+            soldier.displayName ||
+            soldier.full_name ||
+            submission.userName ||
+            'ללא שם',
           userId: soldier.id,
-          uid: soldier.id
+          uid: soldier.id,
         });
       } else {
-        // Create empty submission for soldiers who didn't submit
         notSubmitted.push({
           id: `missing_${soldier.id}`,
           uid: soldier.id,
           userId: soldier.id,
-          userName: soldier.hebrew_name || soldier.displayName || soldier.full_name || 'ללא שם',
+          userName:
+            soldier.hebrew_name || soldier.displayName || soldier.full_name || 'ללא שם',
           weekStart: nextWeekStartStr,
-          updatedAt: new Date(0), // Very old date to sort last
+          updatedAt: new Date(0),
           days: {
-            sunday: [],
-            monday: [],
-            tuesday: [],
-            wednesday: [],
-            thursday: [],
-            friday: [],
-            saturday: []
-          }
+            sunday: [], monday: [], tuesday: [], wednesday: [],
+            thursday: [], friday: [], saturday: [],
+          },
         });
       }
     });
-
-    console.log('ScheduleManagement: Submitted soldiers:', submitted.map(s => `${s.uid}: ${s.userName}`));
-    console.log('ScheduleManagement: Not submitted soldiers:', notSubmitted.map(s => `${s.uid}: ${s.userName}`));
-
     return [...submitted, ...notSubmitted];
   }, [rawSubmissions, users, nextWeekStartStr]);
 
@@ -1199,205 +616,142 @@ ${isWrongWeek ? `⚠️ שים לב: החייל משובץ לשבוע ${weeksWit
 
   const availableSoldiers = Object.values(users).filter((u) => u.is_active);
 
-  console.log('ScheduleManagement: Available soldiers:', availableSoldiers);
-  console.log('ScheduleManagement: Users:', users);
-
   return (
     <>
-        <div className="flex h-[calc(100vh-4rem)] bg-gray-100 overflow-hidden" dir="rtl">
-            {/* Preferences Panel - Always open on left */}
-            <PreferencesPanel
-                isOpen={true}
-                onClose={() => {}}
-                submissions={normalizedSubmissions}
-                weekStart={nextWeekStartStr}
-                loading={preferencesLoading}
-                soldierShiftCounts={soldierShiftCounts}
-                users={users}
-                isDragging={false}
-                onSelectSoldier={handleSelectSoldier}
-                selectedSoldierId={selectedSoldierId}
-            />
-            <div className="flex-grow p-4 md:p-6 flex flex-col overflow-hidden">
-                {/* Header with Home Button */}
-                <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => navigate('/admin')}
-                    >
-                        <Home className="w-5 h-5"/>
-                    </Button>
-                    <div className="flex items-center gap-3">
-                        <Calendar className="w-6 h-6 text-blue-600"/>
-                        <h1 className="text-xl md:text-2xl font-bold text-black">ניהול סידור עבודה</h1>
-                    </div>
-                    <div className="w-10"></div> {/* Spacer for balance */}
-                </div>
-
-                {/* Week Navigation */}
-                <div className="flex items-center gap-2 justify-center mb-4 flex-shrink-0">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setWeekOffset(weekOffset - 1)}
-                        className="h-8 w-8 p-0"
-                    >
-                        <ChevronRight className="w-4 h-4"/>
-                    </Button>
-                    <p className="text-gray-600 min-w-[150px] text-center text-sm">שבוע מתאריך: {format(selectedWeekStart, 'dd/MM/yyyy')}</p>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setWeekOffset(weekOffset + 1)}
-                        className="h-8 w-8 p-0"
-                    >
-                        <ChevronLeft className="w-4 h-4"/>
-                    </Button>
-                </div>
-
-                {/* Save Status */}
-                {saveStatus && (
-                    <div className="text-center mb-2 flex-shrink-0">
-                        <p className={`text-sm ${saveStatus.includes('✅') ? 'text-green-600' : saveStatus.includes('❌') ? 'text-red-600' : 'text-blue-600'}`}>
-                            {saveStatus}
-                        </p>
-                    </div>
-                )}
-
-                {/* Action Buttons - Organized in rows */}
-                <div className="mb-4 flex-shrink-0 space-y-2">
-                    {/* Primary Actions */}
-                    <div className="flex gap-2 items-center justify-center flex-wrap">
-                        <Button
-                            variant={isEditMode ? "default" : "outline"}
-                            onClick={() => setIsEditMode(!isEditMode)}
-                            disabled={saving}
-                            size="sm"
-                            className={isEditMode ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}
-                        >
-                            <Edit2 className="w-4 h-4 ml-2"/>{isEditMode ? "סיום עריכה" : "ערוך"}
-                        </Button>
-                        <Button
-                            variant="default"
-                            onClick={handleManualSave}
-                            disabled={saving}
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700 text-white"
-                        >
-                            <Save className="w-4 h-4 ml-2"/>שמור סידור
-                        </Button>
-                        <Button
-                            onClick={handlePublishToSoldiers}
-                            disabled={saving}
-                            size="sm"
-                            className="bg-purple-600 hover:bg-purple-700 text-white"
-                        >
-                            <Users className="w-4 h-4 ml-2"/>פרסם לחיילים
-                        </Button>
-                    </div>
-                    {/* Destructive Actions */}
-                    <div className="flex gap-2 items-center justify-center flex-wrap">
-                        <Button
-                            variant="outline"
-                            onClick={handleRemoveTuesdayFridayEveningShifts}
-                            disabled={saving}
-                            size="sm"
-                            className="border-yellow-300 text-yellow-700 hover:bg-yellow-50"
-                        >
-                            <Trash2 className="w-4 h-4 ml-2"/>מחק ערב שלישי/שישי
-                        </Button>
-                        <Button
-                            variant="outline"
-                            onClick={handleClearAllAssignments}
-                            disabled={saving}
-                            size="sm"
-                            className="border-red-300 text-red-600 hover:bg-red-50"
-                        >
-                            <Trash2 className="w-4 h-4 ml-2"/>נקה שיבוצים
-                        </Button>
-                        <Button
-                            variant="outline"
-                            onClick={handleResetShiftData}
-                            disabled={saving}
-                            size="sm"
-                            className="border-orange-300 text-orange-600 hover:bg-orange-50"
-                        >
-                            <Trash2 className="w-4 h-4 ml-2"/>אפס הגדרות משמרות
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Mission Filter Buttons */}
-                <div className="flex gap-2 mb-4 flex-shrink-0">
-                    <span className="text-sm font-medium text-gray-700 flex items-center">סינון לפי משימה:</span>
-                    <Button
-                        variant={missionFilter === "הכל" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setMissionFilter("הכל")}
-                    >
-                        הכל
-                    </Button>
-                    <Button
-                        variant={missionFilter === "קריית_חינוך" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setMissionFilter("קריית_חינוך")}
-                    >
-                        קריית חינוך
-                    </Button>
-                    <Button
-                        variant={missionFilter === "גבולות" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setMissionFilter("גבולות")}
-                    >
-                        גבולות
-                    </Button>
-                </div>
-
-                 <div className="flex-1 overflow-auto pb-4 min-h-0">
-                    <ScheduleBoard
-                        schedule={schedule}
-                        users={users}
-                        submissions={submissions}
-                        soldierShiftCounts={soldierShiftCounts}
-                        soldierNotes={soldierNotes}
-                        isPublished={isPublished}
-                        isEditMode={isEditMode}
-                        onCancelShift={handleCancelShift}
-                        onShiftClick={handleShiftClick}
-                        isMobile={isMobile}
-                        onShiftSlotClick={handleShiftSlotClick}
-                        selectedSoldierId={selectedSoldierId}
-                        onEditShiftHours={handleEditShiftHours}
-                        dynamicShiftNames={dynamicShiftNames}
-                        missionFilter={missionFilter}
-                        shiftAssignments={shiftAssignments}
-                        onToggleLongShift={handleToggleLongShift}
-                    />
-                 </div>
+      <div className="flex h-[calc(100vh-4rem)] bg-gray-100 overflow-hidden" dir="rtl">
+        <PreferencesPanel
+          isOpen={true}
+          onClose={() => {}}
+          submissions={normalizedSubmissions}
+          weekStart={nextWeekStartStr}
+          loading={preferencesLoading}
+          soldierShiftCounts={soldierShiftCounts}
+          users={users}
+          isDragging={false}
+          onSelectSoldier={handleSelectSoldier}
+          selectedSoldierId={selectedSoldierId}
+        />
+        <div className="flex-grow p-4 md:p-6 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <Button variant="outline" size="icon" onClick={() => navigate('/admin')}>
+              <Home className="w-5 h-5" />
+            </Button>
+            <div className="flex items-center gap-3">
+              <Calendar className="w-6 h-6 text-blue-600" />
+              <h1 className="text-xl md:text-2xl font-bold text-black">ניהול סידור עבודה</h1>
             </div>
+            <div className="w-10" />
+          </div>
+
+          <div className="flex items-center gap-2 justify-center mb-4 flex-shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setWeekOffset(weekOffset - 1)}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+            <p className="text-gray-600 min-w-[150px] text-center text-sm">
+              שבוע מתאריך: {format(selectedWeekStart, 'dd/MM/yyyy')}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setWeekOffset(weekOffset + 1)}
+              className="h-8 w-8 p-0"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+          </div>
+
+          {saveStatus && (
+            <div className="text-center mb-2 flex-shrink-0">
+              <p
+                className={`text-sm ${
+                  saveStatus.includes('✅')
+                    ? 'text-green-600'
+                    : saveStatus.includes('❌')
+                    ? 'text-red-600'
+                    : 'text-blue-600'
+                }`}
+              >
+                {saveStatus}
+              </p>
+            </div>
+          )}
+
+          {draftActive && (
+            <div className="text-center mb-2 flex-shrink-0">
+              <p className="text-xs text-amber-700 bg-amber-50 inline-block px-2 py-1 rounded border border-amber-200">
+                טיוטה מקומית — שינויים עדיין לא פורסמו לחיילים
+              </p>
+            </div>
+          )}
+
+          {/* Action buttons — only Save (local draft) and Publish (push to soldiers). */}
+          <div className="mb-4 flex-shrink-0">
+            <div className="flex gap-2 items-center justify-center flex-wrap">
+              <Button
+                variant="default"
+                onClick={handleManualSave}
+                disabled={saving || publishing}
+                size="sm"
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Save className="w-4 h-4 ml-2" />
+                {saving ? 'שומר...' : 'שמור סידור'}
+              </Button>
+              <Button
+                onClick={handlePublishToSoldiers}
+                disabled={saving || publishing}
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                <Users className="w-4 h-4 ml-2" />
+                {publishing ? 'מפרסם...' : 'פרסם לחיילים'}
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-auto pb-4 min-h-0">
+            <ScheduleBoard
+              schedule={schedule}
+              users={users}
+              soldierShiftCounts={soldierShiftCounts}
+              soldierNotes={soldierNotes}
+              isPublished={isPublished}
+              onCancelShift={handleCancelShift}
+              onShiftSlotClick={handleShiftSlotClick}
+              selectedSoldierId={selectedSoldierId}
+              onEditShiftHours={handleEditShiftHours}
+              dynamicShiftNames={dynamicShiftNames}
+              shiftAssignments={shiftAssignments}
+              onToggleLongShift={handleToggleLongShift}
+            />
+          </div>
         </div>
+      </div>
 
-        <AssignSoldierDialog
-            isOpen={!!dialogShift}
-            onClose={() => setDialogShift(null)}
-            shiftInfo={dialogShift}
-            allSoldiers={availableSoldiers}
-            assignedSoldiers={dialogShift ? schedule[dialogShift.day][dialogShift.shiftKey].soldiers : []}
-            onToggleAssign={handleToggleAssign}
-        />
+      <AssignSoldierDialog
+        isOpen={!!dialogShift}
+        onClose={() => setDialogShift(null)}
+        shiftInfo={dialogShift}
+        allSoldiers={availableSoldiers}
+        assignedSoldiers={
+          dialogShift ? schedule[dialogShift.day][dialogShift.shiftKey].soldiers : []
+        }
+        onToggleAssign={handleToggleAssign}
+      />
 
-        <QuickShiftHoursEditor
-            isOpen={!!editingShift}
-            onClose={() => setEditingShift(null)}
-            day={editingShift?.day}
-            shiftKey={editingShift?.shiftKey}
-            shiftName={editingShift?.shiftName}
-            onSave={handleSaveShiftHours}
-        />
+      <QuickShiftHoursEditor
+        isOpen={!!editingShift}
+        onClose={() => setEditingShift(null)}
+        day={editingShift?.day}
+        shiftKey={editingShift?.shiftKey}
+        shiftName={editingShift?.shiftName}
+        onSave={handleSaveShiftHours}
+      />
     </>
   );
 }
-
-
-

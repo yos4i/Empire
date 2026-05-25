@@ -27,7 +27,7 @@ export default function UpdateShiftRequirementsPage() {
   };
 
   const handleUpdate = async () => {
-    if (!window.confirm('האם אתה בטוח? פעולה זו תעדכן את דרישות החיילים:\n\n- גבולות בוקר: 6 → 4 חיילים\n\nהמשך?')) {
+    if (!window.confirm('האם אתה בטוח? פעולה זו תעדכן את דרישות החיילים. המשך?')) {
       return;
     }
 
@@ -62,9 +62,8 @@ export default function UpdateShiftRequirementsPage() {
             <strong>שינויים מתוכננים:</strong>
           </p>
           <ul className="list-disc list-inside space-y-1">
-            <li>גבולות בוקר: 6 → 4 חיילים (כל הימים)</li>
-            <li>קריית חינוך בוקר: נשאר 18 חיילים</li>
-            <li>קריית חינוך ערב: נשאר 6 חיילים</li>
+            <li>קריית חינוך בוקר: 18 חיילים</li>
+            <li>קריית חינוך ערב: 6 חיילים</li>
           </ul>
         </AlertDescription>
       </Alert>

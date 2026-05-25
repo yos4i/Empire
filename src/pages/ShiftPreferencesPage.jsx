@@ -272,7 +272,7 @@ export default function ShiftPreferencesPage() {
                   />
                 </div>
                 <div className="flex gap-2">
-                  {["הכל", "קריית_חינוך", "גבולות"].map((unit) => (
+                  {["הכל", "קריית_חינוך"].map((unit) => (
                     <Button
                       key={unit}
                       variant={filterUnit === unit ? "default" : "outline"}

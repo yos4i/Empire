@@ -46,20 +46,14 @@ class ShiftDefinitionsService {
         // For evening shifts, use the extracted time
         const endTime = timeMatch ? timeMatch[2] : (typeInfo.type === 'ערב' ? '19:30' : '13:30');
 
-        // Extract mission and type from key
-        // Mission can be either "גבולות" or "קריית_חינוך"
-        // Shift type is the last part (בוקר, ערב, etc.)
+        // Extract mission and type from key. Only קריית_חינוך is active.
         const parts = shiftKey.split('_');
         let mission, shiftType;
 
         if (shiftKey.startsWith('קריית_חינוך')) {
           mission = 'קריית_חינוך';
-          shiftType = parts.slice(2).join('_'); // Everything after קריית_חינוך
-        } else if (shiftKey.startsWith('גבולות')) {
-          mission = 'גבולות';
-          shiftType = parts.slice(1).join('_'); // Everything after גבולות
+          shiftType = parts.slice(2).join('_');
         } else {
-          // Fallback: first part is mission, rest is shift type
           mission = parts[0];
           shiftType = parts.slice(1).join('_');
         }

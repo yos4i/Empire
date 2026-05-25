@@ -9,6 +9,7 @@ import SoldierDashboard from './pages/SoldierDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import ShiftSubmissionPage from './pages/ShiftSubmissionPage';
 import ScheduleManagementPage from './pages/ScheduleManagementPage';
+import DailyAutoSchedulePage from './pages/DailyAutoSchedulePage';
 import ShiftPreferencesPage from './pages/ShiftPreferencesPage';
 import MyAssignmentsPage from './pages/MyAssignmentsPage';
 import MyStatusPage from './pages/MyStatusPage';
@@ -70,6 +71,14 @@ const AppContent = () => {
         element={
           <ProtectedRoute requiredRole="admin">
             <ScheduleManagementPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/daily-auto-schedule"
+        element={
+          <ProtectedRoute requiredRole="admin">
+            <DailyAutoSchedulePage />
           </ProtectedRoute>
         }
       />
