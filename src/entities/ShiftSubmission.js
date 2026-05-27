@@ -1,5 +1,5 @@
 import { db } from '../config/firebase';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, setDoc, deleteDoc, doc, query, where, serverTimestamp } from 'firebase/firestore';
 
 export class ShiftSubmission {
   static async list() {
@@ -86,13 +86,20 @@ export class ShiftSubmission {
     try {
       console.log("ShiftSubmission.update: Updating submission:", id, data);
       
-      // Update in shift_submissions collection
+      // Upsert in shift_submissions collection. setDoc with merge avoids the
+      // "No document to update" error when the id points at a non-existent
+      // doc (e.g. an id that actually belongs to the shift_preferences
+      // collection), while still behaving like a partial update otherwise.
       const docRef = doc(db, 'shift_submissions', id);
-      await updateDoc(docRef, {
-        ...data,
-        updated_at: serverTimestamp()
-      });
-      console.log("ShiftSubmission.update: Successfully updated in shift_submissions");
+      await setDoc(
+        docRef,
+        {
+          ...data,
+          updated_at: serverTimestamp()
+        },
+        { merge: true }
+      );
+      console.log("ShiftSubmission.update: Successfully upserted in shift_submissions");
       
       // Also update in user document if we have uid - use uid for consistent identification
       if (data.uid && data.week_start) {

@@ -233,8 +233,16 @@ const handleSubmit = async () => {
       notes: notes // Store soldier notes
     };
 
-    if (existingSubmission) {
-      await ShiftSubmission.update(existingSubmission.id, submissionData);
+    // IMPORTANT: `existingSubmission` may have been loaded from the
+    // `shift_preferences` collection (composite id `uid_week`), which does NOT
+    // map to a `shift_submissions` document. Look up the real submission doc
+    // in its own collection so we update the right id (or create if missing).
+    const existingSubs = await ShiftSubmission.filter({
+      user_id: user.uid,
+      week_start: nextWeekStartStr,
+    });
+    if (existingSubs.length > 0) {
+      await ShiftSubmission.update(existingSubs[0].id, submissionData);
     } else {
       await ShiftSubmission.create(submissionData);
     }
