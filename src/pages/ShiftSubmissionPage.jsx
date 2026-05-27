@@ -22,8 +22,8 @@ const DAYS_HE = {
   friday: 'שישי',
 };
 
-// Only the main work days are offered as a "day off" choice.
-const SELECTABLE_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday'];
+// Days offered as a "day off" choice.
+const SELECTABLE_DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
 
 // The default shift a soldier is assumed available for on every day that is
 // NOT their day off. Morning is the standard shift (evening is by command only).
