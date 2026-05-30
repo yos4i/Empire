@@ -16,7 +16,7 @@ export const useAuth = () => {
 const MOCK_USERS = {
   'admin': {
     username: 'admin',
-    password: 'admin123',
+    password: 'orico123',
     displayName: 'מנהל המערכת',
     role: 'admin',
     uid: 'admin-001'
