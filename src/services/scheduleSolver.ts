@@ -185,13 +185,24 @@ const isBlockedBySpecialState = (
   staffId: string,
   slot: ShiftSlot
 ): boolean => {
+  const isDouble = state.staffById.get(staffId)?.shiftWindow === 'both';
   for (const role of SPECIAL_STATE_IDS) {
     if (!isInState(state, staffId, role)) continue;
+    // Double-shift soldiers are listed on the evening roster (משמרת_ערב) for
+    // display but legitimately work mornings too — so the evening shift's
+    // "<14:30 is off-limits" rule must NOT apply to them.
+    if (role === 'משמרת_ערב' && isDouble) continue;
     const cutoff = SLOT_BLOCK_BEFORE[role];
     if (cutoff === null) continue;
     if (toMin(slot.start) < toMin(cutoff)) return true;
   }
   return false;
+};
+
+/** True if this weekday runs an evening/afternoon roster (Sun/Wed/Thu/Mon). */
+const dayHasLateRoster = (state: SolverState): boolean => {
+  const q = state.template.specialStateQuotas || {};
+  return (q['משמרת_ערב'] ?? 0) > 0 || (q['משמרת_צהריים'] ?? 0) > 0;
 };
 
 /**
@@ -201,19 +212,34 @@ const isBlockedBySpecialState = (
  *   • 'both'    — eligible for every slot (a double shift); no window gate.
  *   • 'evening' — HARD-blocked from morning slots (<14:30); they are genuinely
  *                 not present in the morning.
- *   • 'morning' — eligible for afternoon slots (≥14:30) too, so they can stay
- *                 late / backfill. This is a SOFT fallback: a heavy penalty in
- *                 candidatePenalty keeps evening/both soldiers picked first, so
- *                 morning soldiers only land an afternoon slot when no one else
- *                 can. (Previously this was a hard block, which left afternoon
- *                 slots empty on long-shift days and whenever the evening
- *                 roster was too small.)
+ *   • 'morning' — the afternoon (≥14:30) depends on the day:
+ *                   - day WITH an evening/afternoon roster (hasLateRoster) → the
+ *                     afternoon is that roster's job; morning soldiers are kept
+ *                     OUT. A shortfall is reported as an unfilled slot so the
+ *                     admin adds evening people, rather than silently keeping a
+ *                     morning soldier till 16:15.
+ *                   - day WITHOUT a late roster (e.g. Tuesday) → morning
+ *                     soldiers MAY stay late to cover the afternoon (the only
+ *                     people available); candidatePenalty still de-prioritises
+ *                     them but they're eligible.
  */
-const isStaffEligibleForSlot = (staff: Staff, slot: ShiftSlot): boolean => {
+const isStaffEligibleForSlot = (
+  staff: Staff,
+  slot: ShiftSlot,
+  hasLateRoster: boolean
+): boolean => {
   if (staff.earliestStart && toMin(slot.start) < toMin(staff.earliestStart)) {
     return false;
   }
   if (staff.shiftWindow === 'evening' && toMin(slot.start) < EVENING_START_MIN) {
+    return false;
+  }
+  if (
+    staff.shiftWindow === 'morning' &&
+    !slot.everyone &&
+    toMin(slot.start) >= EVENING_START_MIN &&
+    hasLateRoster
+  ) {
     return false;
   }
   return true;
@@ -378,7 +404,7 @@ const applyPinnedAssignments = (state: SolverState): void => {
     for (const id of ids) {
       if (state.unavailable.has(id)) continue;
       const person = state.staffById.get(id);
-      if (person && !isStaffEligibleForSlot(person, slot)) continue;
+      if (person && !isStaffEligibleForSlot(person, slot, dayHasLateRoster(state))) continue;
       const busy = state.busyByStaff.get(id) || [];
       if (hasConflict(busy, slotInterval(slot))) continue;
       accepted.push(id);
@@ -462,7 +488,7 @@ const fillRegularSlot = (state: SolverState, slot: ShiftSlot): void => {
     if (state.unavailable.has(s.id)) continue;
     if (s.isCommander) continue;
     if (isBlockedBySpecialState(state, s.id, slot)) continue;
-    if (!isStaffEligibleForSlot(s, slot)) continue;
+    if (!isStaffEligibleForSlot(s, slot, dayHasLateRoster(state))) continue;
     if (hasConflict(state.busyByStaff.get(s.id) || [], interval)) continue;
     eligibleIds.push(s.id);
   }
@@ -543,6 +569,27 @@ const preSelectSpecialShifts = (state: SolverState): void => {
     }
     // If neither quota exists today the late-arriver naturally ends up
     // resting (no morning slots possible due to earliestStart).
+  }
+
+  // ---- Step A2: list double-shift soldiers on the late roster -----------
+  // A 'both' soldier works a full day — morning slots AND the afternoon. They
+  // belong on the evening roster (so they show up under *משמרת ערב*) and count
+  // toward its quota, but isBlockedBySpecialState exempts them from the <14:30
+  // block so their morning eligibility is untouched. Added BEFORE the top-up so
+  // they reduce the number of dedicated evening soldiers still needed.
+  const lateRole: SpecialStateId | null =
+    (quotas['משמרת_ערב'] ?? 0) > 0
+      ? 'משמרת_ערב'
+      : (quotas['משמרת_צהריים'] ?? 0) > 0
+        ? 'משמרת_צהריים'
+        : null;
+  if (lateRole) {
+    for (const s of state.staff) {
+      if (s.shiftWindow !== 'both') continue;
+      if (state.unavailable.has(s.id) || s.isCommander) continue;
+      if (isInState(state, s.id, 'משיכה')) continue;
+      addToSpecialState(state, lateRole, s.id);
+    }
   }
 
   // ---- Step B: top up each quota ----------------------------------------
@@ -636,7 +683,7 @@ const fillEveryoneSlots = (state: SolverState): void => {
     for (const id of candidatePool) {
       if (accepted.includes(id)) continue;
       const person = state.staffById.get(id);
-      if (person && !isStaffEligibleForSlot(person, slot)) continue;
+      if (person && !isStaffEligibleForSlot(person, slot, dayHasLateRoster(state))) continue;
       if (hasConflict(state.busyByStaff.get(id) || [], interval)) continue;
       accepted.push(id);
       commitAssignment(state, slot, id);
@@ -736,7 +783,7 @@ const rebalanceHours = (state: SolverState): void => {
           if (candHours <= 0) continue; // keep rest: only existing workers receive
           if (donorHours - candHours <= dur) continue; // not an improvement
           const person = state.staffById.get(cand)!;
-          if (!isStaffEligibleForSlot(person, slot)) continue;
+          if (!isStaffEligibleForSlot(person, slot, dayHasLateRoster(state))) continue;
           if (isBlockedBySpecialState(state, cand, slot)) continue;
           if (hasConflict(state.busyByStaff.get(cand) || [], interval)) continue;
           if (candHours < bestHours) {

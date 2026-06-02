@@ -52,10 +52,10 @@ describe('scheduleSolver — no gaps / no double-booking', () => {
   // afternoon slot — the loader used to collapse them to one window.
   test("a 'both' soldier can be assigned across the 14:30 boundary", () => {
     const template = DAILY_TEMPLATES['wednesday']!;
-    // Only one 'both' soldier is free in the afternoon; force them to be the
-    // one who covers a late slot by starving the evening roster.
+    // Scarce roster: the 'both' soldier is needed for the morning (peak ~8) AND
+    // is the only one eligible for the afternoon, so they must work both halves.
     const staff: Staff[] = [
-      ...makeStaff('m', 12, 'morning'),
+      ...makeStaff('m', 7, 'morning'),
       { id: 'dual', name: 'dual', shiftWindow: 'both' },
     ];
     const sched = generateSchedule(DATE_FOR.wednesday, staff, template, { seed: 3 });
@@ -73,6 +73,31 @@ describe('scheduleSolver — no gaps / no double-booking', () => {
     // end up working both halves.
     expect(hasMorning).toBe(true);
     expect(hasAfternoon).toBe(true);
+  });
+
+  // On a day WITH an evening roster (Thursday), a pure-morning soldier must
+  // NOT be pulled into an afternoon (>=14:30) slot — that afternoon belongs to
+  // the evening/double-shift people. A double-shift ('both') soldier, however,
+  // is listed on the evening roster and may work the afternoon.
+  test('evening-roster day keeps morning-only out of the afternoon; double-shift stays', () => {
+    const template = DAILY_TEMPLATES['thursday']!; // has משמרת_ערב quota
+    const staff = [
+      ...makeStaff('mor', 10, 'morning'),
+      ...makeStaff('eve', 1, 'evening'),
+      { id: 'dual', name: 'dual', shiftWindow: 'both' as const },
+    ];
+    const sched = generateSchedule(DATE_FOR.thursday, staff, template, { seed: 2 });
+    const slotsById = new Map(template.slots.map((s) => [s.id, s]));
+
+    // No pure-morning soldier in any non-everyone afternoon slot.
+    for (const [slotId, ids] of Object.entries(sched.slotAssignments)) {
+      const slot = slotsById.get(slotId)!;
+      if (slot.everyone || toMin(slot.start) < toMin('14:30')) continue;
+      for (const id of ids) expect(id.startsWith('mor')).toBe(false);
+    }
+
+    // The double-shift soldier is listed on the evening roster.
+    expect(sched.specialStates['משמרת_ערב'] || []).toContain('dual');
   });
 
   // Hours should be balanced across the MORNING workers (the user's complaint

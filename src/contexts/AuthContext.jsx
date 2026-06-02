@@ -43,8 +43,13 @@ export const AuthProvider = ({ children }) => {
         
         if (savedMockUsers) {
           const usersData = JSON.parse(savedMockUsers);
-          setMockUsers(usersData);
-          console.log('AuthContext: Restored mock users from localStorage');
+          // The admin credentials ALWAYS come from code (MOCK_USERS), never
+          // from a possibly-stale localStorage copy. Otherwise a code-side
+          // password change (see "עדכון סיסמת מנהל") never takes effect for
+          // anyone whose browser cached the old admin entry. Cached soldiers
+          // are still restored.
+          setMockUsers({ ...usersData, admin: MOCK_USERS.admin });
+          console.log('AuthContext: Restored mock users from localStorage (admin from code)');
         }
       } catch (error) {
         console.error('AuthContext: Error restoring auth state:', error);
