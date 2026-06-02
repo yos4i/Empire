@@ -52,7 +52,7 @@ const SUNDAY_SLOTS: SlotInit[] = [
   { loc: 'יסודי', start: '07:15', end: '08:15', required: 2 },
   { loc: 'יסודי', start: '11:30', end: '12:30', required: 1 },
   { loc: 'יסודי', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'יסודי', start: '12:45', end: '13:30', required: 2, isReinforcement: true },
+  { loc: 'יסודי', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
   // צפוני
   { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
@@ -123,7 +123,7 @@ const TUESDAY_SLOTS: SlotInit[] = [
   { loc: 'יסודי', start: '07:15', end: '08:15', required: 2 },
   { loc: 'יסודי', start: '11:30', end: '12:30', required: 1 },
   { loc: 'יסודי', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'יסודי', start: '12:45', end: '13:30', required: 2, isReinforcement: true },
+  { loc: 'יסודי', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
   { loc: 'צפוני', start: '07:15', end: '08:15', required: 3 },
   { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
@@ -131,7 +131,7 @@ const TUESDAY_SLOTS: SlotInit[] = [
   { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
   { loc: 'צפוני', start: '12:30', end: '13:30', required: 1 },
   { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'צפוני', start: '12:45', end: '13:30', required: 2, isReinforcement: true },
+  { loc: 'צפוני', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
   { loc: 'חוגים', start: '07:15', end: '08:15', required: 1 },
   { loc: 'חוגים', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
@@ -151,11 +151,11 @@ const TUESDAY_SLOTS: SlotInit[] = [
 // Wednesday
 // ============================================================================
 const WEDNESDAY_SLOTS: SlotInit[] = [
-  { loc: 'יסודי', start: '07:15', end: '08:15', required: 1 },
+  { loc: 'יסודי', start: '07:15', end: '08:15', required: 2 },
   { loc: 'יסודי', start: '11:30', end: '12:30', required: 1 },
   { loc: 'יסודי', start: '12:30', end: '13:30', required: 1 },
   { loc: 'יסודי', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'יסודי', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
+  { loc: 'יסודי', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
 
   { loc: 'צפוני', start: '07:15', end: '08:15', required: 3 },
   { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
@@ -163,7 +163,7 @@ const WEDNESDAY_SLOTS: SlotInit[] = [
   { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
   { loc: 'צפוני', start: '12:30', end: '13:30', required: 1 },
   { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'צפוני', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
+  { loc: 'צפוני', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
 
   { loc: 'חוגים', start: '07:15', end: '08:15', required: 1 },
   { loc: 'חוגים', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
@@ -175,7 +175,7 @@ const WEDNESDAY_SLOTS: SlotInit[] = [
   { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
   { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
   { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },
-  { loc: 'חטיבה', start: '12:45', end: '13:30', required: 2, isReinforcement: true },
+  { loc: 'חטיבה', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
   { loc: 'חטיבה', start: '14:45', end: '15:30', required: 1, isReinforcement: true },
   { loc: 'חטיבה', start: '15:45', end: '16:15', required: 2, isReinforcement: true },
   { loc: 'חטיבה', start: '17:30', end: '18:15', required: 0, isReinforcement: true, everyone: true },
@@ -188,7 +188,7 @@ const WEDNESDAY_SLOTS: SlotInit[] = [
 const THURSDAY_SLOTS: SlotInit[] = [
   { loc: 'יסודי', start: '07:15', end: '08:15', required: 2 },
   { loc: 'יסודי', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'יסודי', start: '12:45', end: '13:30', required: 2, isReinforcement: true },
+  { loc: 'יסודי', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
   { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
   { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
@@ -196,9 +196,10 @@ const THURSDAY_SLOTS: SlotInit[] = [
   { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
   { loc: 'צפוני', start: '12:30', end: '13:30', required: 1 },
   { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'צפוני', start: '12:45', end: '13:30', required: 2, isReinforcement: true },
+  { loc: 'צפוני', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
-  // חוגים has no slots on Thursday in the example.
+  { loc: 'חוגים', start: '07:15', end: '08:15', required: 1 },
+  { loc: 'חוגים', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
   { loc: 'חטיבה', start: '07:15', end: '09:00', required: 2 },
   { loc: 'חטיבה', start: '09:00', end: '11:00', required: 1 },
@@ -207,7 +208,7 @@ const THURSDAY_SLOTS: SlotInit[] = [
   { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
   { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
   { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },
-  { loc: 'חטיבה', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
+  { loc: 'חטיבה', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
   { loc: 'חטיבה', start: '14:45', end: '15:30', required: 1, isReinforcement: true },
   { loc: 'חטיבה', start: '15:45', end: '16:15', required: 2, isReinforcement: true },
   { loc: 'חטיבה', start: '17:30', end: '18:00', required: 0, isReinforcement: true, everyone: true },
@@ -245,8 +246,9 @@ export const FIXED_WEEKLY_DUTIES: { day: DayOfWeek; nameSubstring: string; role:
  * Per the spec: משיכה duty must always consist of EXACTLY `count` people.
  * The solver walks `priorityNames` in order and picks the first `count`
  * staff matches it finds. Top of the list = top priority. If priority
- * picks #1 and #2 are unavailable, #3 fills in, then #4, then #5.
+ * picks #1 and #2 are unavailable, #3 fills in, then #4.
  *
+ * Order: לידור שלום → מימון אזולאי → הראל גבריאלי → אריאל שמשון.
  * On Mondays and Thursdays the list locks לידור and מימון to the top.
  * Days not listed here have no משיכה duty.
  */
@@ -255,11 +257,11 @@ export const MISHIKHA_PRIORITY: Partial<
 > = {
   monday: {
     count: 2,
-    priorityNames: ['לידור', 'מימון', 'הראל', 'אריאל', 'עבדתי'],
+    priorityNames: ['לידור', 'מימון', 'הראל', 'אריאל'],
   },
   thursday: {
     count: 2,
-    priorityNames: ['לידור', 'מימון', 'הראל', 'אריאל', 'עבדתי'],
+    priorityNames: ['לידור', 'מימון', 'הראל', 'אריאל'],
   },
 };
 

@@ -63,19 +63,51 @@ const toMin = (hhmm) => {
 
 const slotHours = (slot) => (toMin(slot.end) - toMin(slot.start)) / 60;
 
-// Extract the soldier_id → shift_type mapping for a given day-key from a
-// weekly schedule structure (used by both draft and published variants —
+// True when two [start,end) minute-intervals overlap.
+const intervalsOverlapMin = (aStart, aEnd, bStart, bEnd) =>
+  aStart < bEnd && bStart < aEnd;
+
+// True if assigning `staffId` to `targetSlot` would put them in two places at
+// the same hour — i.e. they're already in another slot whose time overlaps.
+// Mirrors the solver's hasConflict so the manual picker can't double-book.
+const staffSlotConflicts = (schedule, template, staffId, targetSlot) => {
+  if (!schedule || !template || !targetSlot) return false;
+  const tStart = toMin(targetSlot.start);
+  const tEnd = toMin(targetSlot.end);
+  const slotById = {};
+  for (const s of template.slots) slotById[s.id] = s;
+  for (const [slotId, ids] of Object.entries(schedule.slotAssignments || {})) {
+    if (slotId === targetSlot.id) continue;
+    if (!ids.includes(staffId)) continue;
+    const s = slotById[slotId];
+    if (!s) continue;
+    if (intervalsOverlapMin(toMin(s.start), toMin(s.end), tStart, tEnd)) return true;
+  }
+  return false;
+};
+
+// True when a shift key denotes an evening shift (e.g. קריית_חינוך_ערב).
+const isEveningShiftKey = (shiftKey) => (shiftKey || '').includes('ערב');
+
+// Extract a soldier_id → { morning, evening } window map for a given day-key
+// from a weekly schedule structure (used by both draft and published variants —
 // they share the same shape: schedule[day][shiftKey] = { soldiers: [...] }).
+//
+// A soldier rostered for BOTH a morning and an evening cell gets both flags set
+// (a double shift); the solver then assigns them to morning AND evening slots
+// separately instead of one window winning and blocking the other.
 const buildShiftMapFromWeekly = (weeklySchedule, dayKey) => {
   const out = new Map();
   const dayShifts = weeklySchedule?.[dayKey];
   if (!dayShifts) return out;
   for (const [shiftKey, cell] of Object.entries(dayShifts)) {
     if (!cell || cell.cancelled) continue;
+    const evening = isEveningShiftKey(shiftKey);
     for (const soldierId of cell.soldiers || []) {
-      // First match wins so morning beats evening if a soldier was somehow
-      // double-booked.
-      if (!out.has(soldierId)) out.set(soldierId, shiftKey);
+      const cur = out.get(soldierId) || { morning: false, evening: false };
+      if (evening) cur.evening = true;
+      else cur.morning = true;
+      out.set(soldierId, cur);
     }
   }
   return out;
@@ -137,9 +169,11 @@ const loadRosters = async (dateStr, dayKey) => {
   if (shiftByUser.size === 0) {
     for (const a of dayAssignments) {
       if (a.status === 'cancelled') continue;
-      if (!shiftByUser.has(a.soldier_id)) {
-        shiftByUser.set(a.soldier_id, a.shift_type || '');
-      }
+      const evening = isEveningShiftKey(a.shift_type);
+      const cur = shiftByUser.get(a.soldier_id) || { morning: false, evening: false };
+      if (evening) cur.evening = true;
+      else cur.morning = true;
+      shiftByUser.set(a.soldier_id, cur);
     }
     if (shiftByUser.size > 0) sourceLabel = 'assignments';
   }
@@ -148,12 +182,20 @@ const loadRosters = async (dateStr, dayKey) => {
     .filter((u) => shiftByUser.has(u.id))
     .map((u) => {
       const timeRule = STAFF_EARLIEST_START.find((r) => u.name.includes(r.nameSubstring));
-      const isEvening = (shiftByUser.get(u.id) || '').includes('ערב');
+      const windows = shiftByUser.get(u.id) || { morning: false, evening: false };
+      // morning + evening cells → double shift ('both'); otherwise the single
+      // window they hold. Default to morning if somehow neither flag is set.
+      const shiftWindow =
+        windows.morning && windows.evening
+          ? 'both'
+          : windows.evening
+            ? 'evening'
+            : 'morning';
       const commander = isCommanderName(u.name);
       return {
         id: u.id,
         name: u.name,
-        shiftWindow: isEvening ? 'evening' : 'morning',
+        shiftWindow,
         ...(commander ? { isCommander: true } : {}),
         ...(timeRule ? { earliestStart: timeRule.earliestStart } : {}),
       };
@@ -359,6 +401,20 @@ export default function DailyAutoSchedulePage() {
       if (!schedule || !template) return;
       const existing = schedule.slotAssignments[slotId] || [];
       if (existing.includes(staffId)) return;
+      // Block same-hour double-booking: if the soldier already holds a slot
+      // that overlaps this one, require explicit confirmation.
+      const slot = template.slots.find((s) => s.id === slotId);
+      if (slot && staffSlotConflicts(schedule, template, staffId, slot)) {
+        const name = staffById[staffId]?.name || staffId;
+        if (
+          !window.confirm(
+            `⚠️ ${name} כבר משובץ/ת בשעות חופפות (${slot.start}-${slot.end}).\nלשבץ בכל זאת?`
+          )
+        ) {
+          setPickerSlotId(null);
+          return;
+        }
+      }
       // If they were in מנוחה, taking a slot means they're no longer resting —
       // recomputeDerivedFields handles that. If they were in another active
       // state (e.g. משמרת_ערב), leave it — admin chose dual-assignment.
@@ -372,7 +428,7 @@ export default function DailyAutoSchedulePage() {
       setSchedule(recomputeDerivedFields(next, staff, template));
       setPickerSlotId(null);
     },
-    [schedule, template, staff]
+    [schedule, template, staff, staffById]
   );
 
   const handleToggleSpecialState = useCallback(
@@ -494,12 +550,15 @@ export default function DailyAutoSchedulePage() {
     (slotId) => {
       const already = new Set(schedule?.slotAssignments?.[slotId] || []);
       const scheduledIds = new Set(staff.map((s) => s.id));
+      const slot = template?.slots.find((s) => s.id === slotId) || null;
       const list = allActive
         .filter((u) => !already.has(u.id))
         .map((u) => ({
           id: u.id,
           name: u.name,
           scheduled: scheduledIds.has(u.id),
+          // Already booked in an overlapping slot — can't be added here.
+          conflict: slot ? staffSlotConflicts(schedule, template, u.id, slot) : false,
         }));
       list.sort((a, b) => {
         if (a.scheduled !== b.scheduled) return a.scheduled ? -1 : 1;
@@ -507,7 +566,7 @@ export default function DailyAutoSchedulePage() {
       });
       return list;
     },
-    [schedule, staff, allActive]
+    [schedule, staff, allActive, template]
   );
 
   const fairness = useMemo(
@@ -895,7 +954,10 @@ export default function DailyAutoSchedulePage() {
             </CardHeader>
             <CardContent className="p-3 pt-0 grid grid-cols-1 md:grid-cols-2 gap-3">
               {Object.entries(SPECIAL_STATE_HE)
-                .filter(([key]) => key !== 'מנוחה' && key !== 'משמרת_ערב')
+                .filter(
+                  ([key]) =>
+                    key !== 'מנוחה' && key !== 'משמרת_ערב' && key !== 'משמרת_צהריים'
+                )
                 .map(([key, label]) => {
                 const list = schedule.specialStates[key] || [];
                 const target = template.specialStateQuotas?.[key];
@@ -1091,8 +1153,9 @@ export default function DailyAutoSchedulePage() {
                                       {scheduled.length > 0 && (
                                         <optgroup label="משובצים ביום זה">
                                           {scheduled.map((s) => (
-                                            <option key={s.id} value={s.id}>
+                                            <option key={s.id} value={s.id} disabled={s.conflict}>
                                               {s.name} ({(schedule.staffHours?.[s.id] || 0).toFixed(1)}h)
+                                              {s.conflict ? ' ⛔ חופף בשעות' : ''}
                                             </option>
                                           ))}
                                         </optgroup>
@@ -1100,8 +1163,9 @@ export default function DailyAutoSchedulePage() {
                                       {unscheduled.length > 0 && (
                                         <optgroup label="לא משובצים ביום זה">
                                           {unscheduled.map((s) => (
-                                            <option key={s.id} value={s.id}>
+                                            <option key={s.id} value={s.id} disabled={s.conflict}>
                                               {s.name} (לא בסידור)
+                                              {s.conflict ? ' ⛔ חופף בשעות' : ''}
                                             </option>
                                           ))}
                                         </optgroup>

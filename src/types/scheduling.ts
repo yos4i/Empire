@@ -88,10 +88,17 @@ export interface Staff {
    * Which half of the day this person is rostered for, derived from the
    * weekly `shift_assignments` collection (`קריית_חינוך_בוקר` vs
    * `קריית_חינוך_ערב`). The solver uses this to keep morning soldiers out
-   * of evening-shift rosters and vice versa. Undefined means "no shift
-   * constraint" (e.g. admin override).
+   * of evening-shift rosters and vice versa.
+   *
+   *   • 'morning' — rostered only for the morning shift.
+   *   • 'evening' — rostered only for the evening shift.
+   *   • 'both'    — rostered for BOTH (a double shift): eligible for morning
+   *                 AND evening slots, assigned to each separately, never
+   *                 blocked by the window gates.
+   *
+   * Undefined means "no shift constraint" (e.g. admin override).
    */
-  shiftWindow?: 'morning' | 'evening';
+  shiftWindow?: 'morning' | 'evening' | 'both';
 
   /**
    * Whole-day "supervisor" flag. Commanders show up in the day's roster

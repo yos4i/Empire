@@ -15,7 +15,11 @@
 //                                 SLOT_BLOCK_BEFORE rule keeps them out of
 //                                 morning slots automatically.
 //   7. fill "*כולם*" slots         evening ones use ONLY משמרת_ערב members
-//   8. deriveRestState            everyone unassigned → מנוחה
+//   8. rebalanceHours             move slots from the most-loaded worker to a
+//                                 lighter one to even out assigned hours
+//   9. validateNoDoubleBooking    assert no soldier holds two overlapping
+//                                 slots; drop the later one if so, re-report gaps
+//  10. deriveRestState            everyone unassigned → מנוחה
 //
 // Per-state slot-blocking rules (see SLOT_BLOCK_BEFORE):
 //   • מנוחה / משיכה  → block all slots (whole-day commitment)
@@ -112,6 +116,20 @@ const makeRng = (seed: number) => {
   };
 };
 
+/**
+ * In-place Fisher–Yates shuffle driven by a [0,1) rng. Replaces the previous
+ * `sort(() => rng() - rng())` idiom, which is a non-uniform / engine-dependent
+ * comparator (Array.sort requires a consistent ordering) and biased which
+ * soldiers got reserved.
+ */
+const shuffleInPlace = <T>(arr: T[], rng: () => number): T[] => {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+};
+
 // ---------------------------------------------------------------------------
 // Solver state
 // ---------------------------------------------------------------------------
@@ -176,23 +194,26 @@ const isBlockedBySpecialState = (
   return false;
 };
 
-/** Hard per-staff availability: late-arrival rule + shift-window. */
+/**
+ * Hard per-staff availability: late-arrival rule + shift-window.
+ *
+ * Window gates:
+ *   • 'both'    — eligible for every slot (a double shift); no window gate.
+ *   • 'evening' — HARD-blocked from morning slots (<14:30); they are genuinely
+ *                 not present in the morning.
+ *   • 'morning' — eligible for afternoon slots (≥14:30) too, so they can stay
+ *                 late / backfill. This is a SOFT fallback: a heavy penalty in
+ *                 candidatePenalty keeps evening/both soldiers picked first, so
+ *                 morning soldiers only land an afternoon slot when no one else
+ *                 can. (Previously this was a hard block, which left afternoon
+ *                 slots empty on long-shift days and whenever the evening
+ *                 roster was too small.)
+ */
 const isStaffEligibleForSlot = (staff: Staff, slot: ShiftSlot): boolean => {
   if (staff.earliestStart && toMin(slot.start) < toMin(staff.earliestStart)) {
     return false;
   }
-  // Evening-shift soldiers can't take any slot starting before the evening
-  // boundary. The morning→evening block is intentionally NOT applied to
-  // everyone-slots: morning soldiers that ended up on the late roster
-  // (משמרת_צהריים etc.) are explicitly meant to participate in those.
   if (staff.shiftWindow === 'evening' && toMin(slot.start) < EVENING_START_MIN) {
-    return false;
-  }
-  if (
-    staff.shiftWindow === 'morning' &&
-    !slot.everyone &&
-    toMin(slot.start) >= EVENING_START_MIN
-  ) {
     return false;
   }
   return true;
@@ -222,6 +243,19 @@ const commitAssignment = (state: SolverState, slot: ShiftSlot, staffId: string):
   state.hoursByStaff.set(
     staffId,
     (state.hoursByStaff.get(staffId) || 0) + slotDurationHours(slot)
+  );
+};
+
+/** Inverse of commitAssignment for a single slot occupancy (used by rebalance). */
+const uncommitAssignment = (state: SolverState, slot: ShiftSlot, staffId: string): void => {
+  const interval = slotInterval(slot);
+  const busy = state.busyByStaff.get(staffId) || [];
+  const idx = busy.findIndex((b) => b.start === interval.start && b.end === interval.end);
+  if (idx >= 0) busy.splice(idx, 1);
+  state.busyByStaff.set(staffId, busy);
+  state.hoursByStaff.set(
+    staffId,
+    (state.hoursByStaff.get(staffId) || 0) - slotDurationHours(slot)
   );
 };
 
@@ -375,10 +409,24 @@ const wasEveningYesterday = (staffId: string, state: SolverState): boolean => {
   return !!prev.specialStates?.['משמרת_ערב']?.includes(staffId);
 };
 
+// A morning-window soldier IS eligible for afternoon (≥14:30) slots, but only
+// as a last resort. This penalty is larger than any realistic hours value, so
+// rankCandidates (penalty before hours) always exhausts evening/both soldiers
+// before pulling a morning soldier into the afternoon.
+const CROSS_WINDOW_FALLBACK_PENALTY = 1000;
+
 const candidatePenalty = (staffId: string, slot: ShiftSlot, state: SolverState): number => {
   let p = 0;
   if (toMin(slot.start) < toMin('08:30') && wasEveningYesterday(staffId, state)) {
     p += 5;
+  }
+  // Morning soldier filling an afternoon slot — allowed, but de-prioritised
+  // hard so evening/both soldiers always go first.
+  if (toMin(slot.start) >= EVENING_START_MIN && !slot.everyone) {
+    const person = state.staffById.get(staffId);
+    if (person?.shiftWindow === 'morning') {
+      p += CROSS_WINDOW_FALLBACK_PENALTY;
+    }
   }
   return p;
 };
@@ -519,15 +567,19 @@ const preSelectSpecialShifts = (state: SolverState): void => {
       // Evening-shift conflicts with anyone pinned to a morning slot.
       if (role === 'משמרת_ערב' && staffHasMorningSlot(state, s.id)) return false;
       // Respect the per-soldier shiftWindow from the weekly assignment:
-      //   • משמרת_ערב is for evening-shift soldiers only.
+      //   • משמרת_ערב is reserved for pure evening-shift soldiers ONLY. Being
+      //     reserved here blocks the morning (SLOT_BLOCK_BEFORE), so 'both'
+      //     (double-shift) and 'morning' soldiers are deliberately excluded —
+      //     a 'both' soldier reaches evening slots through the normal fill
+      //     pass without losing their morning eligibility.
       //   • משמרת_צהריים is broad — either window may end up filling the
       //     afternoon block, so no shift-window gate is applied here.
-      if (role === 'משמרת_ערב' && s.shiftWindow === 'morning') return false;
+      if (role === 'משמרת_ערב' && s.shiftWindow !== 'evening') return false;
       return true;
     });
 
     // Random ordering using the seeded RNG → reproducible runs.
-    eligible.sort(() => state.rng() - state.rng());
+    shuffleInPlace(eligible, state.rng);
 
     for (let i = 0; i < needed && i < eligible.length; i++) {
       addToSpecialState(state, role, eligible[i].id);
@@ -594,7 +646,7 @@ const fillEveryoneSlots = (state: SolverState): void => {
 };
 
 // ---------------------------------------------------------------------------
-// Pass 8 — derive מנוחה
+// Pass 10 — derive מנוחה
 //
 // Anyone who's not unavailable, not in another whole-day commitment, and
 // not assigned to any slot is considered resting. The set is computed
@@ -612,6 +664,174 @@ const deriveRestState = (state: SolverState): void => {
     if (isInState(state, s.id, 'משמרת_צהריים')) continue;
     if (staffIsAssignedToAnySlot(state, s.id)) continue;
     addToSpecialState(state, 'מנוחה', s.id);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Pass 8 — rebalance assigned hours.
+//
+// The per-slot greedy fill prefers lower-hours candidates but never revisits a
+// decision, so totals drift apart (e.g. 2.75h vs 3.75h). This hill-climb takes
+// a slot off whoever currently has the MOST hours and hands it to another
+// ALREADY-WORKING person (hours > 0) who is eligible, time-free, and far enough
+// below — strictly shrinking the gap each move (variance is monotonically
+// reduced, so it terminates). Receivers are limited to people already working,
+// so designated rest (מנוחה) is preserved; the balancing happens among the
+// people who were going to work anyway. Each slot keeps its headcount, so
+// coverage is untouched; "*כולם*" musters and pinned slots are never moved.
+//
+// Note: morning and evening soldiers can't swap slots, so this evens out hours
+// WITHIN a window, not across them (evening shifts are inherently shorter).
+// And slots come in 0.75–2h chunks, so one move shifts someone by ≥0.75h —
+// a ≤0.5h spread isn't always reachable; this gets as tight as the chunks allow.
+// ---------------------------------------------------------------------------
+
+const MAX_REBALANCE_ITERS = 1000;
+
+const rebalanceHours = (state: SolverState): void => {
+  const movableSlots = state.template.slots.filter((s) => !s.everyone);
+  const pinned = state.options.pinnedAssignments || {};
+  const hoursOf = (id: string): number => state.hoursByStaff.get(id) || 0;
+
+  const inPool = (id: string): boolean => {
+    const s = state.staffById.get(id);
+    if (!s || s.isCommander) return false;
+    if (state.unavailable.has(id)) return false;
+    if (isInState(state, id, 'משיכה')) return false;
+    return true;
+  };
+
+  for (let iter = 0; iter < MAX_REBALANCE_ITERS; iter++) {
+    const poolIds = state.staff.map((s) => s.id).filter(inPool);
+    if (poolIds.length < 2) return;
+
+    // Try donors from most-loaded down; apply the first improving move found.
+    const donors = [...poolIds].sort((a, b) => hoursOf(b) - hoursOf(a));
+    let moved = false;
+
+    for (const donor of donors) {
+      const donorHours = hoursOf(donor);
+      // Donor's movable slots, smallest first (finest adjustment).
+      const donorSlots = movableSlots
+        .filter(
+          (s) =>
+            !pinned[s.id]?.includes(donor) &&
+            (state.slotAssignments.get(s.id) || []).includes(donor)
+        )
+        .sort((a, b) => slotDurationHours(a) - slotDurationHours(b));
+
+      for (const slot of donorSlots) {
+        const dur = slotDurationHours(slot);
+        const interval = slotInterval(slot);
+        const occupants = state.slotAssignments.get(slot.id) || [];
+
+        // Receiver: lowest-hours eligible, time-free, already-working person
+        // whose gap below the donor exceeds this slot (so the move strictly
+        // reduces variance and the receiver stays under the donor's old level).
+        let best: string | null = null;
+        let bestHours = Infinity;
+        for (const cand of poolIds) {
+          if (cand === donor || occupants.includes(cand)) continue;
+          const candHours = hoursOf(cand);
+          if (candHours <= 0) continue; // keep rest: only existing workers receive
+          if (donorHours - candHours <= dur) continue; // not an improvement
+          const person = state.staffById.get(cand)!;
+          if (!isStaffEligibleForSlot(person, slot)) continue;
+          if (isBlockedBySpecialState(state, cand, slot)) continue;
+          if (hasConflict(state.busyByStaff.get(cand) || [], interval)) continue;
+          if (candHours < bestHours) {
+            bestHours = candHours;
+            best = cand;
+          }
+        }
+
+        if (best) {
+          state.slotAssignments.set(
+            slot.id,
+            occupants.map((id) => (id === donor ? best! : id))
+          );
+          uncommitAssignment(state, slot, donor);
+          commitAssignment(state, slot, best);
+          moved = true;
+          break;
+        }
+      }
+      if (moved) break;
+    }
+
+    if (!moved) return; // local optimum — nothing left to improve
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Pass 9 — validate the no-double-booking invariant.
+//
+// Every fill path already guards with hasConflict, so this shouldn't find
+// anything — but asserting it here guarantees the OUTPUT is clean regardless
+// of future changes (and of pinned-assignment edge cases). Any soldier found
+// in two time-overlapping slots is dropped from the later (higher-start) slot;
+// their hours are corrected and the freed slot is re-reported as unfilled.
+// Runs BEFORE deriveRestState so anyone emptied out correctly falls to מנוחה.
+// ---------------------------------------------------------------------------
+
+const validateNoDoubleBooking = (state: SolverState): void => {
+  const slotById = new Map(state.template.slots.map((s) => [s.id, s]));
+
+  // Collect every (slot, interval) a soldier holds.
+  const perStaff = new Map<string, { slotId: string; interval: Interval }[]>();
+  state.slotAssignments.forEach((ids, slotId) => {
+    const slot = slotById.get(slotId);
+    if (!slot) return;
+    const interval = slotInterval(slot);
+    for (const id of ids) {
+      const list = perStaff.get(id) || [];
+      list.push({ slotId, interval });
+      perStaff.set(id, list);
+    }
+  });
+
+  // Keep the earliest-starting slot of any overlapping pair, drop the rest.
+  perStaff.forEach((entries, staffId) => {
+    entries.sort((a, b) => a.interval.start - b.interval.start);
+    const kept: Interval[] = [];
+    for (const entry of entries) {
+      if (kept.some((k) => intervalsOverlap(k, entry.interval))) {
+        const ids = state.slotAssignments.get(entry.slotId) || [];
+        state.slotAssignments.set(
+          entry.slotId,
+          ids.filter((id) => id !== staffId)
+        );
+        const slot = slotById.get(entry.slotId);
+        if (slot) {
+          state.hoursByStaff.set(
+            staffId,
+            (state.hoursByStaff.get(staffId) || 0) - slotDurationHours(slot)
+          );
+          console.warn(
+            `scheduleSolver: removed double-booked ${staffId} from ` +
+              `${slot.location} ${slot.start}-${slot.end}`
+          );
+        }
+      } else {
+        kept.push(entry.interval);
+      }
+    }
+  });
+
+  // Re-report any regular slot left under its requirement after the cleanup.
+  for (const slot of state.template.slots) {
+    if (slot.everyone) continue;
+    const have = (state.slotAssignments.get(slot.id) || []).length;
+    if (have >= slot.required) continue;
+    const missing = slot.required - have;
+    const existing = state.unfilledSlots.find((u) => u.slotId === slot.id);
+    if (existing) existing.missing = missing;
+    else
+      state.unfilledSlots.push({
+        slotId: slot.id,
+        missing,
+        reason: 'אין חיילים פנויים לזמן זה',
+      });
   }
 };
 
@@ -696,7 +916,9 @@ export function generateSchedule(
   }
 
   fillEveryoneSlots(state);          // 7
-  deriveRestState(state);            // 8
+  rebalanceHours(state);             // 8 — even out assigned hours across workers
+  validateNoDoubleBooking(state);    // 9 — assert no overlaps, re-report gaps
+  deriveRestState(state);            // 10
 
   return toDaySchedule(state);
 }
