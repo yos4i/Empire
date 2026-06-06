@@ -55,7 +55,7 @@ const SUNDAY_SLOTS: SlotInit[] = [
   { loc: 'יסודי', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
   // צפוני
-  { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
+  { loc: 'צפוני', start: '07:15', end: '08:15', required: 1 },
   { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
   { loc: 'צפוני', start: '10:00', end: '11:30', required: 1 },
   { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
@@ -92,7 +92,7 @@ const MONDAY_SLOTS: SlotInit[] = [
   { loc: 'יסודי', start: '13:30', end: '14:30', required: 1 },
   { loc: 'יסודי', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
 
-  { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
+  { loc: 'צפוני', start: '07:15', end: '08:15', required: 1 },
   { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
   { loc: 'צפוני', start: '10:00', end: '11:30', required: 1 },
   { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
@@ -125,7 +125,7 @@ const TUESDAY_SLOTS: SlotInit[] = [
   { loc: 'יסודי', start: '12:30', end: '13:30', required: 1 },
   { loc: 'יסודי', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
-  { loc: 'צפוני', start: '07:15', end: '08:15', required: 3 },
+  { loc: 'צפוני', start: '07:15', end: '08:15', required: 1 },
   { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
   { loc: 'צפוני', start: '10:00', end: '11:30', required: 1 },
   { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
@@ -157,7 +157,7 @@ const WEDNESDAY_SLOTS: SlotInit[] = [
   { loc: 'יסודי', start: '13:30', end: '14:30', required: 1 },
   { loc: 'יסודי', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
 
-  { loc: 'צפוני', start: '07:15', end: '08:15', required: 3 },
+  { loc: 'צפוני', start: '07:15', end: '08:15', required: 1 },
   { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
   { loc: 'צפוני', start: '10:00', end: '11:30', required: 1 },
   { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
@@ -190,7 +190,7 @@ const THURSDAY_SLOTS: SlotInit[] = [
   { loc: 'יסודי', start: '12:30', end: '13:30', required: 1 },
   { loc: 'יסודי', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
-  { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
+  { loc: 'צפוני', start: '07:15', end: '08:15', required: 1 },
   { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
   { loc: 'צפוני', start: '10:00', end: '11:30', required: 1 },
   { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
