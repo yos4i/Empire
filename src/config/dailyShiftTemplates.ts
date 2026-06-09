@@ -45,14 +45,82 @@ const buildDay = (
 });
 
 // ============================================================================
-// Sunday
+// Sunday — evening roster (3) + משיכה (1, לידור)
 // ============================================================================
 const SUNDAY_SLOTS: SlotInit[] = [
   // יסודי
   { loc: 'יסודי', start: '07:15', end: '08:15', required: 2 },
-  { loc: 'יסודי', start: '11:30', end: '12:30', required: 1 },
-  { loc: 'יסודי', start: '12:30', end: '13:30', required: 1 },
   { loc: 'יסודי', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
+
+  // צפוני
+  { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
+  { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
+  { loc: 'צפוני', start: '10:00', end: '12:00', required: 1 },
+  { loc: 'צפוני', start: '12:00', end: '13:30', required: 1 },
+  { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
+  { loc: 'צפוני', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
+
+  // חוגים — manual only (solver never auto-fills; left empty to staff by hand)
+  { loc: 'חוגים', start: '12:45', end: '13:15', required: 1 },
+
+  // חטיבה — morning
+  { loc: 'חטיבה', start: '07:15', end: '09:00', required: 2 },
+  { loc: 'חטיבה', start: '09:00', end: '11:00', required: 1 },
+  { loc: 'חטיבה', start: '11:00', end: '12:30', required: 1 },
+  { loc: 'חטיבה', start: '12:30', end: '13:30', required: 1 },
+  { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
+  { loc: 'חטיבה', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
+  // חטיבה — afternoon (evening roster)
+  { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
+  { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },
+  { loc: 'חטיבה', start: '14:45', end: '15:30', required: 1, isReinforcement: true },
+  { loc: 'חטיבה', start: '15:45', end: '16:15', required: 2, isReinforcement: true },
+  { loc: 'חטיבה', start: '17:30', end: '18:00', required: 0, isReinforcement: true, everyone: true },
+  { loc: 'חטיבה', start: '19:10', end: '19:30', required: 0, isReinforcement: true, everyone: true },
+];
+
+// ============================================================================
+// Monday — evening roster (3); no משיכה, no afternoon (צהריים) roster anymore
+// ============================================================================
+const MONDAY_SLOTS: SlotInit[] = [
+  // יסודי
+  { loc: 'יסודי', start: '07:15', end: '08:15', required: 2 },
+  { loc: 'יסודי', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
+
+  // צפוני
+  { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
+  { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
+  { loc: 'צפוני', start: '10:00', end: '12:00', required: 1 },
+  { loc: 'צפוני', start: '12:00', end: '13:30', required: 1 },
+  { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
+  { loc: 'צפוני', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
+
+  // חוגים — manual only
+  { loc: 'חוגים', start: '07:15', end: '08:15', required: 1 },
+
+  // חטיבה — morning
+  { loc: 'חטיבה', start: '07:15', end: '09:00', required: 2 },
+  { loc: 'חטיבה', start: '09:00', end: '11:00', required: 1 },
+  { loc: 'חטיבה', start: '11:00', end: '12:30', required: 1 },
+  { loc: 'חטיבה', start: '12:30', end: '13:30', required: 1 },
+  { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
+  { loc: 'חטיבה', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
+  // חטיבה — afternoon (evening roster)
+  { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
+  { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },
+  { loc: 'חטיבה', start: '14:45', end: '15:30', required: 1, isReinforcement: true },
+  { loc: 'חטיבה', start: '15:45', end: '16:15', required: 1, isReinforcement: true },
+  { loc: 'חטיבה', start: '17:30', end: '18:00', required: 0, isReinforcement: true, everyone: true },
+  { loc: 'חטיבה', start: '19:10', end: '19:30', required: 0, isReinforcement: true, everyone: true },
+];
+
+// ============================================================================
+// Tuesday — long-shift day: no evening roster; morning staff stay till 16:15
+// ============================================================================
+const TUESDAY_SLOTS: SlotInit[] = [
+  // יסודי
+  { loc: 'יסודי', start: '07:15', end: '08:15', required: 2 },
+  { loc: 'יסודי', start: '12:45', end: '13:30', required: 2, isReinforcement: true },
 
   // צפוני
   { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
@@ -61,11 +129,10 @@ const SUNDAY_SLOTS: SlotInit[] = [
   { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
   { loc: 'צפוני', start: '12:30', end: '13:30', required: 1 },
   { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'צפוני', start: '12:45', end: '13:30', required: 2, isReinforcement: true },
+  { loc: 'צפוני', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
-  // חוגים
-  { loc: 'חוגים', start: '07:15', end: '08:15', required: 1 },
-  { loc: 'חוגים', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
+  // חוגים — manual only
+  { loc: 'חוגים', start: '12:45', end: '13:15', required: 1 },
 
   // חטיבה
   { loc: 'חטיבה', start: '07:15', end: '09:00', required: 2 },
@@ -73,144 +140,77 @@ const SUNDAY_SLOTS: SlotInit[] = [
   { loc: 'חטיבה', start: '11:00', end: '12:30', required: 1 },
   { loc: 'חטיבה', start: '12:30', end: '13:30', required: 1 },
   { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
+  { loc: 'חטיבה', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
+  { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
+  { loc: 'חטיבה', start: '15:45', end: '16:15', required: 0, isReinforcement: true, everyone: true },
+];
+
+// ============================================================================
+// Wednesday — evening roster (3)
+// ============================================================================
+const WEDNESDAY_SLOTS: SlotInit[] = [
+  // יסודי
+  { loc: 'יסודי', start: '07:15', end: '08:15', required: 1 },
+  { loc: 'יסודי', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
+
+  // צפוני
+  { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
+  { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
+  { loc: 'צפוני', start: '10:00', end: '12:00', required: 1 },
+  { loc: 'צפוני', start: '12:00', end: '13:30', required: 1 },
+  { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
+  { loc: 'צפוני', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
+
+  // חוגים — manual only (kept available even though Wednesday's sheet had none)
+  { loc: 'חוגים', start: '07:15', end: '08:15', required: 1 },
+
+  // חטיבה — morning
+  { loc: 'חטיבה', start: '07:15', end: '09:00', required: 2 },
+  { loc: 'חטיבה', start: '09:00', end: '11:00', required: 1 },
+  { loc: 'חטיבה', start: '11:00', end: '12:30', required: 1 },
+  { loc: 'חטיבה', start: '12:30', end: '13:30', required: 1 },
+  { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
+  { loc: 'חטיבה', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
+  // חטיבה — afternoon (evening roster)
   { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
   { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },
-  { loc: 'חטיבה', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
-  { loc: 'חטיבה', start: '14:45', end: '15:30', required: 2, isReinforcement: true },
-  { loc: 'חטיבה', start: '15:45', end: '16:15', required: 3, isReinforcement: true },
+  { loc: 'חטיבה', start: '14:45', end: '15:30', required: 1, isReinforcement: true },
+  { loc: 'חטיבה', start: '15:45', end: '16:15', required: 2, isReinforcement: true },
   { loc: 'חטיבה', start: '17:30', end: '18:00', required: 0, isReinforcement: true, everyone: true },
   { loc: 'חטיבה', start: '19:10', end: '19:30', required: 0, isReinforcement: true, everyone: true },
 ];
 
 // ============================================================================
-// Monday — לידור & מימון locked to משיכה by hard rule
-// ============================================================================
-const MONDAY_SLOTS: SlotInit[] = [
-  { loc: 'יסודי', start: '07:15', end: '08:15', required: 2 },
-  { loc: 'יסודי', start: '11:30', end: '12:30', required: 1 },
-  { loc: 'יסודי', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'יסודי', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'יסודי', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
-
-  { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
-  { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
-  { loc: 'צפוני', start: '10:00', end: '11:30', required: 1 },
-  { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
-  { loc: 'צפוני', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'צפוני', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
-
-  { loc: 'חוגים', start: '07:15', end: '08:15', required: 1 },
-  { loc: 'חוגים', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
-
-  { loc: 'חטיבה', start: '07:15', end: '09:00', required: 2 },
-  { loc: 'חטיבה', start: '09:00', end: '11:00', required: 1 },
-  { loc: 'חטיבה', start: '11:00', end: '12:30', required: 1 },
-  { loc: 'חטיבה', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
-  { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },
-  { loc: 'חטיבה', start: '14:45', end: '15:30', required: 2, isReinforcement: true },
-  { loc: 'חטיבה', start: '15:45', end: '16:15', required: 3, isReinforcement: true },
-  { loc: 'חטיבה', start: '17:30', end: '18:15', required: 0, isReinforcement: true, everyone: true },
-  { loc: 'חטיבה', start: '19:10', end: '19:30', required: 0, isReinforcement: true, everyone: true },
-];
-
-// ============================================================================
-// Tuesday — slots end at 16:15 (long-shift day)
-// ============================================================================
-const TUESDAY_SLOTS: SlotInit[] = [
-  { loc: 'יסודי', start: '07:15', end: '08:15', required: 2 },
-  { loc: 'יסודי', start: '11:30', end: '12:30', required: 1 },
-  { loc: 'יסודי', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'יסודי', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
-
-  { loc: 'צפוני', start: '07:15', end: '08:15', required: 3 },
-  { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
-  { loc: 'צפוני', start: '10:00', end: '11:30', required: 1 },
-  { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
-  { loc: 'צפוני', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'צפוני', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
-
-  { loc: 'חוגים', start: '07:15', end: '08:15', required: 1 },
-  { loc: 'חוגים', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
-
-  { loc: 'חטיבה', start: '07:15', end: '09:00', required: 3 },
-  { loc: 'חטיבה', start: '09:00', end: '11:00', required: 1 },
-  { loc: 'חטיבה', start: '11:00', end: '12:30', required: 1 },
-  { loc: 'חטיבה', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
-  { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },
-  { loc: 'חטיבה', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
-  { loc: 'חטיבה', start: '15:45', end: '16:15', required: 1, isReinforcement: true },
-];
-
-// ============================================================================
-// Wednesday
-// ============================================================================
-const WEDNESDAY_SLOTS: SlotInit[] = [
-  { loc: 'יסודי', start: '07:15', end: '08:15', required: 2 },
-  { loc: 'יסודי', start: '11:30', end: '12:30', required: 1 },
-  { loc: 'יסודי', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'יסודי', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'יסודי', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
-
-  { loc: 'צפוני', start: '07:15', end: '08:15', required: 3 },
-  { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
-  { loc: 'צפוני', start: '10:00', end: '11:30', required: 1 },
-  { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
-  { loc: 'צפוני', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'צפוני', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
-
-  { loc: 'חוגים', start: '07:15', end: '08:15', required: 1 },
-  { loc: 'חוגים', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
-
-  { loc: 'חטיבה', start: '07:15', end: '09:00', required: 2 },
-  { loc: 'חטיבה', start: '09:00', end: '11:00', required: 1 },
-  { loc: 'חטיבה', start: '11:00', end: '12:30', required: 1 },
-  { loc: 'חטיבה', start: '12:30', end: '13:30', required: 1 },
-  { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
-  { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },
-  { loc: 'חטיבה', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
-  { loc: 'חטיבה', start: '14:45', end: '15:30', required: 1, isReinforcement: true },
-  { loc: 'חטיבה', start: '15:45', end: '16:15', required: 2, isReinforcement: true },
-  { loc: 'חטיבה', start: '17:30', end: '18:15', required: 0, isReinforcement: true, everyone: true },
-  { loc: 'חטיבה', start: '19:10', end: '19:30', required: 0, isReinforcement: true, everyone: true },
-];
-
-// ============================================================================
-// Thursday — לידור & מימון locked to משיכה by hard rule
+// Thursday — evening roster (3) + משיכה (1, לידור)
 // ============================================================================
 const THURSDAY_SLOTS: SlotInit[] = [
-  { loc: 'יסודי', start: '07:15', end: '08:15', required: 2 },
-  { loc: 'יסודי', start: '12:30', end: '13:30', required: 1 },
+  // יסודי
+  { loc: 'יסודי', start: '07:15', end: '08:15', required: 1 },
   { loc: 'יסודי', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
+  // צפוני
   { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
   { loc: 'צפוני', start: '08:15', end: '10:00', required: 1 },
-  { loc: 'צפוני', start: '10:00', end: '11:30', required: 1 },
-  { loc: 'צפוני', start: '11:30', end: '12:30', required: 1 },
-  { loc: 'צפוני', start: '12:30', end: '13:30', required: 1 },
+  { loc: 'צפוני', start: '10:00', end: '12:00', required: 1 },
+  { loc: 'צפוני', start: '12:00', end: '13:30', required: 1 },
   { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'צפוני', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
+  { loc: 'צפוני', start: '12:45', end: '13:30', required: 2, isReinforcement: true },
 
+  // חוגים — manual only (kept available even though Thursday's sheet had none)
   { loc: 'חוגים', start: '07:15', end: '08:15', required: 1 },
-  { loc: 'חוגים', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
+  // חטיבה — morning
   { loc: 'חטיבה', start: '07:15', end: '09:00', required: 2 },
   { loc: 'חטיבה', start: '09:00', end: '11:00', required: 1 },
   { loc: 'חטיבה', start: '11:00', end: '12:30', required: 1 },
   { loc: 'חטיבה', start: '12:30', end: '13:30', required: 1 },
   { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
+  { loc: 'חטיבה', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
+  // חטיבה — afternoon (evening roster)
   { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
   { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },
-  { loc: 'חטיבה', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
   { loc: 'חטיבה', start: '14:45', end: '15:30', required: 1, isReinforcement: true },
-  { loc: 'חטיבה', start: '15:45', end: '16:15', required: 2, isReinforcement: true },
+  { loc: 'חטיבה', start: '15:45', end: '16:15', required: 1, isReinforcement: true },
   { loc: 'חטיבה', start: '17:30', end: '18:00', required: 0, isReinforcement: true, everyone: true },
   { loc: 'חטיבה', start: '19:10', end: '19:30', required: 0, isReinforcement: true, everyone: true },
 ];
@@ -223,11 +223,11 @@ const THURSDAY_SLOTS: SlotInit[] = [
 // by the standard quota-based pass. The quota here is kept as the UI's
 // "target count" so the unfilled-slot diagnostic works.
 export const DAILY_TEMPLATES: Record<DayOfWeek, DayTemplate | null> = {
-  sunday: buildDay('sunday', SUNDAY_SLOTS, { משמרת_ערב: 6 }),
-  monday: buildDay('monday', MONDAY_SLOTS, { משמרת_צהריים: 6, משיכה: 2 }),
+  sunday: buildDay('sunday', SUNDAY_SLOTS, { משמרת_ערב: 3, משיכה: 1 }),
+  monday: buildDay('monday', MONDAY_SLOTS, { משמרת_ערב: 3 }),
   tuesday: buildDay('tuesday', TUESDAY_SLOTS, {}),
-  wednesday: buildDay('wednesday', WEDNESDAY_SLOTS, { משמרת_ערב: 4 }),
-  thursday: buildDay('thursday', THURSDAY_SLOTS, { משמרת_ערב: 4, משיכה: 2 }),
+  wednesday: buildDay('wednesday', WEDNESDAY_SLOTS, { משמרת_ערב: 3 }),
+  thursday: buildDay('thursday', THURSDAY_SLOTS, { משמרת_ערב: 3, משיכה: 1 }),
   // Friday & Saturday templates are not part of the supplied examples.
   friday: null,
   saturday: null,
@@ -249,18 +249,18 @@ export const FIXED_WEEKLY_DUTIES: { day: DayOfWeek; nameSubstring: string; role:
  * picks #1 and #2 are unavailable, #3 fills in, then #4.
  *
  * Order: לידור שלום → מימון אזולאי → הראל גבריאלי → אריאל שמשון.
- * On Mondays and Thursdays the list locks לידור and מימון to the top.
+ * משיכה runs on Sundays and Thursdays, one person (לידור first).
  * Days not listed here have no משיכה duty.
  */
 export const MISHIKHA_PRIORITY: Partial<
   Record<DayOfWeek, { count: number; priorityNames: string[] }>
 > = {
-  monday: {
-    count: 2,
+  sunday: {
+    count: 1,
     priorityNames: ['לידור', 'מימון', 'הראל', 'אריאל'],
   },
   thursday: {
-    count: 2,
+    count: 1,
     priorityNames: ['לידור', 'מימון', 'הראל', 'אריאל'],
   },
 };
@@ -286,3 +286,12 @@ export const STAFF_EARLIEST_START: { nameSubstring: string; earliestStart: strin
   { nameSubstring: 'אלדד', earliestStart: '15:45' },
   { nameSubstring: 'מור', earliestStart: '15:45' },
 ];
+
+/**
+ * Locations the auto-scheduler must leave EMPTY — the admin staffs them by hand
+ * via the per-slot picker. The slots still appear in the schedule (and in the
+ * UI, ready to fill manually), but the solver never auto-assigns anyone to
+ * them, they don't consume anyone's hours, and a vacant slot here is NOT
+ * reported as an unfilled "gap".
+ */
+export const MANUAL_ONLY_LOCATIONS: LocationId[] = ['חוגים'];
