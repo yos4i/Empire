@@ -175,6 +175,23 @@ describe('scheduleSolver — no gaps / no double-booking', () => {
     });
   });
 
+  // לידור is a capped exception — at most one morning hour of guard duty.
+  test('לידור guards at most one morning hour', () => {
+    const template = DAILY_TEMPLATES['wednesday']!; // not a משיכה day
+    const staff = [
+      ...makeStaff('m', 12, 'morning'),
+      { id: 'lidor', name: 'לידור שלום', shiftWindow: 'morning' as const },
+    ];
+    const sched = generateSchedule(DATE_FOR.wednesday, staff, template, { seed: 5 });
+
+    expect(sched.staffHours['lidor'] || 0).toBeLessThanOrEqual(1);
+    const slotsById = new Map(template.slots.map((s) => [s.id, s]));
+    for (const [slotId, ids] of Object.entries(sched.slotAssignments)) {
+      if (!ids.includes('lidor')) continue;
+      expect(toMin(slotsById.get(slotId)!.start)).toBeLessThan(toMin('14:30'));
+    }
+  });
+
   // With ample staff nobody should be put on two back-to-back guard slots
   // (one ending exactly when the next begins) — they get a rest gap.
   test('avoids back-to-back guard slots when staff allow', () => {

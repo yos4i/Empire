@@ -52,6 +52,7 @@ import {
   FIXED_WEEKLY_DUTIES,
   MISHIKHA_PRIORITY,
   MANUAL_ONLY_LOCATIONS,
+  LIMITED_GUARD,
 } from '../config/dailyShiftTemplates';
 
 // ---------------------------------------------------------------------------
@@ -91,6 +92,12 @@ const isEveningSlot = (slot: ShiftSlot): boolean =>
 /** True for locations the admin staffs by hand (solver leaves them empty). */
 const isManualOnlySlot = (slot: ShiftSlot): boolean =>
   MANUAL_ONLY_LOCATIONS.includes(slot.location);
+
+/** Max guard hours for a capped soldier (e.g. לידור = 1h morning), else null. */
+const guardCapHours = (name: string): number | null => {
+  const rule = LIMITED_GUARD.find((r) => name.includes(r.nameSubstring));
+  return rule ? rule.maxGuardHours : null;
+};
 
 // ---------------------------------------------------------------------------
 // Per-state blocking rules.
@@ -211,6 +218,20 @@ const isBlockedBySpecialState = (
 const dayHasLateRoster = (state: SolverState): boolean => {
   const q = state.template.specialStateQuotas || {};
   return (q['משמרת_ערב'] ?? 0) > 0 || (q['משמרת_צהריים'] ?? 0) > 0;
+};
+
+/**
+ * True if assigning `staffId` to `slot` would breach their guard cap — a capped
+ * soldier (e.g. לידור) may only take MORNING slots, up to their hour limit.
+ */
+const exceedsGuardCap = (state: SolverState, staffId: string, slot: ShiftSlot): boolean => {
+  const person = state.staffById.get(staffId);
+  if (!person) return false;
+  const cap = guardCapHours(person.name);
+  if (cap === null) return false;
+  if (toMin(slot.start) >= EVENING_START_MIN) return true; // morning only
+  const current = state.hoursByStaff.get(staffId) || 0;
+  return current + slotDurationHours(slot) > cap + 1e-9;
 };
 
 /**
@@ -527,6 +548,7 @@ const fillRegularSlot = (state: SolverState, slot: ShiftSlot): void => {
     if (s.isCommander) continue;
     if (isBlockedBySpecialState(state, s.id, slot)) continue;
     if (!isStaffEligibleForSlot(s, slot, dayHasLateRoster(state))) continue;
+    if (exceedsGuardCap(state, s.id, slot)) continue;
     if (hasConflict(state.busyByStaff.get(s.id) || [], interval)) continue;
     eligibleIds.push(s.id);
   }
@@ -728,6 +750,7 @@ const fillEveryoneSlots = (state: SolverState): void => {
       if (accepted.includes(id)) continue;
       const person = state.staffById.get(id);
       if (person && !isStaffEligibleForSlot(person, slot, dayHasLateRoster(state))) continue;
+      if (exceedsGuardCap(state, id, slot)) continue;
       if (hasConflict(state.busyByStaff.get(id) || [], interval)) continue;
       accepted.push(id);
       commitAssignment(state, slot, id);
@@ -802,7 +825,11 @@ const rebalanceHours = (state: SolverState): void => {
   const eligibleFor = (id: string, slot: ShiftSlot): boolean => {
     const p = state.staffById.get(id);
     if (!p) return false;
-    return isStaffEligibleForSlot(p, slot, hasLate) && !isBlockedBySpecialState(state, id, slot);
+    return (
+      isStaffEligibleForSlot(p, slot, hasLate) &&
+      !isBlockedBySpecialState(state, id, slot) &&
+      !exceedsGuardCap(state, id, slot)
+    );
   };
 
   // Free for `interval`, optionally ignoring one interval the person gives up.

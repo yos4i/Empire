@@ -288,6 +288,18 @@ export const STAFF_EARLIEST_START: { nameSubstring: string; earliestStart: strin
 ];
 
 /**
+ * Per-soldier guard caps — exceptions who do only minimal guard duty.
+ *
+ * A matching soldier is limited to MORNING slots only, totalling at most
+ * `maxGuardHours`. לידור שלום guards just one morning hour (on משיכה days he's
+ * on pickup instead, which already blocks all slots). Match is a name substring
+ * on `Staff.name`, same as the other rules here.
+ */
+export const LIMITED_GUARD: { nameSubstring: string; maxGuardHours: number }[] = [
+  { nameSubstring: 'לידור', maxGuardHours: 1 },
+];
+
+/**
  * Locations the auto-scheduler must leave EMPTY — the admin staffs them by hand
  * via the per-slot picker. The slots still appear in the schedule (and in the
  * UI, ready to fill manually), but the solver never auto-assigns anyone to
