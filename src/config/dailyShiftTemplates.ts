@@ -151,7 +151,7 @@ const TUESDAY_SLOTS: SlotInit[] = [
 const WEDNESDAY_SLOTS: SlotInit[] = [
   // יסודי
   { loc: 'יסודי', start: '07:15', end: '08:15', required: 1 },
-  { loc: 'יסודי', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
+  { loc: 'יסודי', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
   // צפוני
   { loc: 'צפוני', start: '07:15', end: '08:15', required: 2 },
@@ -159,7 +159,7 @@ const WEDNESDAY_SLOTS: SlotInit[] = [
   { loc: 'צפוני', start: '10:00', end: '12:00', required: 1 },
   { loc: 'צפוני', start: '12:00', end: '13:30', required: 1 },
   { loc: 'צפוני', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'צפוני', start: '13:45', end: '14:30', required: 1, isReinforcement: true },
+  { loc: 'צפוני', start: '12:45', end: '13:30', required: 1, isReinforcement: true },
 
   // חוגים — manual only (kept available even though Wednesday's sheet had none)
   { loc: 'חוגים', start: '07:15', end: '08:15', required: 1 },
@@ -170,7 +170,7 @@ const WEDNESDAY_SLOTS: SlotInit[] = [
   { loc: 'חטיבה', start: '11:00', end: '12:30', required: 1 },
   { loc: 'חטיבה', start: '12:30', end: '13:30', required: 1 },
   { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'חטיבה', start: '13:45', end: '14:30', required: 2, isReinforcement: true },
+  { loc: 'חטיבה', start: '12:45', end: '13:30', required: 2, isReinforcement: true },
   // חטיבה — afternoon (evening roster)
   { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
   { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },

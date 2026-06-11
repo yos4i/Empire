@@ -841,6 +841,17 @@ const rebalanceHours = (state: SolverState): void => {
     return true;
   };
 
+  // True if taking `interval` would butt up against another of the person's
+  // slots (one ending exactly when the other begins) — a back-to-back with no
+  // rest. The rebalancer must not CREATE these while chasing hour balance.
+  const createsAdjacency = (id: string, interval: Interval, give?: Interval): boolean => {
+    for (const b of state.busyByStaff.get(id) || []) {
+      if (give && b.start === give.start && b.end === give.end) continue;
+      if (b.end === interval.start || interval.end === b.start) return true;
+    }
+    return false;
+  };
+
   const slotsOf = (id: string): ShiftSlot[] =>
     movableSlots.filter(
       (s) => !pinned[s.id]?.includes(id) && (state.slotAssignments.get(s.id) || []).includes(id)
@@ -876,6 +887,7 @@ const rebalanceHours = (state: SolverState): void => {
           const cH = hoursOf(cand);
           if (dH - cH <= dur) continue; // wouldn't strictly reduce variance
           if (!eligibleFor(cand, slot) || !freeFor(cand, interval)) continue;
+          if (createsAdjacency(cand, interval)) continue; // no new back-to-back
           if (cH < bestH) { bestH = cH; best = cand; }
         }
         if (best) { move(slot, donor, best); acted = true; break; }
@@ -906,6 +918,7 @@ const rebalanceHours = (state: SolverState): void => {
             const i2 = slotInterval(s2);
             if (!eligibleFor(donor, s2) || !eligibleFor(cand, s1)) continue;
             if (!freeFor(donor, i2, i1) || !freeFor(cand, i1, i2)) continue;
+            if (createsAdjacency(donor, i2, i1) || createsAdjacency(cand, i1, i2)) continue;
             move(s1, donor, cand);
             move(s2, cand, donor);
             acted = true;

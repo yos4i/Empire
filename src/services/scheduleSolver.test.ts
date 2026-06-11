@@ -192,18 +192,20 @@ describe('scheduleSolver — no gaps / no double-booking', () => {
     }
   });
 
-  // With ample staff nobody should be put on two back-to-back guard slots
-  // (one ending exactly when the next begins) — they get a rest gap.
-  test('avoids back-to-back guard slots when staff allow', () => {
-    const template = DAILY_TEMPLATES['sunday']!;
-    const staff = makeStaff('m', 24, 'morning'); // far more than the morning needs
-    const sched = generateSchedule(DATE_FOR.sunday, staff, template, { seed: 11 });
+  // No morning soldier should be put on two back-to-back guard slots (one
+  // ending exactly when the next begins) — neither by the fill NOR by the
+  // later hour-balancing pass. Uses a realistic roster where people do >1 slot.
+  test.each(WEEKDAYS)('%s: no morning soldier gets back-to-back guard slots', (day) => {
+    const template = DAILY_TEMPLATES[day]!;
+    const staff = [...makeStaff('m', 16, 'morning'), ...makeStaff('e', 6, 'evening')];
+    const sched = generateSchedule(DATE_FOR[day], staff, template, { seed: 11 });
 
     const slotsById = new Map(template.slots.map((s) => [s.id, s]));
     const byStaff = new Map<string, { start: number; end: number }[]>();
     for (const [slotId, ids] of Object.entries(sched.slotAssignments)) {
       const s = slotsById.get(slotId)!;
       for (const id of ids) {
+        if (!id.startsWith('m')) continue; // morning-window soldiers
         const list = byStaff.get(id) || [];
         list.push({ start: toMin(s.start), end: toMin(s.end) });
         byStaff.set(id, list);
