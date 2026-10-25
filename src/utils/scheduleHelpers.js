@@ -4,6 +4,7 @@ import {
   SHIFT_REQUIREMENTS,
   DAY_END_TIMES,
   DAYS,
+  EVENING_DEFAULT_TIMES,
 } from '../config/shifts';
 import { getLongShiftEndTime } from './weekKey';
 import { ShiftAssignment } from '../entities/ShiftAssignment';
@@ -20,6 +21,13 @@ export function getShiftRequirements(day, shiftKey) {
   if (shiftKey.includes('בוקר')) {
     base.customStartTime = '07:00';
     base.customEndTime = DAY_END_TIMES[day];
+  }
+
+  // Explicit default so the Firestore shift_definitions name (which may still
+  // say 13:30) never decides the evening start.
+  if (shiftKey.includes('ערב')) {
+    base.customStartTime = EVENING_DEFAULT_TIMES.start;
+    base.customEndTime = EVENING_DEFAULT_TIMES.end;
   }
 
   return base;

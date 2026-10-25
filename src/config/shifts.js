@@ -6,7 +6,7 @@ export const SHIFT_TYPES = {
 
 export const SHIFT_NAMES = {
   "קריית_חינוך_בוקר": "קריית חינוך בוקר",
-  "קריית_חינוך_ערב": "קריית חינוך ערב 13:30-19:30"
+  "קריית_חינוך_ערב": "קריית חינוך ערב 14:30-19:30"
 };
 
 export const SHIFT_TYPES_HE = {
@@ -20,6 +20,9 @@ export const SHIFT_REQUIREMENTS = {
 };
 
 export const LONG_SHIFTS = [];
+
+// Default hours for the evening shift cell in the weekly schedule.
+export const EVENING_DEFAULT_TIMES = { start: "14:30", end: "19:30" };
 
 // Day-specific end times for morning shifts
 export const DAY_END_TIMES = {

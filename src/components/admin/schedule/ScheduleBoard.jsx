@@ -5,6 +5,7 @@ import { DAYS, SHIFT_NAMES, SHIFT_TYPES_HE } from '../../../config/shifts';
 import { getLongShiftEndTime } from '../../../utils/weekKey';
 import { DAY_NAMES_HE, formatShortDate, toISODate } from '../../../utils/days';
 import { cn } from '../../../lib/utils';
+import { SWAP_REQUESTS_ENABLED } from '../../../config/app';
 
 const MAX_SHIFTS = 6;
 
@@ -77,7 +78,7 @@ export default function ScheduleBoard({
     const soldier = users[soldierId];
     if (!soldier) return null;
     const assignment = assignmentFor(soldierId, shiftKey, day);
-    const swap = assignment?.status === 'swap_requested';
+    const swap = SWAP_REQUESTS_ENABLED && assignment?.status === 'swap_requested';
     const isLong = isLongShiftFor(soldierId, shiftKey, day);
     const overworked = (soldierShiftCounts[soldierId] || 0) > MAX_SHIFTS;
     const onDayOff = dayOffBySoldier[soldierId] === day;

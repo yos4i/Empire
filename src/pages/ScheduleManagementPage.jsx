@@ -34,6 +34,7 @@ import {
 } from '../utils/scheduleHelpers';
 import { cn } from '../lib/utils';
 import { toLocalDate } from '../utils/days';
+import { SWAP_REQUESTS_ENABLED } from '../config/app';
 
 const MAX_SHIFTS = 6;
 
@@ -774,9 +775,11 @@ export default function ScheduleManagementPage() {
               <span className="flex items-center gap-1.5">
                 <span className="h-3 w-3 rounded bg-warning-soft ring-1 ring-warning/40" /> משמרת ארוכה
               </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded bg-swap-soft ring-1 ring-swap/40" /> בקשת החלפה
-              </span>
+              {SWAP_REQUESTS_ENABLED && (
+                <span className="flex items-center gap-1.5">
+                  <span className="h-3 w-3 rounded bg-swap-soft ring-1 ring-swap/40" /> בקשת החלפה
+                </span>
+              )}
               <span className="flex items-center gap-1.5">
                 <span className="h-3 w-3 rounded bg-danger-soft ring-1 ring-danger/40" /> ביום החופש / מעל 6 משמרות
               </span>

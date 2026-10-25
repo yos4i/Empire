@@ -21,6 +21,7 @@ import {
   deriveDayOff, findSubmissionWeek, loadDayOffSubmission, submissionWeekStart,
 } from "../components/soldier/dayOff";
 import { cn } from "../lib/utils";
+import { SWAP_REQUESTS_ENABLED } from "../config/app";
 
 const WORK_DAYS = DAY_KEYS.slice(0, 6); // Sunday–Friday
 
@@ -188,11 +189,11 @@ function MyWeek({ assignments, loading, onSwap }) {
                           <div className="flex flex-wrap items-center gap-1.5">
                             <span className="font-semibold" dir="ltr">{shiftTimeRange(a)}</span>
                             {a.isLongShift && <Badge variant="warning">ארוכה</Badge>}
-                            {a.status === 'swap_requested' && <Badge variant="swap">ממתין להחלפה</Badge>}
+                            {SWAP_REQUESTS_ENABLED && a.status === 'swap_requested' && <Badge variant="swap">ממתין להחלפה</Badge>}
                           </div>
                           <p className="truncate text-xs text-muted-foreground">{shiftTitle(a)}</p>
                         </div>
-                        {!isPast && a.status !== 'swap_requested' && a.status !== 'completed' && (
+                        {SWAP_REQUESTS_ENABLED && !isPast && a.status !== 'swap_requested' && a.status !== 'completed' && (
                           <Button
                             variant="ghost"
                             size="xs"
@@ -269,11 +270,11 @@ export default function SoldierDashboard() {
       <StandbyCard />
       <MyWeek assignments={assignments} loading={loading} onSwap={setSwapTarget} />
 
-      <SwapRequestSheet
+      {SWAP_REQUESTS_ENABLED && <SwapRequestSheet
         assignment={swapTarget}
         onClose={() => setSwapTarget(null)}
         onSent={loadAssignments}
-      />
+      />}
     </div>
   );
 }

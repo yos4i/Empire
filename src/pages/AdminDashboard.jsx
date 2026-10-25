@@ -21,6 +21,7 @@ import { WeeklySchedule } from "../entities/WeeklySchedule";
 import { toWeekStartISO } from "../utils/weekKey";
 import { formatWeekRange } from "../utils/days";
 import { cn } from "../lib/utils";
+import { SWAP_REQUESTS_ENABLED } from "../config/app";
 
 function Kpi({ icon: Icon, label, value, tone = "primary", onClick, to }) {
   const tones = {
@@ -119,6 +120,7 @@ export default function AdminDashboard() {
   const [showStandby, setShowStandby] = useState(false);
 
   const loadSwaps = useCallback(async () => {
+    if (!SWAP_REQUESTS_ENABLED) return;
     setSwapRequests(await loadSwapRequests().catch(() => []));
   }, []);
 
@@ -193,7 +195,7 @@ export default function AdminDashboard() {
         subtitle={new Date().toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long" })}
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className={cn("grid grid-cols-2 gap-3", SWAP_REQUESTS_ENABLED ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
         <Kpi icon={Users} label="חיילים פעילים" value={soldiers?.length} to="/admin/soldiers" />
         <Kpi
           icon={ShieldOff}
@@ -209,13 +211,15 @@ export default function AdminDashboard() {
           tone={notSubmitted ? "warning" : "success"}
           to="/admin/soldiers?filter=not_submitted"
         />
-        <Kpi
-          icon={ArrowLeftRight}
-          label="בקשות החלפה"
-          value={swapRequests.length}
-          tone={swapRequests.length ? "swap" : "success"}
-          onClick={() => setShowSwaps(true)}
-        />
+        {SWAP_REQUESTS_ENABLED && (
+          <Kpi
+            icon={ArrowLeftRight}
+            label="בקשות החלפה"
+            value={swapRequests.length}
+            tone={swapRequests.length ? "swap" : "success"}
+            onClick={() => setShowSwaps(true)}
+          />
+        )}
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-5">
