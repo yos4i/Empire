@@ -1,19 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Shield, MapPin, Award, Package, Calendar, Trash2, Edit, Save } from 'lucide-react';
+import { Trash2, Pencil, Check, X, Shield, Package, KeyRound } from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
+} from '../ui/dialog';
 import { Button } from '../ui/button';
-import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
+import { Spinner } from '../ui/spinner';
+import { toast } from '../ui/toaster';
+import { useConfirm } from '../ui/confirm-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { User as UserEntity } from '../../entities/User';
+import { cn } from '../../lib/utils';
 
-export default function SoldierDetailsDialog({ isOpen, onClose, soldier, onDelete }) {
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+const MISSIONS = [{ value: 'קריית_חינוך', label: 'קריית חינוך' }];
+
+const show = (value) => (value && value !== 'לא מולא' ? String(value).replace(/_/g, ' ') : null);
+
+function Field({ label, value }) {
+  const v = show(value);
+  return (
+    <div className="rounded-xl bg-muted/60 px-3 py-2.5">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className={cn('font-semibold', !v && 'font-normal text-muted-foreground')}>{v || 'לא מולא'}</div>
+    </div>
+  );
+}
+
+/** Side drawer with a soldier's details; mission is editable, soldier can be deleted. */
+export default function SoldierDetailsDialog({ isOpen, onClose, soldier, onDelete, onUpdated }) {
+  const confirm = useConfirm();
   const [deleting, setDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedMission, setEditedMission] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Initialize editedMission when soldier changes
   useEffect(() => {
     if (soldier) {
       setEditedMission(soldier.mission || '');
@@ -21,288 +41,176 @@ export default function SoldierDetailsDialog({ isOpen, onClose, soldier, onDelet
     }
   }, [soldier]);
 
-  if (!isOpen || !soldier) return null;
+  if (!soldier) return null;
 
   const handleSaveMission = async () => {
     setSaving(true);
     try {
-      // Update soldier's mission in Firestore
       await UserEntity.update(soldier.id, {
         mission: editedMission,
-        unit: editedMission, // Also update unit field for backward compatibility
-        updated_at: new Date().toISOString()
+        unit: editedMission, // keep legacy field in sync
+        updated_at: new Date().toISOString(),
       });
-      alert('המשימה עודכנה בהצלחה!');
+      toast.success('המשימה עודכנה');
       setIsEditing(false);
-
-      // Reload the page to show updated data
-      window.location.reload();
+      onUpdated?.({ ...soldier, mission: editedMission, unit: editedMission });
     } catch (error) {
-      console.error('Error updating mission:', error);
-      alert('שגיאה בעדכון המשימה: ' + error.message);
+      toast.error('שגיאה בעדכון המשימה: ' + error.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!showDeleteConfirm) {
-      setShowDeleteConfirm(true);
-      return;
-    }
-
+    const ok = await confirm({
+      title: `למחוק את ${soldier.hebrew_name}?`,
+      description: 'החייל יוסר מהמערכת ולא יוכל להתחבר. הפעולה לא ניתנת לביטול.',
+      confirmText: 'מחיקה',
+      destructive: true,
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       await onDelete(soldier);
+      toast.success('החייל נמחק');
       onClose();
     } catch (error) {
-      console.error('Error deleting soldier:', error);
-      alert('שגיאה במחיקת החייל: ' + error.message);
+      toast.error('שגיאה במחיקת החייל: ' + error.message);
     } finally {
       setDeleting(false);
-      setShowDeleteConfirm(false);
     }
   };
 
+  const eq = soldier.equipment || {};
+  const magazines = Number(eq.magazines ?? soldier.magazines ?? 0) || 0;
+  const equipment = [
+    { label: 'ווסט', on: !!eq.vest },
+    { label: 'קסדה', on: !!eq.helmet },
+    { label: 'נשק', on: !!eq.weapon },
+    { label: magazines ? `${magazines} מחסניות` : 'מחסניות', on: magazines > 0 },
+  ];
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" dir="rtl">
-      <Card className="w-full max-w-2xl bg-white rounded-lg shadow-xl max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white z-10 flex items-center justify-between p-6 border-b">
-          <div className="flex items-center gap-2">
-            <User className="w-6 h-6 text-blue-600" />
-            <h2 className="text-2xl font-semibold text-gray-900">פרטי חייל</h2>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            className="p-1"
-          >
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-
-        <div className="p-6 space-y-6">
-          {/* Header Section */}
-          <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900">
-                  {soldier.hebrew_name || soldier.full_name || 'לא מולא'}
-                </h3>
-                <p className="text-gray-600">
-                  מספר אישי: {soldier.personal_number || 'לא מולא'}
-                </p>
-              </div>
-              <Badge
-                className={`text-sm px-3 py-1 ${
-                  soldier.is_active
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-red-100 text-red-800'
-                }`}
-              >
-                {soldier.is_active ? 'פעיל' : 'לא פעיל'}
-              </Badge>
-            </div>
-          </div>
-
-          {/* Basic Information */}
-          <div className="grid md:grid-cols-2 gap-4">
-            <Card className="p-4">
-              <div className="flex items-start gap-3">
-                <Award className="w-5 h-5 text-purple-600 mt-1" />
-                <div>
-                  <p className="text-sm text-gray-600">דרגה</p>
-                  <p className="font-semibold text-gray-900">
-                    {soldier.rank || 'לא מולא'}
-                  </p>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4">
-              <div className="flex items-start gap-3">
-                <MapPin className="w-5 h-5 text-blue-600 mt-1" />
-                <div>
-                  <p className="text-sm text-gray-600">יחידה</p>
-                  <p className="font-semibold text-gray-900">
-                    {soldier.unit ? soldier.unit.replace('_', ' ') : 'לא מולא'}
-                  </p>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4">
-              <div className="flex items-start gap-3">
-                <MapPin className="w-5 h-5 text-green-600 mt-1" />
-                <div className="flex-1">
-                  <p className="text-sm text-gray-600 mb-2">משימה (ניתן לעריכה)</p>
-                  {isEditing ? (
-                    <div className="flex gap-2">
-                      <Select value={editedMission} onValueChange={setEditedMission}>
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="בחר משימה" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="קריית_חינוך">קריית חינוך</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        size="sm"
-                        onClick={handleSaveMission}
-                        disabled={saving}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        <Save className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setIsEditing(false);
-                          setEditedMission(soldier.mission || '');
-                        }}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between">
-                      <p className="font-semibold text-gray-900">
-                        {soldier.mission ? soldier.mission.replace('_', ' ') : 'לא מולא'}
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setIsEditing(true)}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4">
-              <div className="flex items-start gap-3">
-                <Shield className="w-5 h-5 text-orange-600 mt-1" />
-                <div>
-                  <p className="text-sm text-gray-600">מספר נשק</p>
-                  <p className="font-semibold text-gray-900">
-                    {soldier.weapon_number || 'לא מולא'}
-                  </p>
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* Equipment Section */}
-          <Card className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Package className="w-5 h-5 text-purple-600" />
-              <h4 className="font-semibold text-gray-900">ציוד חתום</h4>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${soldier.equipment?.vest ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                <span className="text-sm text-gray-700">ווסט</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${soldier.equipment?.helmet ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                <span className="text-sm text-gray-700">קסדה</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${soldier.equipment?.radio ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                <span className="text-sm text-gray-700">כמות מחסניות</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${soldier.equipment?.weapon ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                <span className="text-sm text-gray-700">נשק</span>
-              </div>
-            </div>
-            {soldier.equipment && Object.values(soldier.equipment).every(v => !v) && (
-              <p className="text-sm text-gray-500 mt-2">לא דווח על ציוד</p>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent side="right">
+        <DialogHeader className="pt-5">
+          <DialogTitle className="text-xl">{soldier.hebrew_name || soldier.full_name}</DialogTitle>
+          <DialogDescription className="flex flex-wrap items-center gap-2">
+            <span>מ.א {show(soldier.personal_number) || '—'}</span>
+            {soldier.on_standby ? (
+              <Badge variant="success">בכוננות</Badge>
+            ) : (
+              <Badge variant="destructive">לא בכוננות</Badge>
             )}
-          </Card>
+          </DialogDescription>
+        </DialogHeader>
 
-          {/* Account Information */}
-          <Card className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Calendar className="w-5 h-5 text-blue-600" />
-              <h4 className="font-semibold text-gray-900">מידע חשבון</h4>
+        <DialogBody className="space-y-5">
+          {!soldier.on_standby && soldier.standby_reason && (
+            <div className="rounded-xl bg-danger-soft px-3 py-2.5 text-sm">
+              <span className="font-semibold text-danger">סיבת אי-כוננות: </span>
+              {soldier.standby_reason}
             </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">שם משתמש:</span>
-                <span className="font-medium text-gray-900">{soldier.username || 'לא זמין'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">UID:</span>
-                <span className="font-mono text-xs text-gray-700">{soldier.uid || soldier.id}</span>
-              </div>
-              {soldier.created_at && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">תאריך יצירה:</span>
-                  <span className="font-medium text-gray-900">
-                    {new Date(soldier.created_at).toLocaleDateString('he-IL')}
-                  </span>
-                </div>
-              )}
-              {soldier.updated_at && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">עדכון אחרון:</span>
-                  <span className="font-medium text-gray-900">
-                    {new Date(soldier.updated_at).toLocaleDateString('he-IL')}
-                  </span>
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {/* Shift Statistics */}
-          {soldier.weekly_shifts && Object.keys(soldier.weekly_shifts).length > 0 && (
-            <Card className="p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-5 h-5 text-green-600" />
-                <h4 className="font-semibold text-gray-900">סטטיסטיקת משמרות</h4>
-              </div>
-              <div className="text-sm text-gray-600">
-                <p>סה"כ משמרות שבועיות: {Object.keys(soldier.weekly_shifts).length}</p>
-              </div>
-            </Card>
           )}
-        </div>
 
-        {/* Footer */}
-        <div className="sticky bottom-0 bg-white border-t p-4 flex justify-between items-center">
+          <section className="grid grid-cols-2 gap-2">
+            <Field label="דרגה" value={soldier.rank} />
+            <Field label="מספר נשק" value={soldier.weapon_number} />
+            <Field label="יחידת אם" value={soldier.mother_unit} />
+            <Field label="מגורים" value={soldier.home_location} />
+          </section>
+
+          <section>
+            <h3 className="mb-2 text-sm font-bold">משימה</h3>
+            {isEditing ? (
+              <div className="flex gap-2">
+                <Select value={editedMission} onValueChange={setEditedMission}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue placeholder="בחירת משימה" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MISSIONS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button size="icon" variant="success" onClick={handleSaveMission} disabled={saving} aria-label="שמירה">
+                  {saving ? <Spinner className="text-white" /> : <Check className="h-5 w-5" />}
+                </Button>
+                <Button
+                  size="icon"
+                  variant="outline"
+                  onClick={() => { setIsEditing(false); setEditedMission(soldier.mission || ''); }}
+                  aria-label="ביטול"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between rounded-xl bg-muted/60 px-3 py-2">
+                <span className={cn('font-semibold', !soldier.mission && 'font-normal text-warning')}>
+                  {show(soldier.mission) || 'לא הוגדרה — החייל לא יראה סידור'}
+                </span>
+                <Button size="xs" variant="ghost" onClick={() => setIsEditing(true)}>
+                  <Pencil className="h-3.5 w-3.5" /> עריכה
+                </Button>
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h3 className="mb-2 flex items-center gap-1.5 text-sm font-bold">
+              <Package className="h-4 w-4 text-muted-foreground" /> ציוד חתום
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {equipment.map(({ label, on }) => (
+                <span
+                  key={label}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium',
+                    on ? 'bg-success-soft text-success' : 'bg-muted text-muted-foreground line-through decoration-1'
+                  )}
+                >
+                  {on ? <Check className="h-3.5 w-3.5" /> : <Shield className="h-3.5 w-3.5 opacity-50" />}
+                  {label}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-1.5 text-sm">
+            <h3 className="mb-2 flex items-center gap-1.5 font-bold">
+              <KeyRound className="h-4 w-4 text-muted-foreground" /> חשבון
+            </h3>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">שם משתמש</span>
+              <span className="font-medium" dir="ltr">{soldier.username || '—'}</span>
+            </div>
+            {soldier.created_at && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">נוצר</span>
+                <span>{new Date(soldier.created_at).toLocaleDateString('he-IL')}</span>
+              </div>
+            )}
+            {soldier.updated_at && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">עודכן</span>
+                <span>{new Date(soldier.updated_at).toLocaleDateString('he-IL')}</span>
+              </div>
+            )}
+          </section>
+        </DialogBody>
+
+        <DialogFooter className="sm:justify-between">
+          <Button variant="outline" onClick={onClose}>סגירה</Button>
           <Button
+            variant="ghost"
+            className="text-danger hover:bg-danger-soft hover:text-danger"
             onClick={handleDelete}
             disabled={deleting}
-            className={`flex items-center gap-2 ${
-              showDeleteConfirm
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-red-500 hover:bg-red-600'
-            }`}
           >
-            <Trash2 className="w-4 h-4" />
-            {deleting ? 'מוחק...' : showDeleteConfirm ? 'לחץ שוב לאישור מחיקה' : 'מחק חייל'}
+            {deleting ? <Spinner /> : <><Trash2 className="h-4 w-4" /> מחיקת חייל</>}
           </Button>
-          <div className="flex gap-2">
-            {showDeleteConfirm && (
-              <Button
-                onClick={() => setShowDeleteConfirm(false)}
-                variant="outline"
-              >
-                ביטול
-              </Button>
-            )}
-            <Button onClick={onClose} className="bg-blue-600 hover:bg-blue-700">
-              סגור
-            </Button>
-          </div>
-        </div>
-      </Card>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

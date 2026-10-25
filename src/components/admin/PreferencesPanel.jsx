@@ -1,296 +1,131 @@
-import React, { useState } from 'react';
-import { Search, Calendar, User, Clock3, MessageSquare } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Search, MessageSquare, ChevronDown, Sun, CircleSlash } from 'lucide-react';
 import { Input } from '../ui/input';
-import { Badge } from '../ui/badge';
-import { format } from 'date-fns';
-import {
-  hasAnyPreferences
-} from '../../utils/preferences';
+import { Skeleton } from '../ui/spinner';
+import { Segmented } from '../ui/segmented';
+import { DAY_LETTERS_HE } from '../../utils/days';
+import { cn } from '../../lib/utils';
 
+const SORTS = [
+  { value: 'load', label: 'פחות משובצים' },
+  { value: 'name', label: 'א-ב' },
+];
+
+/**
+ * Soldier list for the weekly board. Click a row to select the soldier
+ * (then click shifts on the board); the chevron opens their note.
+ */
 export default function PreferencesPanel({
-  isOpen,
-  onClose,
   submissions,
-  weekStart,
   loading,
   soldierShiftCounts = {},
-  users = {},
-  isDragging = false,
+  dayOffBySoldier = {},
   onSelectSoldier,
-  selectedSoldierId
+  selectedSoldierId,
+  className,
 }) {
-  const [searchTerm, setSearchTerm] = useState('');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('load');
+  const [expanded, setExpanded] = useState(null);
 
-  if (!isOpen) return null;
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return submissions
+      .filter((s) => !q || s.userName?.toLowerCase().includes(q))
+      .map((s) => ({ ...s, submitted: !String(s.id).startsWith('missing_'), count: soldierShiftCounts[s.userId] || 0 }))
+      .sort((a, b) =>
+        sort === 'load'
+          ? a.count - b.count || a.userName.localeCompare(b.userName, 'he')
+          : a.userName.localeCompare(b.userName, 'he')
+      );
+  }, [submissions, search, sort, soldierShiftCounts]);
 
-  const filteredSubmissions = submissions.filter(sub => {
-    const nameMatch = sub.userName?.toLowerCase().includes(searchTerm.toLowerCase());
-    const idMatch = sub.userId?.includes(searchTerm);
-    return nameMatch || idMatch;
-  });
-
-  // Filter submissions that have any preferences
-  const submissionsWithPrefs = filteredSubmissions.filter(sub => {
-    return Object.values(sub.days || {}).some(dayShifts => dayShifts && dayShifts.length > 0);
-  });
-  const submissionsWithoutPrefs = filteredSubmissions.filter(sub => !hasAnyPreferences(sub));
+  const notSubmitted = rows.filter((r) => !r.submitted).length;
 
   return (
-    <div
-      className="w-[240px] bg-white border-r border-gray-200 h-full flex flex-col flex-shrink-0"
-      dir="rtl"
-    >
-        {/* Header */}
-        <div className="border-b border-gray-200 p-3">
-          <div className="flex flex-col items-center gap-2">
-            <Calendar className="w-5 h-5 text-blue-600" />
-            <div className="text-center">
-              <h2 className="text-base font-bold text-gray-900">
-                העדפות חיילים
-              </h2>
-              <p className="text-xs text-gray-600">
-                {format(new Date(weekStart), 'dd/MM/yyyy')}
-              </p>
-            </div>
-          </div>
+    <div className={cn('flex h-full min-h-0 flex-col bg-card', className)}>
+      <div className="space-y-2 border-b p-3">
+        <div className="flex items-baseline justify-between">
+          <h2 className="font-bold">חיילים</h2>
+          <span className="text-xs text-muted-foreground">
+            {rows.length} · {notSubmitted > 0 ? <span className="text-warning">{notSubmitted} לא הגישו</span> : 'כולם הגישו'}
+          </span>
         </div>
-
-        {/* Controls */}
-        <div className="border-b border-gray-200 p-2">
-          <div className="relative mb-2">
-            <Search className="absolute right-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-gray-400" />
-            <Input
-              placeholder="חיפוש..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pr-7 text-xs h-8"
-            />
-          </div>
-          <div className="flex flex-col gap-1 text-xs text-gray-600">
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-1">
-                <User className="w-3 h-3" />
-                סה״כ: {filteredSubmissions.length}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-1">
-              <Badge variant="outline" className="bg-green-50 text-green-700 text-xs flex-1 justify-center">
-                ✓ {submissionsWithPrefs.length}
-              </Badge>
-              <Badge variant="outline" className="bg-red-50 text-red-700 text-xs flex-1 justify-center">
-                ✗ {submissionsWithoutPrefs.length}
-              </Badge>
-            </div>
-          </div>
+        <div className="relative">
+          <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="חיפוש" value={search} onChange={(e) => setSearch(e.target.value)} className="h-10 pr-9" />
         </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-auto">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">טוען העדפות...</p>
-              </div>
-            </div>
-          ) : filteredSubmissions.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-500">אין הגשות לשבוע זה</h3>
-                <p className="text-gray-400">לא נמצאו העדפות משמרות לשבוע הנבחר</p>
-              </div>
-            </div>
-          ) : (
-            <div className="p-2">
-              {/* Submissions with preferences */}
-              {submissionsWithPrefs.length > 0 && (
-                <div className="mb-4">
-                  <h3 className="text-xs font-semibold text-gray-900 mb-2 text-center">
-                    <Badge className="bg-green-100 text-green-800 text-xs w-full justify-center">
-                      הגישו ({submissionsWithPrefs.length})
-                    </Badge>
-                  </h3>
-
-                  <div className="space-y-2">
-                    {submissionsWithPrefs.map((submission, index) => (
-                      <SubmissionCard
-                        key={submission.id}
-                        submission={submission}
-                        index={index}
-                        soldierShiftCounts={soldierShiftCounts}
-                        users={users}
-                        onSelectSoldier={onSelectSoldier}
-                        selectedSoldierId={selectedSoldierId}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Submissions without preferences */}
-              {submissionsWithoutPrefs.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-semibold text-gray-900 mb-2 text-center">
-                    <Badge className="bg-red-100 text-red-800 text-xs w-full justify-center">
-                      לא הגישו ({submissionsWithoutPrefs.length})
-                    </Badge>
-                  </h3>
-
-                  <div className="space-y-2">
-                    {submissionsWithoutPrefs.map((submission, index) => (
-                      <SubmissionCard
-                        key={submission.id}
-                        submission={submission}
-                        index={index}
-                        soldierShiftCounts={soldierShiftCounts}
-                        users={users}
-                        onSelectSoldier={onSelectSoldier}
-                        selectedSoldierId={selectedSoldierId}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        <Segmented options={SORTS} value={sort} onChange={setSort} className="w-full" />
       </div>
-  );
-}
 
-function SubmissionCard({ submission, index, soldierShiftCounts, users, onSelectSoldier, selectedSoldierId }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  console.log('Rendering submission:', submission);
-
-  // Calculate total shifts
-  const totalShifts = Object.values(submission.days || {}).reduce((total, dayShifts) =>
-    total + (dayShifts?.length || 0), 0);
-
-  const shiftCount = soldierShiftCounts[submission.userId] || 0;
-  const soldier = users[submission.userId];
-  const isSelected = selectedSoldierId === submission.userId;
-
-  const draggableId = `${submission.userId}|preferences`;
-  console.log('Creating draggable with ID:', draggableId, 'at index:', index);
-
-  const handleCardClick = () => {
-    // Both select soldier AND expand preferences
-    if (onSelectSoldier) {
-      onSelectSoldier(submission.userId);
-    }
-    setIsExpanded(!isExpanded);
-  };
-
-  return (
-    <div
-      className={`
-        bg-white border-2 rounded shadow-sm overflow-hidden transition-all cursor-pointer
-        ${isSelected ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-300' : 'border-gray-200 hover:border-blue-300'}
-      `}
-      onClick={handleCardClick}
-    >
-      <div className="p-2">
-        <div className="flex items-center gap-1 mb-1.5">
-          <User className="w-3 h-3 text-gray-400 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-xs text-gray-900 truncate">{submission.userName}</div>
-                <div className="text-xs text-gray-500 truncate">
-                  {soldier?.unit?.replace('_', ' ') || ''}
-                </div>
-              </div>
-              <div className="text-gray-400 flex-shrink-0">
-                <div className="text-sm leading-none">
-                  {isExpanded ? '▼' : '▶'}
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Badge variant="outline" className="bg-blue-50 text-blue-700 text-xs justify-center">
-                {totalShifts} העדפות
-              </Badge>
-              {shiftCount > 0 && (
-                <Badge variant="outline" className={`text-xs justify-center
-                  ${shiftCount <= 3 ? 'bg-green-50 text-green-700' : ''}
-                  ${shiftCount > 3 && shiftCount <= 6 ? 'bg-yellow-50 text-yellow-700' : ''}
-                  ${shiftCount > 6 ? 'bg-red-50 text-red-700' : ''}
-                `}>
-                  {shiftCount} משובץ
-                </Badge>
-              )}
-              {isSelected && (
-                <Badge className="text-xs bg-blue-600 text-white justify-center">
-                  ✓ לחץ על משמרת
-                </Badge>
-              )}
-            </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+        {loading ? (
+          <div className="space-y-1.5 p-1.5">
+            {Array.from({ length: 10 }, (_, i) => <Skeleton key={i} className="h-11" />)}
           </div>
-
-      {isExpanded && (
-        <div className="border-t border-gray-200 bg-gray-50">
-          <div className="p-2">
-            {/* Notes Section */}
-            {submission.notes && (
-              <div className="mb-2 pb-2 border-b border-gray-200">
-                <div className="flex items-center gap-1 mb-1">
-                  <MessageSquare className="w-3 h-3 text-blue-600" />
-                  <span className="text-xs font-bold text-gray-700">הערות:</span>
-                </div>
-                <div className="text-xs text-gray-600 italic bg-blue-50 p-2 rounded">
-                  {submission.notes}
-                </div>
-              </div>
-            )}
-
-            {/* Days List - Vertical */}
-            <div className="space-y-1">
-              {[
-                { key: 'sunday', name: 'א׳' },
-                { key: 'monday', name: 'ב׳' },
-                { key: 'tuesday', name: 'ג׳' },
-                { key: 'wednesday', name: 'ד׳' },
-                { key: 'thursday', name: 'ה׳' },
-                { key: 'friday', name: 'ו׳' },
-                { key: 'saturday', name: 'ש׳' }
-              ].map(({ key, name }) => {
-                const daySlots = submission.days?.[key] || [];
-                const hasLongShift = submission.longShiftDays?.[key];
-
-                return (
-                  <div key={key} className="flex items-start gap-1 border-b border-gray-200 pb-1 last:border-b-0">
-                    <div className="text-xs font-bold text-gray-700 min-w-[20px]">
-                      {name}
-                    </div>
-                    <div className="flex flex-col gap-0.5 flex-1">
-                      {daySlots.length > 0 ? (
-                        <>
-                          {daySlots.map((slot, idx) => (
-                            <Badge
-                              key={idx}
-                              className={`text-xs border-green-300 justify-center ${hasLongShift ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'}`}
-                            >
-                              {slot}
-                            </Badge>
-                          ))}
-                          {hasLongShift && (
-                            <Badge className="text-xs bg-amber-100 text-amber-800 justify-center flex items-center gap-1">
-                              <Clock3 className="w-3 h-3" />
-                              עד 15:30
-                            </Badge>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-xs text-gray-400 text-center">—</span>
+        ) : (
+          rows.map((s) => {
+            const selected = selectedSoldierId === s.userId;
+            const dayOff = dayOffBySoldier[s.userId];
+            const isOpen = expanded === s.userId;
+            return (
+              <div key={s.id} className={cn('rounded-xl', selected && 'bg-primary/10 ring-1 ring-primary/40')}>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onSelectSoldier?.(s.userId)}
+                    className={cn(
+                      'flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2.5 py-2 text-right transition-colors',
+                      !selected && 'hover:bg-accent'
+                    )}
+                    aria-pressed={selected}
+                  >
+                    <span
+                      className={cn(
+                        'flex h-7 min-w-[28px] items-center justify-center rounded-lg px-1 text-xs font-bold tabular-nums',
+                        s.count === 0 ? 'bg-muted text-muted-foreground' : s.count > 6 ? 'bg-danger-soft text-danger' : 'bg-primary/10 text-primary'
                       )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+                      title="משמרות השבוע"
+                    >
+                      {s.count}
+                    </span>
+                    <span className={cn('min-w-0 flex-1 truncate text-sm', selected ? 'font-bold text-primary' : 'font-medium')}>
+                      {s.userName}
+                    </span>
+                    {s.submitted ? (
+                      dayOff ? (
+                        <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-warning-soft px-1.5 py-0.5 text-[11px] font-semibold text-amber-800" title="יום חופש מבוקש">
+                          <Sun className="h-3 w-3" /> {DAY_LETTERS_HE[dayOff]}
+                        </span>
+                      ) : null
+                    ) : (
+                      <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-semibold text-muted-foreground" title="לא הגיש/ה">
+                        <CircleSlash className="h-3 w-3" /> לא הגיש
+                      </span>
+                    )}
+                  </button>
+                  {s.notes ? (
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(isOpen ? null : s.userId)}
+                      className="flex h-9 w-8 shrink-0 items-center justify-center rounded-lg text-info hover:bg-info-soft"
+                      aria-label="הערה"
+                      aria-expanded={isOpen}
+                    >
+                      {isOpen ? <ChevronDown className="h-4 w-4" /> : <MessageSquare className="h-4 w-4" />}
+                    </button>
+                  ) : (
+                    <span className="w-8 shrink-0" />
+                  )}
+                </div>
+                {isOpen && s.notes && (
+                  <p className="mx-2.5 mb-2 whitespace-pre-wrap rounded-lg bg-info-soft px-2.5 py-1.5 text-xs text-blue-900">{s.notes}</p>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }

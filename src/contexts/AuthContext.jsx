@@ -38,7 +38,6 @@ export const AuthProvider = ({ children }) => {
         if (savedUser) {
           const userData = JSON.parse(savedUser);
           setUser(userData);
-          console.log('AuthContext: Restored user from localStorage:', userData);
         }
         
         if (savedMockUsers) {
@@ -49,7 +48,6 @@ export const AuthProvider = ({ children }) => {
           // anyone whose browser cached the old admin entry. Cached soldiers
           // are still restored.
           setMockUsers({ ...usersData, admin: MOCK_USERS.admin });
-          console.log('AuthContext: Restored mock users from localStorage (admin from code)');
         }
       } catch (error) {
         console.error('AuthContext: Error restoring auth state:', error);
@@ -65,22 +63,17 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const signIn = async (username, password) => {
-    setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
-      
       // First check mock users (admin)
       const mockUserData = mockUsers[username.toLowerCase()];
       if (mockUserData && mockUserData.password === password) {
         setUser(mockUserData);
         localStorage.setItem('authUser', JSON.stringify(mockUserData));
-        console.log('AuthContext: Admin user logged in');
         return mockUserData;
       }
       
       // Then check Firestore for soldiers
       try {
-        console.log('AuthContext: Checking Firestore for soldier login...');
         const usersSnapshot = await getDocs(collection(db, 'users'));
         const firestoreUser = usersSnapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
@@ -104,7 +97,6 @@ export const AuthProvider = ({ children }) => {
 
           setUser(userData);
           localStorage.setItem('authUser', JSON.stringify(userData));
-          console.log('AuthContext: Soldier logged in from Firestore:', userData);
           return userData;
         }
       } catch (firestoreError) {
@@ -114,31 +106,22 @@ export const AuthProvider = ({ children }) => {
       throw new Error('שם משתמש או סיסמה שגויים');
     } catch (error) {
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const signOut = async () => {
-    setLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 300));
       setUser(null);
       // Clear localStorage on logout
       localStorage.removeItem('authUser');
-      console.log('AuthContext: User logged out and removed from localStorage');
     } catch (error) {
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
 
   const addSoldier = async (soldierData) => {
-    setLoading(true);
     try {
-      console.log('AuthContext: Starting addSoldier with', soldierData);
 
       // Check if username already exists in local storage
       if (mockUsers[soldierData.username.toLowerCase()]) {
@@ -164,16 +147,11 @@ export const AuthProvider = ({ children }) => {
         ...(soldierData.personal_number && { personal_number: soldierData.personal_number })
       };
 
-      console.log('AuthContext: Prepared soldier data (minimal fields)', newSoldier);
 
       // Save to Firestore database
       try {
-        console.log('AuthContext: Attempting to save to Firestore...');
-        console.log('AuthContext: Firebase db object:', db);
-        console.log('AuthContext: Data to save:', newSoldier);
 
         const docRef = await addDoc(collection(db, 'users'), newSoldier);
-        console.log('AuthContext: SUCCESS! Soldier saved to Firestore with ID:', docRef.id);
 
         // Update the soldier with the Firestore document ID
         newSoldier.firestoreId = docRef.id;
@@ -198,26 +176,19 @@ export const AuthProvider = ({ children }) => {
       // Save updated users to localStorage
       localStorage.setItem('mockUsers', JSON.stringify(updatedMockUsers));
 
-      console.log('AuthContext: Added soldier to local storage and Firestore, returning soldier', newSoldier);
       return newSoldier;
     } catch (error) {
       console.error('AuthContext: Error in addSoldier', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const deleteSoldier = async (soldier) => {
-    setLoading(true);
     try {
-      console.log('AuthContext: Starting deleteSoldier for', soldier);
 
       // Delete from Firestore
       try {
-        console.log('AuthContext: Attempting to delete from Firestore with ID:', soldier.id);
         await deleteDoc(doc(db, 'users', soldier.id));
-        console.log('AuthContext: SUCCESS! Soldier deleted from Firestore');
       } catch (firestoreError) {
         console.error('AuthContext: FAILED to delete from Firestore:', firestoreError);
         throw new Error(`Failed to delete from database: ${firestoreError.message}`);
@@ -231,16 +202,12 @@ export const AuthProvider = ({ children }) => {
 
         // Save updated users to localStorage
         localStorage.setItem('mockUsers', JSON.stringify(updatedMockUsers));
-        console.log('AuthContext: Removed soldier from local storage');
       }
 
-      console.log('AuthContext: Soldier deleted successfully');
       return true;
     } catch (error) {
       console.error('AuthContext: Error in deleteSoldier', error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 

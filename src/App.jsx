@@ -1,5 +1,4 @@
 import React from 'react';
-import './App.css';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,16 +10,19 @@ import ShiftSubmissionPage from './pages/ShiftSubmissionPage';
 import ScheduleManagementPage from './pages/ScheduleManagementPage';
 import DailyAutoSchedulePage from './pages/DailyAutoSchedulePage';
 import ShiftPreferencesPage from './pages/ShiftPreferencesPage';
-import MyAssignmentsPage from './pages/MyAssignmentsPage';
+import TeamSchedulePage from './pages/TeamSchedulePage';
+import SoldierShell from './components/soldier/SoldierShell';
+import AdminShell from './components/admin/AdminShell';
+import SoldiersPage from './pages/SoldiersPage';
 import MyStatusPage from './pages/MyStatusPage';
+import { Toaster } from './components/ui/toaster';
+import { ConfirmProvider } from './components/ui/confirm-dialog';
+import { PageLoader } from './components/ui/spinner';
 
 // Loading component for auth restoration
 const LoadingScreen = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50" dir="rtl">
-    <div className="text-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-      <p className="mt-4 text-gray-600">טוען...</p>
-    </div>
+  <div className="min-h-screen" dir="rtl">
+    <PageLoader />
   </div>
 );
 
@@ -36,74 +38,47 @@ const AppContent = () => {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route
-        path="/soldier/:soldierId/*"
+        path="/soldier/:soldierId"
         element={
           <ProtectedRoute requiredRole="soldier">
-            <Routes>
-              <Route path="/" element={<SoldierDashboard />} />
-              <Route path="/shifts" element={<ShiftSubmissionPage />} />
-              <Route path="/assignments" element={<MyAssignmentsPage />} />
-              <Route path="/status" element={<MyStatusPage />} />
-            </Routes>
+            <SoldierShell />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route index element={<SoldierDashboard />} />
+        <Route path="schedule" element={<TeamSchedulePage />} />
+        <Route path="shifts" element={<ShiftSubmissionPage />} />
+        <Route path="status" element={<MyStatusPage />} />
+        {/* old link: "my assignments" now lives on the home screen */}
+        <Route path="*" element={<SoldierHomeRedirect />} />
+      </Route>
+      <Route path="/soldier" element={<SoldierHomeRedirect />} />
       <Route
-        path="/soldier"
-        element={
-          <ProtectedRoute requiredRole="soldier">
-            <SoldierDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin/*"
         element={
           <ProtectedRoute requiredRole="admin">
-            <Routes>
-              <Route path="/" element={<AdminDashboard />} />
-            </Routes>
+            <AdminShell />
           </ProtectedRoute>
         }
-      />
-      <Route
-        path="/schedule-management"
-        element={
-          <ProtectedRoute requiredRole="admin">
-            <ScheduleManagementPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/daily-auto-schedule"
-        element={
-          <ProtectedRoute requiredRole="admin">
-            <DailyAutoSchedulePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/shift-preferences"
-        element={
-          <ProtectedRoute requiredRole="admin">
-            <ShiftPreferencesPage />
-          </ProtectedRoute>
-        }
-      />
-
-      <Route
-        path="/my-assignments"
-        element={
-          <ProtectedRoute requiredRole="soldier">
-            <MyAssignmentsPage />
-          </ProtectedRoute>
-        }
-      />
+      >
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/soldiers" element={<SoldiersPage />} />
+        <Route path="/schedule-management" element={<ScheduleManagementPage />} />
+        <Route path="/daily-auto-schedule" element={<DailyAutoSchedulePage />} />
+        <Route path="/shift-preferences" element={<ShiftPreferencesPage />} />
+      </Route>
+      <Route path="/my-assignments" element={<SoldierHomeRedirect />} />
       <Route path="/" element={<LoginPage />} />
       {/* Catch-all route for undefined paths - redirect based on auth state */}
       <Route path="*" element={<RedirectHandler />} />
     </Routes>
   );
+};
+
+// Sends a soldier to their own home screen (legacy /soldier, /my-assignments links)
+const SoldierHomeRedirect = () => {
+  const { user } = useAuth();
+  if (user?.role === 'soldier') return <Navigate to={`/soldier/${user.uid}`} replace />;
+  return <Navigate to="/login" replace />;
 };
 
 // Component to handle redirects for undefined routes
@@ -115,7 +90,7 @@ const RedirectHandler = () => {
     if (user.role === 'admin') {
       return <Navigate to="/admin" replace />;
     } else if (user.role === 'soldier') {
-      return <Navigate to="/soldier" replace />;
+      return <Navigate to={`/soldier/${user.uid}`} replace />;
     }
   }
 
@@ -129,11 +104,14 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Router>
-          <div className="App" dir="rtl">
-            <AppContent />
-          </div>
-        </Router>
+        <ConfirmProvider>
+          <Router>
+            <div className="min-h-screen" dir="rtl">
+              <AppContent />
+            </div>
+          </Router>
+          <Toaster />
+        </ConfirmProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

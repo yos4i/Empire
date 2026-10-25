@@ -86,13 +86,11 @@ class ShiftTypesService {
   // Initialize shift types in database
   async initializeShiftTypes() {
     try {
-      console.log('ShiftTypesService: Initializing shift types...');
 
       const shiftTypesRef = collection(db, 'shift_types');
       const snapshot = await getDocs(shiftTypesRef);
 
       if (snapshot.empty) {
-        console.log('ShiftTypesService: No shift types found, creating defaults...');
 
         for (const shiftType of ShiftTypesService.defaultShiftTypes) {
           await setDoc(doc(db, 'shift_types', shiftType.id), {
@@ -102,9 +100,7 @@ class ShiftTypesService {
           });
         }
 
-        console.log('✅ ShiftTypesService: Default shift types created');
       } else {
-        console.log('✅ ShiftTypesService: Shift types already exist');
       }
     } catch (error) {
       console.error('❌ ShiftTypesService: Error initializing shift types:', error);
@@ -227,7 +223,6 @@ class ShiftTypesService {
   // Update shift hours for a specific day and shift
   async updateShiftHours(weekStart, day, shiftId, startTime, endTime) {
     try {
-      console.log(`💾 Updating shift hours: ${weekStart} ${day} ${shiftId} ${startTime}-${endTime}`);
 
       const docRef = doc(db, 'weekly_shift_hours', weekStart);
       const docSnap = await getDoc(docRef);
@@ -248,7 +243,6 @@ class ShiftTypesService {
 
       await setDoc(docRef, weeklyData);
 
-      console.log('✅ Shift hours updated successfully');
       return { success: true };
     } catch (error) {
       console.error('❌ Error updating shift hours:', error);

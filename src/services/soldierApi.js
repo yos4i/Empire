@@ -15,7 +15,6 @@ export class SoldierApiService {
    */
   static async submitPreferences({ soldierId, date, preferences, priority = 3 }) {
     try {
-      console.log('SoldierApi.submitPreferences:', { soldierId, date, preferences, priority });
       
       // Convert date to week start if needed
       const weekStart = toWeekStartISO(new Date(date));
@@ -45,7 +44,6 @@ export class SoldierApiService {
         result = await ShiftSubmission.create(submissionData);
       }
       
-      console.log('SoldierApi.submitPreferences: Success:', result.id);
       return result;
     } catch (error) {
       console.error('SoldierApi.submitPreferences: Error:', error);
@@ -60,7 +58,6 @@ export class SoldierApiService {
    */
   static async getMyPreferences(soldierId, date) {
     try {
-      console.log('SoldierApi.getMyPreferences:', { soldierId, date });
       
       const weekStart = toWeekStartISO(new Date(date));
       
@@ -95,7 +92,6 @@ export class SoldierApiService {
    */
   static async getMyAssignments(soldierId, date = null) {
     try {
-      console.log('🔍 SoldierApi.getMyAssignments called with:', { soldierId, date });
 
       const filters = { soldier_id: soldierId };
 
@@ -109,9 +105,7 @@ export class SoldierApiService {
         filters.end_date = weekEnd.toISOString().split('T')[0];
       }
 
-      console.log('📊 SoldierApi: Querying ShiftAssignment with filters:', filters);
       const assignments = await ShiftAssignment.filter(filters);
-      console.log('📦 SoldierApi: Raw assignments from DB:', assignments);
 
       // Get shift definitions for additional info
       const shifts = await ShiftDefinition.list();
@@ -127,7 +121,6 @@ export class SoldierApiService {
         shift_display_name: shiftsMap[assignment.shift_type]?.name || assignment.shift_name || assignment.shift_type
       }));
 
-      console.log('✅ SoldierApi.getMyAssignments: Returning', enrichedAssignments.length, 'enriched assignments');
       return enrichedAssignments;
     } catch (error) {
       console.error('SoldierApi.getMyAssignments: Error:', error);
@@ -141,14 +134,12 @@ export class SoldierApiService {
    */
   static async confirmAssignment(assignmentId) {
     try {
-      console.log('SoldierApi.confirmAssignment:', assignmentId);
       
       await ShiftAssignment.update(assignmentId, {
         status: 'confirmed',
         confirmed_at: new Date()
       });
       
-      console.log('SoldierApi.confirmAssignment: Success');
       return true;
     } catch (error) {
       console.error('SoldierApi.confirmAssignment: Error:', error);
@@ -163,7 +154,6 @@ export class SoldierApiService {
    */
   static async requestSwap(assignmentId, reason) {
     try {
-      console.log('SoldierApi.requestSwap:', { assignmentId, reason });
       
       await ShiftAssignment.update(assignmentId, {
         status: 'swap_requested',
@@ -171,7 +161,6 @@ export class SoldierApiService {
         swap_requested_at: new Date()
       });
       
-      console.log('SoldierApi.requestSwap: Success');
       return true;
     } catch (error) {
       console.error('SoldierApi.requestSwap: Error:', error);
@@ -185,11 +174,9 @@ export class SoldierApiService {
    */
   static async getAvailableShifts(unit) {
     try {
-      console.log('SoldierApi.getAvailableShifts:', unit);
       
       const shifts = await ShiftDefinition.getByUnit(unit);
       
-      console.log('SoldierApi.getAvailableShifts: Found', shifts.length, 'shifts');
       return shifts;
     } catch (error) {
       console.error('SoldierApi.getAvailableShifts: Error:', error);
@@ -205,7 +192,6 @@ export class SoldierApiService {
    */
   static async getMyStats(soldierId, startDate, endDate) {
     try {
-      console.log('SoldierApi.getMyStats:', { soldierId, startDate, endDate });
       
       const assignments = await ShiftAssignment.filter({
         soldier_id: soldierId,
@@ -230,7 +216,6 @@ export class SoldierApiService {
       
       stats.shift_breakdown = shiftTypeBreakdown;
       
-      console.log('SoldierApi.getMyStats:', stats);
       return stats;
     } catch (error) {
       console.error('SoldierApi.getMyStats: Error:', error);
@@ -245,11 +230,9 @@ export class SoldierApiService {
    */
   static async checkConflicts(soldierId, date) {
     try {
-      console.log('SoldierApi.checkConflicts:', { soldierId, date });
       
       const conflicts = await ShiftAssignment.checkConflicts([soldierId], date, null);
       
-      console.log('SoldierApi.checkConflicts: Found', conflicts.length, 'conflicts');
       return conflicts;
     } catch (error) {
       console.error('SoldierApi.checkConflicts: Error:', error);

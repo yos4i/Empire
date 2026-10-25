@@ -6,7 +6,7 @@ export const SHIFT_TYPES = {
 
 export const SHIFT_NAMES = {
   "קריית_חינוך_בוקר": "קריית חינוך בוקר",
-  "קריית_חינוך_ערב": "קריית חינוך ערב 13:30-19:30"
+  "קריית_חינוך_ערב": "קריית חינוך ערב 14:30-19:30"
 };
 
 export const SHIFT_TYPES_HE = {
@@ -21,6 +21,9 @@ export const SHIFT_REQUIREMENTS = {
 
 export const LONG_SHIFTS = [];
 
+// Default hours for the evening shift cell in the weekly schedule.
+export const EVENING_DEFAULT_TIMES = { start: "14:30", end: "19:30" };
+
 // Day-specific end times for morning shifts
 export const DAY_END_TIMES = {
   sunday: "14:30",
@@ -30,3 +33,7 @@ export const DAY_END_TIMES = {
   thursday: "14:30",
   friday: "12:00"
 };
+
+// Names always listed first in the team schedule (shift leads), before
+// regular soldiers. Match is exact on the soldier's Hebrew name.
+export const PINNED_SCHEDULE_NAMES = ['עידן איזיקסון', 'שלומי ממן'];
