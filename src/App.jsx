@@ -1,5 +1,4 @@
 import React from 'react';
-import './App.css';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -13,14 +12,14 @@ import DailyAutoSchedulePage from './pages/DailyAutoSchedulePage';
 import ShiftPreferencesPage from './pages/ShiftPreferencesPage';
 import MyAssignmentsPage from './pages/MyAssignmentsPage';
 import MyStatusPage from './pages/MyStatusPage';
+import { Toaster } from './components/ui/toaster';
+import { ConfirmProvider } from './components/ui/confirm-dialog';
+import { PageLoader } from './components/ui/spinner';
 
 // Loading component for auth restoration
 const LoadingScreen = () => (
-  <div className="min-h-screen flex items-center justify-center bg-gray-50" dir="rtl">
-    <div className="text-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-      <p className="mt-4 text-gray-600">טוען...</p>
-    </div>
+  <div className="min-h-screen" dir="rtl">
+    <PageLoader />
   </div>
 );
 
@@ -129,11 +128,14 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Router>
-          <div className="App" dir="rtl">
-            <AppContent />
-          </div>
-        </Router>
+        <ConfirmProvider>
+          <Router>
+            <div className="min-h-screen" dir="rtl">
+              <AppContent />
+            </div>
+          </Router>
+          <Toaster />
+        </ConfirmProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
