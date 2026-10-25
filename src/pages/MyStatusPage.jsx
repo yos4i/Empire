@@ -1,242 +1,204 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { User as UserIcon, Shield, Save, LogOut, Info, Minus, Plus } from "lucide-react";
 import { User } from "../entities/User";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
-import { User as UserIcon, Shield, Save, AlertCircle } from "lucide-react";
-import { Alert, AlertDescription } from "../components/ui/alert";
+import { PageLoader, Spinner } from "../components/ui/spinner";
+import { toast } from "../components/ui/toaster";
+import { useConfirm } from "../components/ui/confirm-dialog";
+import { useAuth } from "../contexts/AuthContext";
+import { useSoldier } from "../components/soldier/SoldierContext";
+
+const MAX_MAGAZINES = 7;
+
+const toForm = (user) => ({
+  hebrew_name: user.hebrew_name || user.full_name || "",
+  personal_number: user.personal_number || "",
+  weapon_number: user.weapon_number || "",
+  unit: user.unit || "",
+  rank: user.rank || "חייל",
+  is_driver: user.is_driver || false,
+  home_location: user.home_location || "",
+  mother_unit: user.mother_unit || "",
+  rifleman: user.rifleman || "",
+  mission: user.mission || "",
+  equipment: {
+    vest: user.equipment?.vest || false,
+    helmet: user.equipment?.helmet || false,
+    weapon: user.equipment?.weapon || false,
+    // Saved under equipment.magazines; older docs only have the top-level field.
+    magazines: Number(user.equipment?.magazines ?? user.magazines ?? 0) || 0,
+  },
+});
+
+const FIELDS = [
+  { key: "hebrew_name", label: "שם מלא", placeholder: "שם מלא בעברית", autoComplete: "name" },
+  { key: "personal_number", label: "מספר אישי", placeholder: "7 ספרות", inputMode: "numeric" },
+  { key: "weapon_number", label: "מספר נשק", placeholder: "מספר נשק", inputMode: "numeric" },
+  { key: "home_location", label: "מקום מגורים", placeholder: "עיר / יישוב" },
+  { key: "mother_unit", label: "יחידת אם", placeholder: "יחידת אם" },
+  { key: "rifleman", label: "רובאי", placeholder: "רובאי" },
+];
+
+const EQUIPMENT = [
+  { key: "vest", label: "ווסט" },
+  { key: "helmet", label: "קסדה" },
+  { key: "weapon", label: "נשק" },
+];
 
 export default function MyStatusPage() {
-  const [formData, setFormData] = useState({
-    hebrew_name: "",
-    personal_number: "",
-    weapon_number: "",
-    unit: "",
-    rank: "חייל",
-    is_driver: false,
-    magazines: 0,
-    equipment: { vest: false, helmet: false, weapon: false }
-  });
+  const { signOut } = useAuth();
+  const { refresh: refreshProfile } = useSoldier();
+  const navigate = useNavigate();
+  const confirm = useConfirm();
+  const [formData, setFormData] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
 
-  useEffect(() => { loadUserData(); }, []);
-
-  const loadUserData = async () => {
-    setLoading(true);
-    try {
-      const user = await User.me();
-      setFormData({
-        hebrew_name: user.hebrew_name || user.full_name || "",
-        personal_number: user.personal_number || "",
-        weapon_number: user.weapon_number || "",
-        unit: user.unit || "",
-        rank: user.rank || "חייל",
-        is_driver: user.is_driver || false,
-        home_location: user.home_location || "",
-        mother_unit: user.mother_unit || "",
-        rifleman: user.rifleman || "",
-        mission: user.mission || "",
-        magazines: user.magazines || 0,
-        equipment: {
-          vest: user.equipment?.vest || false,
-          helmet: user.equipment?.helmet || false,
-          weapon: user.equipment?.weapon || false
-        }
+  useEffect(() => {
+    User.me()
+      .then((user) => setFormData(toForm(user)))
+      .catch((error) => {
+        console.error("MyStatusPage: failed to load user", error);
+        toast.error("שגיאה בטעינת הפרטים");
       });
-    } catch (error) {
-      console.error("שגיאה בטעינת נתוני המשתמש:", error);
-    }
-    setLoading(false);
-  };
+  }, []);
 
-  const handleSaveDetails = async () => {
+  const setField = (key, value) => setFormData((prev) => ({ ...prev, [key]: value }));
+  const setEquipment = (key, value) =>
+    setFormData((prev) => ({ ...prev, equipment: { ...prev.equipment, [key]: value } }));
+
+  const handleSave = async () => {
     setSaving(true);
-    setMessage("");
     try {
-      await User.updateMyUserData(formData);
-      setMessage("הפרטים עודכנו בהצלחה!");
-
-      // Reload user data to show the updated values in the form
-      await loadUserData();
-
-      setTimeout(() => setMessage(""), 3000);
+      // Keep the legacy top-level `magazines` in sync with equipment.magazines.
+      await User.updateMyUserData({ ...formData, magazines: formData.equipment.magazines });
+      toast.success("הפרטים נשמרו");
+      refreshProfile();
     } catch (error) {
-      console.error("שגיאה בעדכון הפרטים:", error);
-      setMessage("שגיאה בעדכון הפרטים");
+      toast.error(error.message || "שגיאה בשמירת הפרטים");
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
-  const handleEquipmentChange = (equipmentType, checked) => {
-    setFormData(prev => ({ ...prev, equipment: { ...prev.equipment, [equipmentType]: Boolean(checked) } }));
+  const handleLogout = async () => {
+    if (!(await confirm({ title: "להתנתק?", confirmText: "התנתקות" }))) return;
+    await signOut();
+    navigate("/login", { replace: true });
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 bg-gray-50 min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  if (!formData) return <PageLoader />;
 
-  // Check if this is a new user with minimal details
-  const isNewUser = !formData.hebrew_name || !formData.personal_number || !formData.rank;
+  const isNewUser = !formData.hebrew_name || !formData.personal_number;
+  const magazines = formData.equipment.magazines;
 
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 min-h-screen w-full overflow-x-hidden" dir="rtl">
-      <div className="max-w-2xl mx-auto w-full">
-        <div className="mb-8">
-          <div className="flex items-center justify-center w-full">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">{formData.hebrew_name || 'שלומי ממן'}</h1>
+    <div className="space-y-4">
+      {isNewUser && (
+        <div className="flex gap-3 rounded-2xl bg-info-soft p-4 text-sm text-blue-900">
+          <Info className="mt-0.5 h-5 w-5 shrink-0 text-info" />
+          <p>
+            <strong>ברוך/ה הבא/ה!</strong> מלא/י את הפרטים והציוד שלך ולחץ/י "שמירה".
+          </p>
+        </div>
+      )}
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <UserIcon className="h-5 w-5 text-primary" />
+            פרטים אישיים
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {FIELDS.map(({ key, label, ...inputProps }) => (
+            <div key={key} className="space-y-1.5">
+              <Label htmlFor={key}>{label}</Label>
+              <Input
+                id={key}
+                value={formData[key]}
+                onChange={(e) => setField(key, e.target.value)}
+                {...inputProps}
+              />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Shield className="h-5 w-5 text-primary" />
+            ציוד חתום
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {EQUIPMENT.map(({ key, label }) => (
+            <label
+              key={key}
+              htmlFor={`eq-${key}`}
+              className="flex h-12 cursor-pointer items-center gap-3 rounded-xl px-2 active:bg-accent"
+            >
+              <Checkbox
+                id={`eq-${key}`}
+                checked={formData.equipment[key]}
+                onCheckedChange={(checked) => setEquipment(key, Boolean(checked))}
+              />
+              <span className="font-medium">{label}</span>
+            </label>
+          ))}
+          <div className="flex h-12 items-center gap-3 px-2">
+            <Checkbox
+              id="eq-magazines"
+              checked={magazines > 0}
+              onCheckedChange={(checked) => setEquipment("magazines", checked ? 1 : 0)}
+            />
+            <label htmlFor="eq-magazines" className="flex-1 cursor-pointer font-medium">מחסניות</label>
+            {magazines > 0 && (
+              <div className="flex items-center gap-1" dir="ltr">
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={() => setEquipment("magazines", Math.max(1, magazines - 1))}
+                  disabled={magazines <= 1}
+                  aria-label="פחות"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <span className="w-8 text-center text-lg font-bold tabular-nums">{magazines}</span>
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  onClick={() => setEquipment("magazines", Math.min(MAX_MAGAZINES, magazines + 1))}
+                  disabled={magazines >= MAX_MAGAZINES}
+                  aria-label="יותר"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Welcome message for new users */}
-        {isNewUser && (
-          <Alert className="mb-6 border-blue-200 bg-blue-50">
-            <AlertCircle className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
-              <strong>ברוך הבא!</strong> זו ההתחברות הראשונה שלך. אנא מלא את כל הפרטים האישיים והציוד שלך למטה ולחץ על "שמור פרטים אישיים" בסוף הדף.
-            </AlertDescription>
-          </Alert>
-        )}
+      <Button variant="ghost" className="w-full text-danger hover:bg-danger-soft hover:text-danger" onClick={handleLogout}>
+        <LogOut className="h-4 w-4" />
+        התנתקות
+      </Button>
 
-        {message && (
-          <Alert className={`${message.includes("שגיאה") ? "border-red-200 bg-red-50 text-red-800" : "border-green-200 bg-green-50 text-green-800"} mb-6`}>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{message}</AlertDescription>
-          </Alert>
-        )}
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-center gap-2">
-                <UserIcon className="w-5 h-5" />
-                פרטים אישיים
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="hebrew_name" className="text-center block">שם מלא</Label>
-                <Input id="hebrew_name" value={formData.hebrew_name} onChange={(e) => setFormData(prev => ({...prev, hebrew_name: e.target.value}))} placeholder="הכנס שם מלא בעברית" className="text-center" />
-              </div>
-              <div>
-                <Label htmlFor="personal_number" className="text-center block">מספר אישי</Label>
-                <Input id="personal_number" value={formData.personal_number} onChange={(e) => setFormData(prev => ({...prev, personal_number: e.target.value}))} placeholder="הכנס מספר אישי" className="text-center" />
-              </div>
-              <div>
-                <Label htmlFor="weapon_number" className="text-center block">מספר נשק</Label>
-                <Input id="weapon_number" value={formData.weapon_number} onChange={(e) => setFormData(prev => ({...prev, weapon_number: e.target.value}))} placeholder="הכנס מספר נשק" className="text-center" />
-              </div>
-              <div>
-                <Label htmlFor="home_location" className="text-center block">מיקום מגורים</Label>
-                <Input id="home_location" value={formData.home_location} onChange={(e) => setFormData(prev => ({...prev, home_location: e.target.value}))} placeholder="מיקום מגורים" className="text-center" />
-              </div>
-              <div>
-                <Label htmlFor="mother_unit" className="text-center block">יחידת אם</Label>
-                <Input id="mother_unit" value={formData.mother_unit} onChange={(e) => setFormData(prev => ({...prev, mother_unit: e.target.value}))} placeholder="יחידת אם" className="text-center" />
-              </div>
-              <div>
-                <Label htmlFor="rifleman" className="text-center block">רובאי</Label>
-                <Input id="rifleman" value={formData.rifleman} onChange={(e) => setFormData(prev => ({...prev, rifleman: e.target.value}))} placeholder="רובאי" className="text-center" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-center gap-2">
-                <Shield className="w-5 h-5" />
-                ציוד חתום
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-4">
-                {['vest', 'helmet', 'weapon', 'magazines'].map((key) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-center space-x-2"
-                  >
-                    {key === 'magazines' ? (
-                      <>
-                        <Checkbox
-                          id={key}
-                          checked={formData.equipment[key] > 0}
-                          onCheckedChange={(checked) =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              equipment: {
-                                ...prev.equipment,
-                                magazines: checked ? 1 : 0, // אם מסומן, ברירת מחדל 1
-                              },
-                            }))
-                          }
-                        />
-                        <Label htmlFor={key} className="mr-2">
-                          מחסניות
-                        </Label>
-                        {formData.equipment.magazines > 0 && (
-                          <Input
-                            id="magazines"
-                            type="number"
-                            min="1"
-                            max="7"
-                            value={formData.equipment.magazines}
-                            onChange={(e) => {
-                              const value = Math.min(
-                                7,
-                                Math.max(1, parseInt(e.target.value) || 0)
-                              );
-                              setFormData((prev) => ({
-                                ...prev,
-                                equipment: { ...prev.equipment, magazines: value },
-                              }));
-                            }}
-                            placeholder="1-7"
-                            className="w-16 text-center"
-                          />
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <Checkbox
-                          id={key}
-                          checked={formData.equipment[key]}
-                          onCheckedChange={(checked) =>
-                            handleEquipmentChange(key, checked)
-                          }
-                        />
-                        <Label htmlFor={key} className="mr-2">
-                          {key === 'vest'
-                            ? 'ווסט'
-                            : key === 'helmet'
-                            ? 'קסדה'
-                            : 'נשק'}
-                        </Label>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-        </div>
-
-        <div className="mt-8 flex justify-end">
-          <Button onClick={handleSaveDetails} disabled={saving} size="lg" className="bg-blue-600 hover:bg-blue-700">
-            {saving ? (<><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>שומר...</>) : (<><Save className="w-4 h-4 mr-2" />שמור פרטים אישיים</>)}
+      {/* Sticky save above the bottom nav */}
+      <div className="h-16" aria-hidden />
+      <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 border-t border-border/60 bg-background/90 px-4 py-3 backdrop-blur-md">
+        <div className="mx-auto max-w-2xl">
+          <Button size="lg" className="w-full" onClick={handleSave} disabled={saving}>
+            {saving ? <Spinner className="text-primary-foreground" /> : <><Save className="h-5 w-5" /> שמירה</>}
           </Button>
         </div>
       </div>
     </div>
   );
 }
-
-
-

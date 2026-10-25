@@ -30,3 +30,7 @@ export const DAY_END_TIMES = {
   thursday: "14:30",
   friday: "12:00"
 };
+
+// Names always listed first in the team schedule (shift leads), before
+// regular soldiers. Match is exact on the soldier's Hebrew name.
+export const PINNED_SCHEDULE_NAMES = ['עידן איזיקסון', 'שלומי ממן'];
