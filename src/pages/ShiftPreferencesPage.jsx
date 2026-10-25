@@ -1,17 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, addDays } from 'date-fns';
-import { ChevronLeft, ChevronRight, Calendar, Eye, Search, Filter, Users, Home } from 'lucide-react';
-import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { Search, Users, Sun } from 'lucide-react';
+import { db } from '../config/firebase';
+import { AdminPage } from '../components/admin/AdminShell';
+import { PageHeader } from '../components/ui/page-header';
+import { Card } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Badge } from '../components/ui/badge';
+import { Skeleton } from '../components/ui/spinner';
+import { EmptyState } from '../components/ui/empty-state';
+import { Segmented } from '../components/ui/segmented';
+import WeekNavigator from '../components/shared/WeekNavigator';
+import { deriveDayOff } from '../components/soldier/dayOff';
 import { User } from '../entities/User';
 import { ShiftSubmission } from '../entities/ShiftSubmission';
-import { DAYS, SHIFT_NAMES } from '../config/shifts';
+import { DAYS } from '../config/shifts';
 import { getDefaultWeekStart } from '../utils/weekKey';
-
-const DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי"];
+import { DAY_LETTERS_HE, DAY_NAMES_HE } from '../utils/days';
+import { cn } from '../lib/utils';
 
 export default function ShiftPreferencesPage() {
   const navigate = useNavigate();
@@ -21,7 +28,7 @@ export default function ShiftPreferencesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedWeek, setSelectedWeek] = useState(() => getDefaultWeekStart());
-  const [filterUnit, setFilterUnit] = useState("הכל");
+  const [filter, setFilter] = useState('all');
 
   const selectedWeekStr = format(selectedWeek, 'yyyy-MM-dd');
 
@@ -41,20 +48,12 @@ export default function ShiftPreferencesPage() {
       const notesMap = {};
 
       try {
-        const { collection: firestoreCollection, query: firestoreQuery, where: firestoreWhere, getDocs: firestoreGetDocs } = await import('firebase/firestore');
-        const { db } = await import('../config/firebase');
+        const q = query(collection(db, 'shift_preferences'), where('weekStart', '==', selectedWeekStr));
+        const snapshot = await getDocs(q);
 
-        const q = firestoreQuery(
-          firestoreCollection(db, 'shift_preferences'),
-          firestoreWhere('weekStart', '==', selectedWeekStr)
-        );
-        const snapshot = await firestoreGetDocs(q);
-
-        console.log('ShiftPreferencesPage: Loaded', snapshot.docs.length, 'preferences from shift_preferences collection');
 
         snapshot.docs.forEach(doc => {
           const data = doc.data();
-          console.log('Preference document:', doc.id, data);
 
           // Map the userId from the document to the user
           if (data.userId && data.days) {
@@ -66,7 +65,6 @@ export default function ShiftPreferencesPage() {
               if (data.notes) {
                 notesMap[user.id] = data.notes;
               }
-              console.log(`Mapped preference for ${user.hebrew_name}:`, data.days);
             }
           }
         });
@@ -92,8 +90,6 @@ export default function ShiftPreferencesPage() {
         }
       });
 
-      console.log('ShiftPreferencesPage: Final submissions map:', submissionsMap);
-      console.log('ShiftPreferencesPage: Final notes map:', notesMap);
       setSubmissions(submissionsMap);
       setSoldierNotes(notesMap);
     } catch (error) {
@@ -106,286 +102,153 @@ export default function ShiftPreferencesPage() {
     loadData();
   }, [loadData]);
 
-  const navigateWeek = (direction) => {
-    setSelectedWeek(prev => addDays(prev, direction * 7));
-  };
+  const activeUsers = Object.values(users).filter((user) => user.role !== 'admin' && user.is_active);
+  const hasSubmission = (user) =>
+    !!submissions[user.id] && Object.values(submissions[user.id]).some((dayShifts) => dayShifts.length > 0);
+  const submittedCount = activeUsers.filter(hasSubmission).length;
 
-  const getShiftDisplayName = (shiftType, unit) => {
-    const fullShiftKey = `${unit}_${shiftType}`;
-    return SHIFT_NAMES[fullShiftKey] || `${unit.replace('_', ' ')} ${shiftType}`;
-  };
+  const filteredUsers = activeUsers
+    .filter((user) => {
+      const q = searchTerm.trim().toLowerCase();
+      if (q && !(`${user.hebrew_name || user.full_name || ''} ${user.personal_number || ''}`).toLowerCase().includes(q)) return false;
+      if (filter === 'pending') return !hasSubmission(user);
+      if (filter === 'notes') return !!soldierNotes[user.id];
+      return true;
+    })
+    .sort((a, b) => (a.hebrew_name || a.full_name || '').localeCompare(b.hebrew_name || b.full_name || '', 'he'));
 
-  const getFilteredUsers = () => {
-    return Object.values(users)
-      .filter(user => user.role !== 'admin' && user.is_active)
-      .filter(user => {
-        const matchesSearch = (user.hebrew_name || user.full_name)?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            user.personal_number?.includes(searchTerm);
-        const matchesUnit = filterUnit === "הכל" || user.unit === filterUnit;
-        return matchesSearch && matchesUnit;
-      })
-      .sort((a, b) => (a.hebrew_name || a.full_name || '').localeCompare(b.hebrew_name || b.full_name || ''));
-  };
+  // Day-off model: the one selectable day left empty is the requested day off.
+  const dayOffOf = (user) => (hasSubmission(user) ? deriveDayOff({ days: submissions[user.id] }) : null);
 
-  const getSubmissionStats = () => {
-    const activeUsers = Object.values(users).filter(user => user.role !== 'admin' && user.is_active);
-    const submittedUsers = activeUsers.filter(user => 
-      submissions[user.id] && Object.values(submissions[user.id]).some(dayShifts => dayShifts.length > 0)
-    );
-    
-    return {
-      total: activeUsers.length,
-      submitted: submittedUsers.length,
-      pending: activeUsers.length - submittedUsers.length
-    };
-  };
+  const dayOffCounts = DAYS.reduce((acc, day) => {
+    acc[day] = activeUsers.filter((u) => dayOffOf(u) === day).length;
+    return acc;
+  }, {});
 
-  const stats = getSubmissionStats();
-  const filteredUsers = getFilteredUsers();
-
-  if (loading) {
-    return (
-      <div className="p-6 text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-4 text-gray-600">טוען העדפות משמרות...</p>
-      </div>
-    );
-  }
+  const pct = activeUsers.length ? Math.round((submittedCount / activeUsers.length) * 100) : 0;
 
   return (
-    <div className="p-4 md:p-6 bg-gray-50 min-h-screen" dir="rtl">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6 md:mb-8">
-          <div className="relative flex items-center justify-center mb-6">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate('/admin')}
-              className="absolute left-0"
-            >
-              <Home className="w-5 h-5"/>
-            </Button>
-            <div className="text-center">
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">צפייה בהעדפות משמרות</h1>
-              <p className="text-sm md:text-base text-gray-600">שבוע {format(selectedWeek, 'dd/MM/yyyy')} - {format(addDays(selectedWeek, 6), 'dd/MM/yyyy')}</p>
-            </div>
+    <AdminPage>
+      <PageHeader
+        title="העדפות"
+        subtitle="ימי החופש שהחיילים ביקשו"
+        actions={
+          <WeekNavigator
+            compact
+            className="w-64"
+            weekStart={selectedWeek}
+            onPrev={() => setSelectedWeek((w) => addDays(w, -7))}
+            onNext={() => setSelectedWeek((w) => addDays(w, 7))}
+            onToday={() => setSelectedWeek(getDefaultWeekStart())}
+            isToday={selectedWeekStr === format(getDefaultWeekStart(), 'yyyy-MM-dd')}
+          />
+        }
+      />
+
+      {/* Summary strip */}
+      <Card className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="text-2xl font-extrabold tabular-nums">
+            {submittedCount}/{activeUsers.length}
+          </div>
+          <div className="text-sm text-muted-foreground">הגישו</div>
+          <div className="h-2 w-28 overflow-hidden rounded-full bg-muted">
+            <div className={cn('h-full', pct === 100 ? 'bg-success' : 'bg-warning')} style={{ width: `${pct}%` }} />
           </div>
         </div>
-
-        {/* Week Navigation */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Calendar className="w-6 h-6 text-blue-600" />
-                <div>
-                  <h3 className="text-lg font-semibold">בחירת שבוע</h3>
-                  <p className="text-sm text-gray-600">
-                    {format(selectedWeek, 'dd/MM/yyyy')} - {format(addDays(selectedWeek, 6), 'dd/MM/yyyy')}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => navigateWeek(-1)}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                  שבוע קודם
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedWeek(getDefaultWeekStart())}
-                >
-                  שבוע ברירת מחדל
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => navigateWeek(1)}
-                >
-                  שבוע הבא
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-
-        {/* Statistics */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
-          <Card className="p-4 md:p-5">
-            <div className="flex flex-col items-center text-center gap-2">
-              <Users className="w-8 h-8 md:w-10 md:h-10 text-blue-500" />
-              <div>
-                <p className="text-xs md:text-sm text-gray-600 mb-1">סה״כ חיילים</p>
-                <p className="text-2xl md:text-3xl font-bold text-blue-600">{stats.total}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4 md:p-5">
-            <div className="flex flex-col items-center text-center gap-2">
-              <Eye className="w-8 h-8 md:w-10 md:h-10 text-green-500" />
-              <div>
-                <p className="text-xs md:text-sm text-gray-600 mb-1">הגישו העדפות</p>
-                <p className="text-2xl md:text-3xl font-bold text-green-600">{stats.submitted}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4 md:p-5">
-            <div className="flex flex-col items-center text-center gap-2">
-              <Calendar className="w-8 h-8 md:w-10 md:h-10 text-red-500" />
-              <div>
-                <p className="text-xs md:text-sm text-gray-600 mb-1">טרם הגישו</p>
-                <p className="text-2xl md:text-3xl font-bold text-red-600">{stats.pending}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="p-4 md:p-5">
-            <div className="flex flex-col items-center text-center gap-2">
-              <Filter className="w-8 h-8 md:w-10 md:h-10 text-purple-500" />
-              <div>
-                <p className="text-xs md:text-sm text-gray-600 mb-1">אחוז הגשה</p>
-                <p className="text-2xl md:text-3xl font-bold text-purple-600">
-                  {stats.total > 0 ? Math.round((stats.submitted / stats.total) * 100) : 0}%
-                </p>
-              </div>
-            </div>
-          </Card>
+        <div className="flex flex-wrap items-center gap-1.5 text-sm">
+          <span className="text-muted-foreground">חופש לפי יום:</span>
+          {DAYS.map((day) => (
+            <span key={day} className="rounded-lg bg-muted px-2 py-0.5 tabular-nums">
+              {DAY_LETTERS_HE[day]} <strong>{dayOffCounts[day]}</strong>
+            </span>
+          ))}
         </div>
+      </Card>
 
-        {/* Filters and Actions */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-              <div className="flex flex-col md:flex-row gap-4 flex-1">
-                <div className="flex-1 relative">
-                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    placeholder="חיפוש לפי שם או מספר אישי..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pr-10"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  {["הכל", "קריית_חינוך"].map((unit) => (
-                    <Button
-                      key={unit}
-                      variant={filterUnit === unit ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setFilterUnit(unit)}
-                    >
-                      {unit.replace("_", " ")}
-                    </Button>
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center">
+        <div className="relative md:w-80">
+          <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="חיפוש לפי שם או מ.א"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pr-9"
+          />
+        </div>
+        <Segmented
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: 'all', label: 'כולם' },
+            { value: 'pending', label: `לא הגישו (${activeUsers.length - submittedCount})` },
+            { value: 'notes', label: 'עם הערות' },
+          ]}
+        />
+      </div>
+
+      <Card className="overflow-hidden p-0">
+        {loading ? (
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-10" />)}
+          </div>
+        ) : filteredUsers.length === 0 ? (
+          <EmptyState icon={Users} title="אין חיילים מתאימים" description="נסה/י חיפוש או סינון אחר." />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="border-b bg-muted/50 text-xs text-muted-foreground">
+                <tr>
+                  <th className="sticky right-0 bg-muted/95 px-4 py-2.5 text-right font-semibold">חייל</th>
+                  {DAYS.map((day, index) => (
+                    <th key={day} className="px-2 py-2.5 text-center font-semibold">
+                      {DAY_NAMES_HE[day]}
+                      <span className="mr-1 font-normal tabular-nums">{format(addDays(selectedWeek, index), 'd/M')}</span>
+                    </th>
                   ))}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Preferences Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              העדפות משמרות ({filteredUsers.length} חיילים)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 sticky right-0 bg-gray-50 min-w-[120px]">חייל</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 min-w-[100px]">מ.א</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 min-w-[100px]">יחידה</th>
-                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-900 min-w-[200px]">הערות</th>
-                    {DAYS_HE.map((day, index) => (
-                      <th key={day} className="px-4 py-3 text-center text-sm font-medium text-gray-900 min-w-[140px]">
-                        <div>
-                          <div>{day}</div>
-                          <div className="text-xs text-gray-500 font-normal">
-                            {format(addDays(selectedWeek, index), 'dd/MM')}
-                          </div>
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredUsers.map((user) => {
-                    const userSubmissions = submissions[user.id] || {};
-                    const hasSubmissions = Object.values(userSubmissions).some(dayShifts => dayShifts.length > 0);
-                    
-                    const userNotes = soldierNotes[user.id];
-
-                    return (
-                      <tr key={user.id} className={!hasSubmissions ? 'bg-red-50' : ''}>
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900 sticky right-0 bg-white">
-                          <div className="flex items-center gap-2">
-                            <span>{user.hebrew_name || user.full_name}</span>
-                            {!hasSubmissions && (
-                              <Badge variant="outline" className="bg-red-100 text-red-800 text-xs">
-                                לא הגיש
-                              </Badge>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{user.personal_number}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{user.unit?.replace('_', ' ')}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 max-w-[200px]">
-                          {userNotes ? (
-                            <div className="text-xs italic text-gray-700 truncate" title={userNotes}>
-                              {userNotes}
-                            </div>
+                  <th className="px-4 py-2.5 text-right font-semibold">הערות</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/70">
+                {filteredUsers.map((user) => {
+                  const submitted = hasSubmission(user);
+                  const dayOff = dayOffOf(user);
+                  const notes = soldierNotes[user.id];
+                  return (
+                    <tr
+                      key={user.id}
+                      onClick={() => navigate(`/schedule-management?week=${selectedWeekStr}&soldier=${user.id}`)}
+                      className="group cursor-pointer hover:bg-accent/60"
+                      title="פתיחה בסידור השבועי"
+                    >
+                      <td className="sticky right-0 bg-card px-4 py-2.5 group-hover:bg-accent">
+                        <div className="font-semibold">{user.hebrew_name || user.full_name}</div>
+                        {!submitted && <div className="text-xs text-warning">לא הגיש/ה</div>}
+                      </td>
+                      {DAYS.map((day) => (
+                        <td key={day} className="px-2 py-2.5 text-center">
+                          {!submitted ? (
+                            <span className="text-muted-foreground/50">·</span>
+                          ) : dayOff === day ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-warning-soft px-2 py-0.5 text-xs font-bold text-amber-800">
+                              <Sun className="h-3 w-3" /> חופש
+                            </span>
                           ) : (
-                            <span className="text-gray-400 text-xs">-</span>
+                            <span className="inline-block h-2 w-2 rounded-full bg-success/60" aria-label="זמין" />
                           )}
                         </td>
-                        {DAYS.map((day) => {
-                          const dayShifts = userSubmissions[day] || [];
-                          return (
-                            <td key={day} className="px-4 py-3 text-center">
-                              <div className="space-y-1">
-                                {dayShifts.length > 0 ? (
-                                  dayShifts.map((shift, index) => (
-                                    <Badge 
-                                      key={index} 
-                                      variant="outline" 
-                                      className="text-xs bg-green-50 text-green-800 border-green-200"
-                                    >
-                                      {getShiftDisplayName(shift, user.unit)}
-                                    </Badge>
-                                  ))
-                                ) : (
-                                  <span className="text-gray-400 text-xs">-</span>
-                                )}
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            
-            {filteredUsers.length === 0 && (
-              <div className="text-center py-12">
-                <Eye className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-500">אין חיילים מתאימים</h3>
-                <p className="text-gray-400">נסה לשנות את תנאי החיפוש</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+                      ))}
+                      <td className="max-w-[260px] px-4 py-2.5 text-xs text-slate-700">
+                        {notes ? <span className="line-clamp-2" title={notes}>{notes}</span> : <span className="text-muted-foreground/50">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </AdminPage>
   );
 }

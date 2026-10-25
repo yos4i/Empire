@@ -17,7 +17,6 @@ export class User {
         throw new Error('No UID found for user');
       }
 
-      console.log('User.me: Loading user data for UID:', userUid);
 
       // Search for user document by uid field (not document ID)
       const usersSnapshot = await getDocs(collection(db, 'users'));
@@ -36,7 +35,6 @@ export class User {
       }
 
       const userData = userDoc.data();
-      console.log('User.me: Loaded user data:', userData);
 
       return {
         id: userDoc.id,
@@ -53,7 +51,6 @@ export class User {
 
   static async list() {
     try {
-      console.log('User.list: Loading users from Firestore...');
       const usersSnapshot = await getDocs(collection(db, 'users'));
       const users = usersSnapshot.docs.map(doc => {
         const data = doc.data();
@@ -77,7 +74,6 @@ export class User {
 
         return user;
       });
-      console.log('User.list: Loaded users:', users);
       return users.filter(user => user.role === 'soldier' || user.role === 'user');
     } catch (error) {
       console.error('User.list: Error loading from Firestore:', error);
@@ -102,8 +98,6 @@ export class User {
         throw new Error('שגיאה: לא נמצא מזהה משתמש.');
       }
 
-      console.log("User.updateMyUserData: Updating user data for UID:", userUid);
-      console.log("User.updateMyUserData: Data to update:", data);
 
       // Clean the data - remove undefined values to prevent Firestore errors
       // Special handling for standby_reason: allow null to explicitly clear it
@@ -117,8 +111,6 @@ export class User {
         }
       });
 
-      console.log("User.updateMyUserData: Cleaned data:", cleanData);
-      console.log("User.updateMyUserData: standby_reason in cleanData:", cleanData.standby_reason);
 
       // Find the document in Firestore by UID field
       const usersSnapshot = await getDocs(collection(db, 'users'));
@@ -129,7 +121,6 @@ export class User {
         throw new Error('המסמך לא נמצא במסד הנתונים. אנא צור קשר עם המנהל.');
       }
 
-      console.log("User.updateMyUserData: Found user document with ID:", userDoc.id);
 
       // Add updated timestamp
       cleanData.updated_at = new Date().toISOString();
@@ -138,7 +129,6 @@ export class User {
       const docRef = doc(db, 'users', userDoc.id);
       await updateDoc(docRef, cleanData);
 
-      console.log("User.updateMyUserData: Successfully updated user data in Firestore");
       return Promise.resolve();
     } catch (error) {
       console.error("User.updateMyUserData: Error updating user data:", error);
@@ -160,15 +150,10 @@ export class User {
 
   static async update(id, data) {
     try {
-      console.log("User.update: Starting update for user:", id);
-      console.log("User.update: Data to update:", data);
-      console.log("User.update: Firebase db object:", db);
       
       const userDoc = doc(db, 'users', id);
-      console.log("User.update: Created document reference:", userDoc);
       
       await updateDoc(userDoc, data);
-      console.log("User.update: Successfully updated user in Firestore");
       return Promise.resolve();
     } catch (error) {
       console.error("User.update: Error updating user:", error);
@@ -180,17 +165,14 @@ export class User {
   }
 
   static async create(data) {
-    console.log("Creating user:", data);
     return Promise.resolve({ id: "new_user", ...data });
   }
 
   static async filter(filters) {
-    console.log("Filtering users:", filters);
     return this.list();
   }
 
   static async delete(id) {
-    console.log("Deleting user:", id);
     return Promise.resolve();
   }
 }

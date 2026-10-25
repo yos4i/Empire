@@ -23,14 +23,12 @@ class ShiftDefinitionsService {
   // Initialize shift definitions from static config
   async initializeFromConfig(staticConfig) {
     try {
-      console.log('ShiftDefinitionsService: Initializing from config...');
 
       const shiftsRef = collection(db, 'shift_definitions');
 
       // Check if we already have definitions
       const existingSnapshot = await getDocs(shiftsRef);
       if (!existingSnapshot.empty) {
-        console.log('ShiftDefinitionsService: Definitions already exist, skipping initialization');
         return;
       }
 
@@ -75,10 +73,8 @@ class ShiftDefinitionsService {
 
         // Use shiftKey as document ID for easy lookup
         await setDoc(doc(db, 'shift_definitions', shiftKey), shiftData);
-        console.log('ShiftDefinitionsService: Initialized shift:', shiftKey);
       }
 
-      console.log('ShiftDefinitionsService: Initialization complete');
       this.isInitialized = true;
 
     } catch (error) {
@@ -155,7 +151,6 @@ class ShiftDefinitionsService {
       const q = query(shiftsRef, orderBy('mission', 'asc'));
 
       const unsubscribe = onSnapshot(q, (snapshot) => {
-        console.log('ShiftDefinitionsService: Real-time update received');
 
         const shifts = {};
         const shiftNames = {};
@@ -219,7 +214,6 @@ class ShiftDefinitionsService {
   // Update shift definitions
   async updateShiftDefinitions(editedShifts) {
     try {
-      console.log('ShiftDefinitionsService: Updating shifts:', editedShifts);
 
       const updatePromises = [];
 
@@ -244,14 +238,12 @@ class ShiftDefinitionsService {
           updatedAt: new Date()
         };
 
-        console.log('ShiftDefinitionsService: Updating shift in Firestore:', shiftKey, updatedData);
 
         const docRef = doc(db, 'shift_definitions', shiftKey);
         updatePromises.push(setDoc(docRef, updatedData, { merge: true }));
       }
 
       await Promise.all(updatePromises);
-      console.log('✅ ShiftDefinitionsService: All shifts updated successfully in Firestore');
 
       // Refresh cache
       await this.getShiftDefinitions();

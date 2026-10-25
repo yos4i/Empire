@@ -18,7 +18,6 @@ export class AdminApiService {
   // Get all shift preferences for a given week
   static async getShiftPreferences(weekStart) {
     try {
-      console.log('AdminApiService: Fetching preferences for week:', weekStart);
 
       // Query the shift_preferences collection
       const preferencesRef = collection(db, 'shift_preferences');
@@ -63,7 +62,6 @@ export class AdminApiService {
         });
       }
       
-      console.log('AdminApiService: Found preferences:', preferences.length);
       return preferences;
       
     } catch (error) {
@@ -75,7 +73,6 @@ export class AdminApiService {
   // Get all assignments for a date range
   static async getAssignments(startDate, endDate) {
     try {
-      console.log('AdminApiService: Fetching assignments from', startDate, 'to', endDate);
       
       const assignmentsRef = collection(db, 'shift_assignments');
       const q = query(
@@ -119,7 +116,6 @@ export class AdminApiService {
         });
       }
       
-      console.log('AdminApiService: Found assignments:', assignments.length);
       return assignments;
       
     } catch (error) {
@@ -131,7 +127,6 @@ export class AdminApiService {
   // Assign a soldier to a shift
   static async assignShift({ soldierId, date, shiftType, assignedBy }) {
     try {
-      console.log('AdminApiService: Assigning shift:', { soldierId, date, shiftType });
       
       // Check if assignment already exists
       const existingQuery = query(
@@ -143,7 +138,6 @@ export class AdminApiService {
       
       const existing = await getDocs(existingQuery);
       if (!existing.empty) {
-        console.log('AdminApiService: Assignment already exists');
         return { success: true, message: 'Assignment already exists' };
       }
       
@@ -159,7 +153,6 @@ export class AdminApiService {
       
       const docRef = await addDoc(collection(db, 'shift_assignments'), assignmentData);
       
-      console.log('AdminApiService: Assignment created with ID:', docRef.id);
       return { success: true, id: docRef.id };
       
     } catch (error) {
@@ -171,11 +164,9 @@ export class AdminApiService {
   // Remove an assignment
   static async removeAssignment(assignmentId) {
     try {
-      console.log('AdminApiService: Removing assignment:', assignmentId);
       
       await deleteDoc(doc(db, 'shift_assignments', assignmentId));
       
-      console.log('AdminApiService: Assignment removed');
       return { success: true };
       
     } catch (error) {
@@ -187,7 +178,6 @@ export class AdminApiService {
   // Auto-assign shifts based on preferences
   static async autoAssignShifts(weekStart, assignedBy) {
     try {
-      console.log('AdminApiService: Starting auto-assignment for week:', weekStart);
       
       // Get all preferences for the week
       const preferences = await this.getShiftPreferences(weekStart);
@@ -257,10 +247,6 @@ export class AdminApiService {
         }
       }
       
-      console.log('AdminApiService: Auto-assignment complete:', {
-        assignments: assignments.length,
-        conflicts: conflicts.length
-      });
       
       return { assignments, conflicts };
       
@@ -273,7 +259,6 @@ export class AdminApiService {
   // Get dashboard statistics
   static async getDashboardStats(weekStart) {
     try {
-      console.log('AdminApiService: Fetching dashboard stats for week:', weekStart);
       
       // Get all soldiers
       const soldiersQuery = query(
@@ -299,7 +284,6 @@ export class AdminApiService {
         week: weekStart
       };
       
-      console.log('AdminApiService: Dashboard stats:', stats);
       return stats;
       
     } catch (error) {
@@ -316,7 +300,6 @@ export class AdminApiService {
   // Bulk assign shifts (for drag and drop)
   static async bulkAssignShifts(assignments, assignedBy) {
     try {
-      console.log('AdminApiService: Bulk assigning shifts:', assignments.length);
       
       const results = {
         success: [],
@@ -338,7 +321,6 @@ export class AdminApiService {
         }
       }
       
-      console.log('AdminApiService: Bulk assignment results:', results);
       return results;
       
     } catch (error) {

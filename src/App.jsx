@@ -12,6 +12,8 @@ import DailyAutoSchedulePage from './pages/DailyAutoSchedulePage';
 import ShiftPreferencesPage from './pages/ShiftPreferencesPage';
 import TeamSchedulePage from './pages/TeamSchedulePage';
 import SoldierShell from './components/soldier/SoldierShell';
+import AdminShell from './components/admin/AdminShell';
+import SoldiersPage from './pages/SoldiersPage';
 import MyStatusPage from './pages/MyStatusPage';
 import { Toaster } from './components/ui/toaster';
 import { ConfirmProvider } from './components/ui/confirm-dialog';
@@ -52,40 +54,18 @@ const AppContent = () => {
       </Route>
       <Route path="/soldier" element={<SoldierHomeRedirect />} />
       <Route
-        path="/admin/*"
         element={
           <ProtectedRoute requiredRole="admin">
-            <Routes>
-              <Route path="/" element={<AdminDashboard />} />
-            </Routes>
+            <AdminShell />
           </ProtectedRoute>
         }
-      />
-      <Route
-        path="/schedule-management"
-        element={
-          <ProtectedRoute requiredRole="admin">
-            <ScheduleManagementPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/daily-auto-schedule"
-        element={
-          <ProtectedRoute requiredRole="admin">
-            <DailyAutoSchedulePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/shift-preferences"
-        element={
-          <ProtectedRoute requiredRole="admin">
-            <ShiftPreferencesPage />
-          </ProtectedRoute>
-        }
-      />
-
+      >
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/soldiers" element={<SoldiersPage />} />
+        <Route path="/schedule-management" element={<ScheduleManagementPage />} />
+        <Route path="/daily-auto-schedule" element={<DailyAutoSchedulePage />} />
+        <Route path="/shift-preferences" element={<ShiftPreferencesPage />} />
+      </Route>
       <Route path="/my-assignments" element={<SoldierHomeRedirect />} />
       <Route path="/" element={<LoginPage />} />
       {/* Catch-all route for undefined paths - redirect based on auth state */}

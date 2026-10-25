@@ -1,17 +1,25 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { User } from '../entities/User';
 import { ShiftSubmission } from '../entities/ShiftSubmission';
 import { WeeklySchedule } from '../entities/WeeklySchedule';
 import { ShiftAssignment } from '../entities/ShiftAssignment';
 import { format, addDays, addWeeks } from 'date-fns';
 import { toWeekStartISO, getDefaultWeekStart } from '../utils/weekKey';
-import { Calendar, Home, Users, Save, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Send, Users, Undo2, X, CheckCircle2, PencilLine } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { PageLoader, Spinner } from '../components/ui/spinner';
+import { toast } from '../components/ui/toaster';
+import { useConfirm } from '../components/ui/confirm-dialog';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody,
+} from '../components/ui/dialog';
+import WeekNavigator from '../components/shared/WeekNavigator';
 import ScheduleBoard from '../components/admin/schedule/ScheduleBoard';
-import AssignSoldierDialog from '../components/admin/schedule/AssignSoldierDialog';
 import PreferencesPanel from '../components/admin/PreferencesPanel';
 import QuickShiftHoursEditor from '../components/admin/schedule/QuickShiftHoursEditor';
+import { deriveDayOff } from '../components/soldier/dayOff';
 import { DAYS, SHIFT_NAMES } from '../config/shifts';
 import { db } from '../config/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
@@ -24,24 +32,29 @@ import {
   writeDraft,
   clearDraft,
 } from '../utils/scheduleHelpers';
+import { cn } from '../lib/utils';
+import { toLocalDate } from '../utils/days';
+
+const MAX_SHIFTS = 6;
 
 export default function ScheduleManagementPage() {
   const navigate = useNavigate();
+  const confirm = useConfirm();
+  // Deep link from the preferences page: ?week=yyyy-MM-dd&soldier=<doc id>
+  const [searchParams] = useSearchParams();
   const [users, setUsers] = useState({});
   const [schedule, setSchedule] = useState({});
   const [soldierNotes, setSoldierNotes] = useState({});
   const [weeklyScheduleEntity, setWeeklyScheduleEntity] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [saveStatus, setSaveStatus] = useState('');
   const [shiftAssignments, setShiftAssignments] = useState([]);
   const [draftActive, setDraftActive] = useState(false); // is current view from local draft?
 
   // Preferences panel state
   const [rawSubmissions, setRawSubmissions] = useState([]);
   const [preferencesLoading, setPreferencesLoading] = useState(false);
-  const [selectedSoldierId, setSelectedSoldierId] = useState(null);
+  const [selectedSoldierId, setSelectedSoldierId] = useState(() => searchParams.get('soldier'));
 
   // Quick shift hours editor state
   const [editingShift, setEditingShift] = useState(null);
@@ -50,9 +63,17 @@ export default function ScheduleManagementPage() {
   const [dynamicShiftNames, setDynamicShiftNames] = useState(SHIFT_NAMES);
 
   // Week navigation state
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [weekOffset, setWeekOffset] = useState(() => {
+    const week = searchParams.get('week');
+    if (!week) return 0;
+    const base = toLocalDate(toWeekStartISO(getDefaultWeekStart()));
+    return Math.round((toLocalDate(week) - base) / (7 * 24 * 60 * 60 * 1000));
+  });
 
-  const [dialogShift, setDialogShift] = useState(null);
+  // Soldier panel visibility (collapsible on desktop, sheet on small screens)
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [panelSheetOpen, setPanelSheetOpen] = useState(false);
+  const [noteView, setNoteView] = useState(null); // { soldier, note, assignment }
 
   // Tracks which week the data currently in `schedule` belongs to. The auto-save
   // effect uses this to refuse writing stale data into the wrong week's key when
@@ -304,29 +325,9 @@ export default function ScheduleManagementPage() {
     return counts;
   }, [schedule]);
 
-  const handleToggleAssign = (soldierId) => {
-    if (!dialogShift) return;
-    const currentCount = soldierShiftCounts[soldierId] || 0;
-    const isAssigned = schedule[dialogShift.day][dialogShift.shiftKey].soldiers.includes(soldierId);
-    if (!isAssigned && currentCount >= 6) {
-      if (!window.confirm(`החייל ${users[soldierId]?.hebrew_name} כבר משובץ ל-6 משמרות. האם אתה בטוח שברצונך להוסיף משמרת נוספת?`)) {
-        return;
-      }
-    }
-    const { day, shiftKey } = dialogShift;
-    setSchedule((prev) => {
-      const next = JSON.parse(JSON.stringify(prev));
-      const soldiers = next[day][shiftKey].soldiers;
-      const idx = soldiers.indexOf(soldierId);
-      if (idx > -1) soldiers.splice(idx, 1); else soldiers.push(soldierId);
-      next[day][shiftKey].soldiers = soldiers;
-      return next;
-    });
-  };
-
   // Local-only mutation: remove a soldier from a shift OR toggle a shift's cancelled flag.
   // Persists nothing remote — only the local draft picks it up.
-  const handleCancelShift = (day, shiftKey, soldierId = null) => {
+  const handleCancelShift = async (day, shiftKey, soldierId = null) => {
     if (soldierId) {
       setSchedule((prev) => {
         const next = JSON.parse(JSON.stringify(prev));
@@ -342,7 +343,16 @@ export default function ScheduleManagementPage() {
       return;
     }
 
-    if (!window.confirm('האם אתה בטוח שברצונך לבטל את המשמרת הזו?')) return;
+    // Restoring a cancelled shift needs no confirmation.
+    if (!schedule[day]?.[shiftKey]?.cancelled) {
+      const ok = await confirm({
+        title: 'לבטל את המשמרת?',
+        description: 'המשמרת תסומן כמבוטלת ולא תישלח לחיילים בפרסום.',
+        confirmText: 'ביטול משמרת',
+        destructive: true,
+      });
+      if (!ok) return;
+    }
     setSchedule((prev) => ({
       ...prev,
       [day]: {
@@ -369,34 +379,34 @@ export default function ScheduleManagementPage() {
     });
   };
 
-  // Save = persist admin's working copy to localStorage. Soldiers see NOTHING.
-  const handleManualSave = () => {
-    setSaving(true);
-    setSaveStatus('שומר...');
-    try {
-      const ok = writeDraft(nextWeekStartStr, schedule);
-      if (!ok) throw new Error('localStorage write failed');
-      setDraftActive(true);
-      setSaveStatus('✅ נשמר מקומית (טיוטה)');
-      setTimeout(() => setSaveStatus(''), 2500);
-    } catch (e) {
-      console.error('Error saving local draft:', e);
-      setSaveStatus('❌ שגיאה בשמירה מקומית');
-      setTimeout(() => setSaveStatus(''), 3000);
-    } finally {
-      setSaving(false);
-    }
+  // Throw away the local draft and reload what soldiers currently see.
+  const handleDiscardDraft = async () => {
+    const ok = await confirm({
+      title: 'לבטל את הטיוטה?',
+      description: weeklyScheduleEntity
+        ? 'כל השינויים שלא פורסמו יימחקו והלוח יחזור לגרסה שפורסמה.'
+        : 'כל השיבוצים בטיוטה יימחקו והלוח יתרוקן.',
+      confirmText: 'ביטול טיוטה',
+      destructive: true,
+    });
+    if (!ok) return;
+    clearDraft(nextWeekStartStr);
+    setSelectedSoldierId(null);
+    await loadData();
+    toast.success('הטיוטה בוטלה');
   };
 
   // Publish = push the local draft to BOTH weekly_schedules (for the grid soldiers
   // see in WeeklyScheduleView) AND shift_assignments (for each soldier's dashboard).
   // This is the only action that exposes admin changes outside the admin browser.
   const handlePublishToSoldiers = async () => {
-    if (!window.confirm('האם לפרסם את הסידור לכל החיילים? לאחר הפרסום החיילים יראו את השיבוצים שלהם.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'לפרסם את הסידור?',
+      description: 'כל החיילים יראו את השיבוצים שלהם לשבוע הזה.',
+      confirmText: 'פרסום',
+    });
+    if (!ok) return;
     setPublishing(true);
-    setSaveStatus('מפרסם לחיילים...');
     try {
       // 1) Persist the full schedule document to weekly_schedules
       if (weeklyScheduleEntity) {
@@ -420,9 +430,7 @@ export default function ScheduleManagementPage() {
         start_date: nextWeekStartStr,
         end_date: weekEndDate,
       });
-      for (const old of oldAssignments) {
-        await ShiftAssignment.delete(old.id);
-      }
+      await ShiftAssignment.bulkDelete(oldAssignments.map((old) => old.id));
 
       const assignments = [];
       for (const day of DAYS) {
@@ -474,21 +482,17 @@ export default function ScheduleManagementPage() {
       });
       setShiftAssignments(refreshed);
 
-      setSaveStatus('✅ פורסם לחיילים');
-      setTimeout(() => setSaveStatus(''), 2500);
-      alert(`הסידור פורסם בהצלחה! ${assignments.length} שיבוצים נשלחו לחיילים.`);
+      toast.success(`הסידור פורסם · ${assignments.length} שיבוצים נשלחו לחיילים`);
     } catch (e) {
       console.error('Error publishing to soldiers:', e);
-      setSaveStatus('❌ שגיאה בפרסום');
-      setTimeout(() => setSaveStatus(''), 3000);
-      alert('שגיאה בפרסום הסידור לחיילים: ' + e.message);
+      toast.error('שגיאה בפרסום הסידור: ' + e.message);
     } finally {
       setPublishing(false);
     }
   };
 
-  const handleEditShiftHours = (day, shiftKey, shiftName) => {
-    setEditingShift({ day, shiftKey, shiftName });
+  const handleEditShiftHours = (day, shiftKey, shiftName, shift) => {
+    setEditingShift({ day, shiftKey, shiftName, shift });
   };
 
   // Editing per-shift custom hours stays LOCAL until the admin hits "Publish".
@@ -511,30 +515,34 @@ export default function ScheduleManagementPage() {
   };
 
   // Local-only: add/remove the currently-selected soldier from a shift slot.
-  const handleShiftSlotClick = (day, shiftKey) => {
+  const handleShiftSlotClick = async (day, shiftKey) => {
     if (!selectedSoldierId) return;
     const soldier = users[selectedSoldierId];
-    if (!soldier) return;
+    const cell = schedule[day]?.[shiftKey];
+    if (!soldier || !cell) return;
+
+    const isAssigned = cell.soldiers.includes(selectedSoldierId);
+    if (!isAssigned && (soldierShiftCounts[selectedSoldierId] || 0) >= MAX_SHIFTS) {
+      const ok = await confirm({
+        title: 'יותר מ-6 משמרות',
+        description: `${soldier.hebrew_name} כבר משובץ/ת ל-${soldierShiftCounts[selectedSoldierId]} משמרות השבוע. להוסיף בכל זאת?`,
+        confirmText: 'הוספה',
+      });
+      if (!ok) return;
+    }
 
     setSchedule((prev) => {
       const next = JSON.parse(JSON.stringify(prev));
-      const cell = next[day]?.[shiftKey];
-      if (!cell) return prev;
-
-      const idx = cell.soldiers.indexOf(selectedSoldierId);
+      const target = next[day]?.[shiftKey];
+      if (!target) return prev;
+      const idx = target.soldiers.indexOf(selectedSoldierId);
       if (idx !== -1) {
-        cell.soldiers.splice(idx, 1);
-        if (Array.isArray(cell.longShiftSoldiers)) {
-          cell.longShiftSoldiers = cell.longShiftSoldiers.filter((id) => id !== selectedSoldierId);
+        target.soldiers.splice(idx, 1);
+        if (Array.isArray(target.longShiftSoldiers)) {
+          target.longShiftSoldiers = target.longShiftSoldiers.filter((id) => id !== selectedSoldierId);
         }
       } else {
-        const currentCount = soldierShiftCounts[selectedSoldierId] || 0;
-        if (currentCount >= 6) {
-          if (!window.confirm(`החייל ${soldier.hebrew_name} כבר משובץ ל-6 משמרות. האם אתה בטוח שברצונך להוסיף משמרת נוספת?`)) {
-            return prev;
-          }
-        }
-        cell.soldiers.push(selectedSoldierId);
+        target.soldiers.push(selectedSoldierId);
       }
       return next;
     });
@@ -612,137 +620,191 @@ export default function ScheduleManagementPage() {
     return [...submitted, ...notSubmitted];
   }, [rawSubmissions, users, nextWeekStartStr]);
 
-  if (loading) return <div className="p-6 text-center">טוען נתונים...</div>;
+  // Requested day-off per soldier doc id (derived from the submission's empty day).
+  const dayOffBySoldier = useMemo(() => {
+    const map = {};
+    normalizedSubmissions.forEach((s) => {
+      if (String(s.id).startsWith('missing_')) return;
+      const off = deriveDayOff(s);
+      if (off) map[s.userId] = off;
+    });
+    return map;
+  }, [normalizedSubmissions]);
 
-  const availableSoldiers = Object.values(users).filter((u) => u.is_active);
+  // Keyboard: Esc clears the selection; arrows switch weeks (RTL: → is previous).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target.closest?.('input, textarea, select, [role="dialog"], [role="alertdialog"]')) return;
+      if (e.key === 'Escape') setSelectedSoldierId(null);
+      if (e.key === 'ArrowRight') setWeekOffset((o) => o - 1);
+      if (e.key === 'ArrowLeft') setWeekOffset((o) => o + 1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  if (loading) return <PageLoader label="טוען סידור..." />;
+
+  const selectedSoldier = selectedSoldierId ? users[selectedSoldierId] : null;
+  const selectedCount = selectedSoldierId ? soldierShiftCounts[selectedSoldierId] || 0 : 0;
+  const totals = DAYS.reduce(
+    (acc, day) => {
+      Object.values(schedule[day] || {}).forEach((cell) => {
+        if (cell.cancelled) return;
+        acc.assigned += cell.soldiers?.length || 0;
+        acc.required += cell.required || 0;
+      });
+      return acc;
+    },
+    { assigned: 0, required: 0 }
+  );
+
+  const panel = (
+    <PreferencesPanel
+      submissions={normalizedSubmissions}
+      loading={preferencesLoading}
+      soldierShiftCounts={soldierShiftCounts}
+      dayOffBySoldier={dayOffBySoldier}
+      onSelectSoldier={(id) => { handleSelectSoldier(id); setPanelSheetOpen(false); }}
+      selectedSoldierId={selectedSoldierId}
+    />
+  );
 
   return (
     <>
-      <div className="flex h-[calc(100vh-4rem)] bg-gray-100 overflow-hidden" dir="rtl">
-        <PreferencesPanel
-          isOpen={true}
-          onClose={() => {}}
-          submissions={normalizedSubmissions}
-          weekStart={nextWeekStartStr}
-          loading={preferencesLoading}
-          soldierShiftCounts={soldierShiftCounts}
-          users={users}
-          isDragging={false}
-          onSelectSoldier={handleSelectSoldier}
-          selectedSoldierId={selectedSoldierId}
-        />
-        <div className="flex-grow p-4 md:p-6 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between mb-4 flex-shrink-0">
-            <Button variant="outline" size="icon" onClick={() => navigate('/admin')}>
-              <Home className="w-5 h-5" />
+      <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden lg:h-screen">
+        {/* Soldier panel — RTL: first child sits on the right */}
+        {panelOpen && <aside className="hidden w-72 shrink-0 border-l xl:block">{panel}</aside>}
+
+        <div className="flex min-w-0 flex-1 flex-col">
+          {/* Toolbar */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b bg-card px-4 py-3 lg:px-6">
+            <Button variant="outline" size="sm" className="xl:hidden" onClick={() => setPanelSheetOpen(true)}>
+              <Users className="h-4 w-4" /> חיילים
             </Button>
-            <div className="flex items-center gap-3">
-              <Calendar className="w-6 h-6 text-blue-600" />
-              <h1 className="text-xl md:text-2xl font-bold text-black">ניהול סידור עבודה</h1>
-            </div>
-            <div className="w-10" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="hidden xl:inline-flex"
+              onClick={() => setPanelOpen((v) => !v)}
+              title={panelOpen ? 'הסתרת רשימת החיילים' : 'הצגת רשימת החיילים'}
+            >
+              <Users className="h-4 w-4" /> {panelOpen ? 'הסתרה' : 'חיילים'}
+            </Button>
+            <h1 className="text-xl font-bold">סידור שבועי</h1>
+            <WeekNavigator
+              compact
+              className="w-64"
+              weekStart={selectedWeekStart}
+              onPrev={() => setWeekOffset(weekOffset - 1)}
+              onNext={() => setWeekOffset(weekOffset + 1)}
+              onToday={() => setWeekOffset(0)}
+              isToday={weekOffset === 0}
+            />
+            {draftActive ? (
+              <Badge variant="warning" className="h-7">
+                <PencilLine className="h-3.5 w-3.5" /> טיוטה · לא פורסם
+              </Badge>
+            ) : isPublished ? (
+              <Badge variant="success" className="h-7">
+                <CheckCircle2 className="h-3.5 w-3.5" /> פורסם
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="h-7">טרם פורסם</Badge>
+            )}
+            <span className="text-sm tabular-nums text-muted-foreground">
+              שובצו {totals.assigned}/{totals.required}
+            </span>
+            <div className="flex-1" />
+            {draftActive && (
+              <Button variant="ghost" size="sm" onClick={handleDiscardDraft} disabled={publishing}>
+                <Undo2 className="h-4 w-4" /> ביטול טיוטה
+              </Button>
+            )}
+            <Button
+              onClick={handlePublishToSoldiers}
+              disabled={publishing}
+              size="sm"
+              className={cn(draftActive && 'shadow-md shadow-primary/30')}
+            >
+              {publishing ? <Spinner className="text-primary-foreground" /> : <Send className="h-4 w-4" />}
+              {publishing ? 'מפרסם...' : 'פרסום לחיילים'}
+            </Button>
           </div>
 
-          <div className="flex items-center gap-2 justify-center mb-4 flex-shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setWeekOffset(weekOffset - 1)}
-              className="h-8 w-8 p-0"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-            <p className="text-gray-600 min-w-[150px] text-center text-sm">
-              שבוע מתאריך: {format(selectedWeekStart, 'dd/MM/yyyy')}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setWeekOffset(weekOffset + 1)}
-              className="h-8 w-8 p-0"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {saveStatus && (
-            <div className="text-center mb-2 flex-shrink-0">
-              <p
-                className={`text-sm ${
-                  saveStatus.includes('✅')
-                    ? 'text-green-600'
-                    : saveStatus.includes('❌')
-                    ? 'text-red-600'
-                    : 'text-blue-600'
-                }`}
+          {/* Assign-mode banner */}
+          {selectedSoldier && (
+            <div className="flex items-center gap-3 border-b bg-primary px-4 py-2 text-sm text-primary-foreground lg:px-6">
+              <span>
+                משבצים את <strong>{selectedSoldier.hebrew_name}</strong> · {selectedCount} משמרות השבוע
+                {dayOffBySoldier[selectedSoldierId] && ' · יום החופש שביקש/ה מסומן בפסים'}
+              </span>
+              <span className="hidden text-primary-foreground/70 md:inline">לחיצה על משמרת מוסיפה/מסירה · Esc לסיום</span>
+              <div className="flex-1" />
+              <button
+                type="button"
+                onClick={() => setSelectedSoldierId(null)}
+                className="flex h-8 items-center gap-1 rounded-lg px-2 hover:bg-white/15"
               >
-                {saveStatus}
-              </p>
+                <X className="h-4 w-4" /> סיום
+              </button>
             </div>
           )}
 
-          {draftActive && (
-            <div className="text-center mb-2 flex-shrink-0">
-              <p className="text-xs text-amber-700 bg-amber-50 inline-block px-2 py-1 rounded border border-amber-200">
-                טיוטה מקומית — שינויים עדיין לא פורסמו לחיילים
-              </p>
-            </div>
-          )}
-
-          {/* Action buttons — only Save (local draft) and Publish (push to soldiers). */}
-          <div className="mb-4 flex-shrink-0">
-            <div className="flex gap-2 items-center justify-center flex-wrap">
-              <Button
-                variant="default"
-                onClick={handleManualSave}
-                disabled={saving || publishing}
-                size="sm"
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                <Save className="w-4 h-4 ml-2" />
-                {saving ? 'שומר...' : 'שמור סידור'}
-              </Button>
-              <Button
-                onClick={handlePublishToSoldiers}
-                disabled={saving || publishing}
-                size="sm"
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-              >
-                <Users className="w-4 h-4 ml-2" />
-                {publishing ? 'מפרסם...' : 'פרסם לחיילים'}
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-auto pb-4 min-h-0">
+          <div className="min-h-0 flex-1 overflow-auto p-3 lg:p-4">
             <ScheduleBoard
               schedule={schedule}
+              weekStart={selectedWeekStart}
               users={users}
               soldierShiftCounts={soldierShiftCounts}
               soldierNotes={soldierNotes}
-              isPublished={isPublished}
+              dayOffBySoldier={dayOffBySoldier}
               onCancelShift={handleCancelShift}
+              onRemoveSoldier={(day, shiftKey, soldierId) => handleCancelShift(day, shiftKey, soldierId)}
               onShiftSlotClick={handleShiftSlotClick}
               selectedSoldierId={selectedSoldierId}
               onEditShiftHours={handleEditShiftHours}
               dynamicShiftNames={dynamicShiftNames}
               shiftAssignments={shiftAssignments}
               onToggleLongShift={handleToggleLongShift}
+              onShowNote={(soldier, note, assignment) => setNoteView({ soldier, note, assignment })}
+              onOpenDay={(date) => navigate(`/daily-auto-schedule?date=${date}`)}
             />
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded bg-warning-soft ring-1 ring-warning/40" /> משמרת ארוכה
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded bg-swap-soft ring-1 ring-swap/40" /> בקשת החלפה
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-3 rounded bg-danger-soft ring-1 ring-danger/40" /> ביום החופש / מעל 6 משמרות
+              </span>
+              <span>לחיצה על שם יום פותחת את הסידור היומי · ← → מעבר שבוע</span>
+            </div>
           </div>
         </div>
       </div>
 
-      <AssignSoldierDialog
-        isOpen={!!dialogShift}
-        onClose={() => setDialogShift(null)}
-        shiftInfo={dialogShift}
-        allSoldiers={availableSoldiers}
-        assignedSoldiers={
-          dialogShift ? schedule[dialogShift.day][dialogShift.shiftKey].soldiers : []
-        }
-        onToggleAssign={handleToggleAssign}
-      />
+      {/* Soldier list as a sheet on smaller screens */}
+      <Dialog open={panelSheetOpen} onOpenChange={setPanelSheetOpen}>
+        <DialogContent side="right" className="w-80 sm:w-80" hideClose>
+          <DialogTitle className="sr-only">חיילים</DialogTitle>
+          {panel}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!noteView} onOpenChange={(open) => !open && setNoteView(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{noteView?.soldier.hebrew_name}</DialogTitle>
+            <DialogDescription>הערה מההגשה</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="pb-5">
+            <p className="whitespace-pre-wrap text-sm">{noteView?.note}</p>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
 
       <QuickShiftHoursEditor
         isOpen={!!editingShift}
@@ -750,6 +812,7 @@ export default function ScheduleManagementPage() {
         day={editingShift?.day}
         shiftKey={editingShift?.shiftKey}
         shiftName={editingShift?.shiftName}
+        shift={editingShift?.shift}
         onSave={handleSaveShiftHours}
       />
     </>

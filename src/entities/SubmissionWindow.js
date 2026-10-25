@@ -84,7 +84,6 @@ export class SubmissionWindow {
           opened_at: serverTimestamp(),
           updated_at: serverTimestamp()
         });
-        console.log('SubmissionWindow.openWeek: Opened week', weekStart);
       } else {
         // Create new window
         await addDoc(collection(db, 'submission_windows'), {
@@ -94,7 +93,6 @@ export class SubmissionWindow {
           created_at: serverTimestamp(),
           updated_at: serverTimestamp()
         });
-        console.log('SubmissionWindow.openWeek: Created and opened week', weekStart);
       }
 
       return true;
@@ -119,7 +117,6 @@ export class SubmissionWindow {
           closed_at: serverTimestamp(),
           updated_at: serverTimestamp()
         });
-        console.log('SubmissionWindow.closeWeek: Closed week', weekStart);
       } else {
         // Create new window as closed
         await addDoc(collection(db, 'submission_windows'), {
@@ -129,7 +126,6 @@ export class SubmissionWindow {
           created_at: serverTimestamp(),
           updated_at: serverTimestamp()
         });
-        console.log('SubmissionWindow.closeWeek: Created and closed week', weekStart);
       }
 
       return true;
@@ -154,7 +150,6 @@ export class SubmissionWindow {
           [newStatus ? 'opened_at' : 'closed_at']: serverTimestamp(),
           updated_at: serverTimestamp()
         });
-        console.log('SubmissionWindow.toggleWeek: Toggled week', weekStart, 'to', newStatus ? 'open' : 'closed');
         return newStatus;
       } else {
         // Create new window as open by default
@@ -165,7 +160,6 @@ export class SubmissionWindow {
           created_at: serverTimestamp(),
           updated_at: serverTimestamp()
         });
-        console.log('SubmissionWindow.toggleWeek: Created and opened week', weekStart);
         return true;
       }
     } catch (error) {
@@ -181,7 +175,6 @@ export class SubmissionWindow {
   static async delete(id) {
     try {
       await deleteDoc(doc(db, 'submission_windows', id));
-      console.log('SubmissionWindow.delete: Deleted window', id);
     } catch (error) {
       console.error('SubmissionWindow.delete: Error:', error);
       throw error;

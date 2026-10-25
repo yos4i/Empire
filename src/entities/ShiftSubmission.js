@@ -17,7 +17,6 @@ export class ShiftSubmission {
 
   static async filter(filters) {
     try {
-      console.log("ShiftSubmission.filter: Filtering with:", filters);
       let q = collection(db, 'shift_submissions');
       
       if (filters.user_id) {
@@ -33,7 +32,6 @@ export class ShiftSubmission {
         ...doc.data()
       }));
       
-      console.log("ShiftSubmission.filter: Found submissions:", results);
       return results;
     } catch (error) {
       console.error('ShiftSubmission.filter: Error filtering:', error);
@@ -43,7 +41,6 @@ export class ShiftSubmission {
 
   static async create(data) {
     try {
-      console.log("ShiftSubmission.create: Creating submission:", data);
       
       // Prepare data with server timestamp
       const submissionData = {
@@ -55,7 +52,6 @@ export class ShiftSubmission {
       // Store submission in both places:
       // 1. In shift_submissions collection (for admin queries)
       const docRef = await addDoc(collection(db, 'shift_submissions'), submissionData);
-      console.log("ShiftSubmission.create: Successfully created in shift_submissions with ID:", docRef.id);
       
       // 2. In user document (for easier access) - use uid for consistent identification
       if (data.uid) {
@@ -68,7 +64,6 @@ export class ShiftSubmission {
           };
           
           await updateDoc(userDoc, weeklyShifts);
-          console.log("ShiftSubmission.create: Also saved to user document:", data.uid);
         } catch (userError) {
           console.error('ShiftSubmission.create: Error updating user document:', userError);
           // Continue even if user update fails
@@ -84,7 +79,6 @@ export class ShiftSubmission {
 
   static async update(id, data) {
     try {
-      console.log("ShiftSubmission.update: Updating submission:", id, data);
       
       // Upsert in shift_submissions collection. setDoc with merge avoids the
       // "No document to update" error when the id points at a non-existent
@@ -99,7 +93,6 @@ export class ShiftSubmission {
         },
         { merge: true }
       );
-      console.log("ShiftSubmission.update: Successfully upserted in shift_submissions");
       
       // Also update in user document if we have uid - use uid for consistent identification
       if (data.uid && data.week_start) {
@@ -112,7 +105,6 @@ export class ShiftSubmission {
           };
           
           await updateDoc(userDoc, weeklyShifts);
-          console.log("ShiftSubmission.update: Also updated user document:", data.uid);
         } catch (userError) {
           console.error('ShiftSubmission.update: Error updating user document:', userError);
         }
@@ -127,9 +119,7 @@ export class ShiftSubmission {
 
   static async delete(id) {
     try {
-      console.log("ShiftSubmission.delete: Deleting submission:", id);
       await deleteDoc(doc(db, 'shift_submissions', id));
-      console.log("ShiftSubmission.delete: Successfully deleted");
       return Promise.resolve();
     } catch (error) {
       console.error('ShiftSubmission.delete: Error deleting:', error);

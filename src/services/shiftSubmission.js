@@ -16,11 +16,6 @@ export class ShiftSubmissionService {
   // Submit shift preferences for a soldier
   static async submitPreferences(userId, userName, weekStart, preferences, longShiftDays = {}, notes = '') {
     try {
-      console.log('ShiftSubmissionService: Submitting preferences for user:', userId);
-      console.log('ShiftSubmissionService: Week:', weekStart);
-      console.log('ShiftSubmissionService: Preferences:', preferences);
-      console.log('ShiftSubmissionService: Long shift days:', longShiftDays);
-      console.log('ShiftSubmissionService: Notes:', notes);
 
       // Create a unique document ID based on user and week
       const docId = `${userId}_${weekStart}`;
@@ -40,7 +35,6 @@ export class ShiftSubmissionService {
       // Use setDoc to create or update the document
       await setDoc(doc(db, 'shift_preferences', docId), submissionData);
 
-      console.log('ShiftSubmissionService: Preferences saved successfully with long shift days');
       return { success: true, id: docId };
 
     } catch (error) {
@@ -52,7 +46,6 @@ export class ShiftSubmissionService {
   // Get preferences for a specific soldier and week
   static async getPreferences(userId, weekStart) {
     try {
-      console.log('ShiftSubmissionService: Getting preferences for:', userId, weekStart);
       
       const docId = `${userId}_${weekStart}`;
       const docRef = doc(db, 'shift_preferences', docId);
@@ -60,14 +53,12 @@ export class ShiftSubmissionService {
       
       if (docSnap.exists()) {
         const data = docSnap.data();
-        console.log('ShiftSubmissionService: Found preferences:', data);
         return {
           id: docSnap.id,
           ...data,
           updatedAt: data.updatedAt?.toDate() || new Date()
         };
       } else {
-        console.log('ShiftSubmissionService: No preferences found');
         return null;
       }
       
@@ -80,7 +71,6 @@ export class ShiftSubmissionService {
   // Get all preferences for a specific week (admin use)
   static async getWeekPreferences(weekStart) {
     try {
-      console.log('ShiftSubmissionService: Getting all preferences for week:', weekStart);
       
       const preferencesRef = collection(db, 'shift_preferences');
       const q = query(
@@ -95,7 +85,6 @@ export class ShiftSubmissionService {
         updatedAt: doc.data().updatedAt?.toDate() || new Date()
       }));
       
-      console.log('ShiftSubmissionService: Found preferences:', preferences.length);
       return preferences;
       
     } catch (error) {
@@ -118,7 +107,6 @@ export class ShiftSubmissionService {
   // Get submission history for a soldier
   static async getSubmissionHistory(userId) {
     try {
-      console.log('ShiftSubmissionService: Getting submission history for:', userId);
       
       const preferencesRef = collection(db, 'shift_preferences');
       const q = query(
@@ -136,7 +124,6 @@ export class ShiftSubmissionService {
       // Sort by week descending
       history.sort((a, b) => b.weekStart.localeCompare(a.weekStart));
       
-      console.log('ShiftSubmissionService: Found history entries:', history.length);
       return history;
       
     } catch (error) {

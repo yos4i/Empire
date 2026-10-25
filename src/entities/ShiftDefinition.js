@@ -50,7 +50,6 @@ export class ShiftDefinition {
   // Get all shift definitions
   static async list() {
     try {
-      console.log('ShiftDefinition: Fetching shift definitions');
       
       const shiftsRef = collection(db, 'shift_definitions');
       const q = query(shiftsRef, orderBy('order', 'asc'));
@@ -59,7 +58,6 @@ export class ShiftDefinition {
       let shifts = [];
       
       if (snapshot.empty) {
-        console.log('ShiftDefinition: No shifts found, initializing defaults');
         // Initialize with default shifts
         for (const shift of this.defaultShifts) {
           const docRef = await addDoc(shiftsRef, shift);
@@ -72,7 +70,6 @@ export class ShiftDefinition {
         }));
       }
       
-      console.log('ShiftDefinition: Loaded shifts:', shifts.length);
       return shifts;
       
     } catch (error) {
@@ -85,7 +82,6 @@ export class ShiftDefinition {
   // Create a new shift definition
   static async create(shiftData) {
     try {
-      console.log('ShiftDefinition: Creating shift:', shiftData);
       
       const shiftsRef = collection(db, 'shift_definitions');
       const docRef = await addDoc(shiftsRef, {
@@ -93,7 +89,6 @@ export class ShiftDefinition {
         created_at: new Date()
       });
       
-      console.log('ShiftDefinition: Shift created with ID:', docRef.id);
       return { id: docRef.id, ...shiftData };
       
     } catch (error) {
@@ -105,7 +100,6 @@ export class ShiftDefinition {
   // Update a shift definition
   static async update(shiftId, updates) {
     try {
-      console.log('ShiftDefinition: Updating shift:', shiftId, updates);
       
       const shiftRef = doc(db, 'shift_definitions', shiftId);
       await updateDoc(shiftRef, {
@@ -113,7 +107,6 @@ export class ShiftDefinition {
         updated_at: new Date()
       });
       
-      console.log('ShiftDefinition: Shift updated');
       return { success: true };
       
     } catch (error) {
@@ -125,11 +118,9 @@ export class ShiftDefinition {
   // Delete a shift definition
   static async delete(shiftId) {
     try {
-      console.log('ShiftDefinition: Deleting shift:', shiftId);
       
       await deleteDoc(doc(db, 'shift_definitions', shiftId));
       
-      console.log('ShiftDefinition: Shift deleted');
       return { success: true };
       
     } catch (error) {
@@ -141,7 +132,6 @@ export class ShiftDefinition {
   // Get shifts for a specific unit
   static async getUnitShifts(unit) {
     try {
-      console.log('ShiftDefinition: Fetching shifts for unit:', unit);
       
       const allShifts = await this.list();
       
@@ -150,7 +140,6 @@ export class ShiftDefinition {
         !shift.unit_specific || shift.unit === unit
       );
       
-      console.log('ShiftDefinition: Found unit shifts:', unitShifts.length);
       return unitShifts;
       
     } catch (error) {
