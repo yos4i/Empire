@@ -141,6 +141,7 @@ const TUESDAY_SLOTS: SlotInit[] = [
   { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
   { loc: 'חטיבה', start: '13:45', end: '14:15', required: 2, isReinforcement: true },
   { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
+  { loc: 'חטיבה', start: '14:45', end: '15:15', required: 1, isReinforcement: true },
   { loc: 'חטיבה', start: '15:45', end: '16:15', required: 0, isReinforcement: true, everyone: true },
 ];
 
@@ -169,9 +170,10 @@ const WEDNESDAY_SLOTS: SlotInit[] = [
   { loc: 'חטיבה', start: '11:00', end: '12:30', required: 1 },
   { loc: 'חטיבה', start: '12:30', end: '13:30', required: 1 },
   { loc: 'חטיבה', start: '13:30', end: '14:30', required: 1 },
-  { loc: 'חטיבה', start: '12:45', end: '13:15', required: 2, isReinforcement: true },
+  { loc: 'חטיבה', start: '13:45', end: '14:15', required: 2, isReinforcement: true },
   // חטיבה — afternoon (evening roster)
   { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
+  { loc: 'חטיבה', start: '14:45', end: '15:15', required: 1, isReinforcement: true },
   { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },
   { loc: 'חטיבה', start: '15:45', end: '16:15', required: 2, isReinforcement: true },
   { loc: 'חטיבה', start: '17:30', end: '18:00', required: 0, isReinforcement: true, everyone: true },
@@ -206,6 +208,7 @@ const THURSDAY_SLOTS: SlotInit[] = [
   { loc: 'חטיבה', start: '13:45', end: '14:15', required: 1, isReinforcement: true },
   // חטיבה — afternoon (evening roster)
   { loc: 'חטיבה', start: '14:30', end: '15:30', required: 1 },
+  { loc: 'חטיבה', start: '14:45', end: '15:15', required: 1, isReinforcement: true },
   { loc: 'חטיבה', start: '15:30', end: '16:15', required: 1 },
   { loc: 'חטיבה', start: '15:45', end: '16:15', required: 1, isReinforcement: true },
   { loc: 'חטיבה', start: '17:30', end: '18:00', required: 0, isReinforcement: true, everyone: true },
